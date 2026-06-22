@@ -23,7 +23,7 @@ set -euo pipefail
 
 COMPOSE_FILE="${COMPOSE_FILE:-$(dirname "$0")/docker-compose.yml}"
 REMOTE_DIR="${REMOTE_DIR:-/opt/toolset}"
-SSH_HOST="${SSH_HOST:-opc@100.77.183.125}"
+SSH_HOST="${SSH_HOST:-opc@toolset-oci-1}"
 
 # --- Validate required secrets ---
 REQUIRED_VARS=(

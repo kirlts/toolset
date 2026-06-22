@@ -8,7 +8,7 @@ on:
 
 env:
   INFRA_DIR: ./infrastructure
-  SSH_HOST: opc@100.77.183.125
+  SSH_HOST: opc@toolset-oci-1
   REMOTE_DIR: /opt/toolset
 
 jobs:
