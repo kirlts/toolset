@@ -12,6 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Aprovisionamiento base de red virtual (VCN) en OCI utilizando OpenTofu (`infrastructure/`).
 - Integración de Workload Identity Federation (Identity Propagation Trust) en OCI para GitHub Actions.
 - Flujo automatizado de CI/CD en `.github/workflows/deploy.yml` para despliegues de OpenTofu desde GitHub.
+- Creación de Confidential App y Identity Propagation Trust "GitHub Actions Toolset Trust" vía SCIM API en el dominio OCI.
+- Generación de API key para `svc_github_actions` como puente temporal de autenticación.
+
+### Fixed
+- Pipeline CI/CD funcional con autenticación API key. El flujo OIDC/Identity Propagation Trust no logró completar el token exchange contra `/oauth2/v1/token` del dominio (error `invalid_request` persistente). Documentado como deuda técnica.
 
 ### Changed
 - Sincronización masiva del eje documental con la especificación `Toolset Junio 2026.md` ejecutada bajo `/document` en modo incremental.

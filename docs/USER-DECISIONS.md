@@ -64,3 +64,23 @@
 - Se ha eliminado la dependencia de interfaces de usuario propensas a errores para la limpieza de infraestructura pesada.
 
 **Reversion conditions:** Cambio a otra plataforma CI/CD distinta de GitHub Actions que no soporte OIDC nativo, o si Oracle depreca la API de Identity Propagation Trust.
+
+---
+
+## [UD-004] API Key como puente temporal para CI/CD ante falla de OIDC
+
+**Date:** 2026-06-22
+
+**Context:** Tras configurar exitosamente la Confidential App y el Identity Propagation Trust en OCI, el token exchange desde GitHub Actions contra `/oauth2/v1/token` del dominio retornó repetidamente `invalid_request`. Se probaron grant types `urn:ietf:params:oauth:grant-type:token-exchange` y `urn:ietf:params:oauth:grant-type:jwt-bearer`, con Basic auth y form params, con audiencia `oci` y con la URL del token endpoint. Ninguna combinación funcionó.
+
+**Decision:** Para destrabar el pipeline, se optó por almacenar una API key del usuario `svc_github_actions` como secret de GitHub (`OCI_API_KEY`). La autenticación del pipeline CI/CD funciona con API key mientras se resuelve el flujo OIDC.
+
+**Discarded alternatives:**
+- Seguir debugueando el exchange OIDC sin fecha de resolución clara (descartado por bloqueo del avance del proyecto).
+
+**Consequences:**
+- El pipeline de OpenTofu despliega contra OCI exitosamente.
+- Se introduce una llave estática que debe rotarse manualmente (en contra del principio Zero Trust de UD-003).
+- La infraestructura OIDC (Trust, Confidential App) queda configurada y lista para reactivarse cuando se resuelva el exchange.
+
+**Reversion conditions:** Resolver el token exchange OIDC, eliminar el secret `OCI_API_KEY` del repositorio, y restaurar el flujo de Identity Propagation Trust.

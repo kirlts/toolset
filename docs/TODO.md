@@ -60,8 +60,9 @@
 **Covered checks:** `[DEV.CR.04.LLM]`, `[USER.FN.03.HUM]`
 
 - [x] Investigar requisitos técnicos exactos y generar configuración (ej. OpenTofu) para OCI. 2026-06-22 05:40:00 [🤖 Verified by tool]
-- [x] Configurar Workload Identity Federation (Identity Propagation Trust) para GitHub Actions. 2026-06-22 05:40:00 [🤖 Verified by tool]
+- [⚠️] Configurar Workload Identity Federation (Identity Propagation Trust) para GitHub Actions. Trust creado pero token exchange no funcional — ver TECHNICAL-DEBT.md. 2026-06-22 06:30:00 [🤖 Verified by tool]
 - [x] Desplegar red base (VCN y Subnet) usando OpenTofu. 2026-06-22 05:40:00 [🤖 Verified by tool]
+- [x] Pipeline CI/CD funcional con autenticación API key (puente temporal). 2026-06-22 06:36:00 [🤖 Verified by tool]
 - [ ] Desplegar instancia de cómputo base y validar que los puertos públicos estén cerrados.
 - [ ] Investigar y configurar Tailscale para crear la red privada.
 
