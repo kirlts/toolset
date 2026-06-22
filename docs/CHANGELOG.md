@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Creación de `.gitignore` robusto ignorando artefactos de Terraform, Python, Node y archivos de Kairós.
+- Aprovisionamiento base de red virtual (VCN) en OCI utilizando OpenTofu (`infrastructure/`).
+- Integración de Workload Identity Federation (Identity Propagation Trust) en OCI para GitHub Actions.
+- Flujo automatizado de CI/CD en `.github/workflows/deploy.yml` para despliegues de OpenTofu desde GitHub.
+
 ### Changed
 - Sincronización masiva del eje documental con la especificación `Toolset Junio 2026.md` ejecutada bajo `/document` en modo incremental.
 - `MASTER-SPEC.md`: Desglose arquitectónico en Fase 1 (Transición Cloud/MCP) y Fase 2 (Soberanía OCI).

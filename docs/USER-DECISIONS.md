@@ -44,3 +44,23 @@
 - Dependencia del servicio Hindsight (vectorize.io).
 
 **Reversion conditions:** Migracion a un modelo vectorial auto-hospedado (self-hosted vector database) en OCI en caso de requerir offline completo o mayor privacidad de datos.
+
+---
+
+## [UD-003] Workload Identity Federation (OIDC) para GitHub Actions
+
+**Date:** 2026-06-22
+
+**Context:** El paso de credenciales de seguridad entre GitHub y OCI tradicionalmente requería almacenar claves privadas (.pem) de larga duración como secretos de repositorio, lo que aumenta la superficie de ataque y rompe el patrón de cero confianza (Zero Trust). Además, el aprovisionamiento de OCI requería limpiar VCNs heredadas que la Web UI bloqueaba.
+
+**Decision:** El usuario delegó al sistema la eliminación forzada de los recursos limitantes mediante `oci` CLI local, y aprobó la implementación de *Identity Propagation Trust* para federar GitHub Actions. OpenTofu asume credenciales inyectadas sin estado persistente.
+
+**Discarded alternatives:**
+- Almacenar la llave privada en los Secretos de GitHub (descartado por mala práctica de seguridad).
+- Utilizar el proveedor de Terraform para dominios de identidad OCI (descartado debido a un error crítico `400-BadErrorResponse` del proveedor para estos recursos).
+
+**Consequences:**
+- Las rotaciones de credenciales de CI/CD ya no son necesarias.
+- Se ha eliminado la dependencia de interfaces de usuario propensas a errores para la limpieza de infraestructura pesada.
+
+**Reversion conditions:** Cambio a otra plataforma CI/CD distinta de GitHub Actions que no soporte OIDC nativo, o si Oracle depreca la API de Identity Propagation Trust.

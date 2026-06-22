@@ -1,0 +1,50 @@
+# General
+.DS_Store
+*.log
+
+# Terraform / OpenTofu
+.terraform/
+*.tfstate
+*.tfstate.backup
+.terraform.lock.hcl
+crash.log
+
+# OCI / Keys
+*.pem
+*.key
+.oci/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Node
+node_modules/
+dist/
+
+# IDEs
+.vscode/
+.idea/
+
+# Kairós working files (never commit)
+KAIROS-UPDATE.md
+notes.md
+KAIROS-SNAPSHOT.md
+KAIROS-WORK.md
+.agents/scratch/
+
+# Kairós roles (personal)
+.agents/roles/*
+!.agents/roles/.gitkeep
+
+# Kairós Living Document
+docs/LIVING-DOCUMENT.md
+docs/*.epub

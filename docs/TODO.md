@@ -59,8 +59,10 @@
 
 **Covered checks:** `[DEV.CR.04.LLM]`, `[USER.FN.03.HUM]`
 
-- [ ] Investigar requisitos técnicos exactos y generar configuración (ej. OpenTofu) para OCI.
-- [ ] Desplegar instancia base y validar que los puertos públicos estén cerrados.
+- [x] Investigar requisitos técnicos exactos y generar configuración (ej. OpenTofu) para OCI. 2026-06-22 05:40:00 [🤖 Verified by tool]
+- [x] Configurar Workload Identity Federation (Identity Propagation Trust) para GitHub Actions. 2026-06-22 05:40:00 [🤖 Verified by tool]
+- [x] Desplegar red base (VCN y Subnet) usando OpenTofu. 2026-06-22 05:40:00 [🤖 Verified by tool]
+- [ ] Desplegar instancia de cómputo base y validar que los puertos públicos estén cerrados.
 - [ ] Investigar y configurar Tailscale para crear la red privada.
 
 ---

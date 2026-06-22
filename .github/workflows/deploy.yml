@@ -1,0 +1,48 @@
+name: Deploy OpenTofu to OCI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+# Permisos estrictos requeridos para OIDC
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  opentofu:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Código
+        uses: actions/checkout@v4
+
+      # (Opcional por ahora) Inyección Dinámica de Secretos (Infisical)
+      # - name: Inyectar Secretos de Infisical
+      #   uses: Infisical/secrets-action@v1.0.7
+
+      # Autenticación OIDC con Oracle Cloud
+      - name: Configurar OCI CLI con Workload Identity Federation
+        uses: oracle-actions/configure-oci-cli@v1.1.1
+        with:
+          tenancy: ${{ secrets.OCI_TENANCY_OCID }}
+          # El OCID de la aplicación confidencial creada en OCI
+          # oauth_client_id: ${{ secrets.OCI_OAUTH_CLIENT_ID }}
+
+      - name: Instalar OpenTofu
+        uses: opentofu/setup-opentofu@v1
+
+      - name: Inicializar OpenTofu
+        working-directory: ./infrastructure
+        run: tofu init
+
+      - name: Tofu Plan (Solo PRs)
+        if: github.event_name == 'pull_request'
+        working-directory: ./infrastructure
+        run: tofu plan
+
+      - name: Tofu Apply (Solo Main)
+        if: github.ref == 'refs/heads/main'
+        working-directory: ./infrastructure
+        run: tofu apply -auto-approve
