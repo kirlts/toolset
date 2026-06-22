@@ -164,11 +164,11 @@ LANDING_HTML=$(cat <<EOF
 <div class="tree">
 <pre>
   <span class="path">/</span>                        <span class="desc">Landing page</span>            <span class="status">✅ 200</span>
-  <span class="pipe">├──</span> <span class="path"><a href="/infisical/">/infisical/</a></span>              <span class="desc">Infisical &mdash; Gestor de Secretos</span>    <span class="status">✅ 200</span>
+  <span class="pipe">├──</span> <span class="path"><a href="/">/</a></span>                        <span class="desc">Infisical &mdash; Gestor de Secretos</span>    <span class="status">✅ 200</span>
   <span class="pipe">├──</span> <span class="path"><a href="/hindsight/health">/hindsight/health</a></span>        <span class="desc">Hindsight &mdash; API Health</span>           <span class="status">✅ 200</span>
   <span class="pipe">├──</span> <span class="path"><a href="/hindsight/mcp/">/hindsight/mcp/</a></span>          <span class="desc">Hindsight &mdash; MCP (harnesses)</span>      <span class="status">✅ 200</span>
   <span class="pipe">├──</span> <span class="path"><a href="/hindsight/docs">/hindsight/docs</a></span>          <span class="desc">Hindsight &mdash; API Docs (Swagger)</span>   <span class="status">✅ 200</span>
-  <span class="pipe">└──</span> <span class="path"><a href="/cpanel/">/cpanel/</a></span>                 <span class="desc">Hindsight &mdash; Control Plane</span>        <span class="status">✅ 308</span>
+  <span class="pipe">└──</span> <span class="path"><a href="/dashboard">/dashboard</a></span>                <span class="desc">Hindsight &mdash; Control Plane</span>        <span class="status">✅ 200</span>
 </pre>
 </div>
 <div class="meta">
@@ -215,9 +215,10 @@ echo ""
 echo "  Funnel URL:  https://${CADDY_DOMAIN}/"
 echo ""
 echo "  ── Services ──────────────────────────────"
-  echo "  Infisical        https://${CADDY_DOMAIN}/infisical/"
+  echo "  Services         https://${CADDY_DOMAIN}/status/"
+  echo "  Infisical        https://${CADDY_DOMAIN}/"
   echo "  Hindsight API    https://${CADDY_DOMAIN}/hindsight/health"
-  echo "  Hindsight CP     https://${CADDY_DOMAIN}/cpanel/"
+  echo "  Hindsight CP     https://${CADDY_DOMAIN}/dashboard"
   echo "  Hindsight MCP    https://${CADDY_DOMAIN}/hindsight/mcp/"
   echo "  API Docs         https://${CADDY_DOMAIN}/hindsight/docs"
 echo ""

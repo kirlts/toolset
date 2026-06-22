@@ -8,36 +8,34 @@
 
 :8080 {
     # Hindsight API (health, v1/*, docs, mcp, openapi.json, etc.)
-    handle /hindsight/* {
+    @hindsight path_regexp /hindsight/.+
+    handle @hindsight {
         uri strip_prefix /hindsight
         reverse_proxy hindsight:8888
     }
 
-    # Hindsight API resources needed by Swagger UI (cargados desde la raiz)
-    handle /openapi.json {
+    # Hindsight Control Plane (served at /dashboard, redirects from legacy /cpanel)
+    @cp path_regexp /dashboard(/.*)?
+    handle @cp {
+        reverse_proxy hindsight:9999
+    }
+    redir /cpanel{uri} /dashboard{uri} 301
+
+    # Swagger UI needs openapi.json from Hindsight
+    @openapi path /openapi.json
+    handle @openapi {
         reverse_proxy hindsight:8888
     }
 
-    # Hindsight Control Plane UI
-    handle /cpanel/* {
-        reverse_proxy hindsight:9999
-    }
-
-    # Infisical (strippear prefix para que el SPA funcione en /)
-    handle /infisical/* {
-        uri strip_prefix /infisical
-        reverse_proxy infisical:8080
-    }
-
-    # Landing page generada por deploy.sh
-    @root expression `{http.request.uri.path} == '/'`
-    handle @root {
+    # Service directory/landing page
+    @status path_regexp /status(/.*)?
+    handle @status {
         root * /usr/share/caddy/landing
-        try_files index.html
+        try_files {path} index.html
         file_server
     }
 
-    # Todo lo demas -> Infisical (catch-all para assets root-relative)
+    # Everything else → Infisical (catch-all, SPA works natively at root)
     handle {
         reverse_proxy infisical:8080
     }
