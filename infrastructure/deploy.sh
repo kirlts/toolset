@@ -54,7 +54,7 @@ OPENCODE_GO_API_KEY=${OPENCODE_GO_API_KEY}
 HINDSIGHT_API_LLM_PROVIDER=openai
 HINDSIGHT_API_LLM_MODEL=deepseek-v4-flash
 HINDSIGHT_API_LLM_BASE_URL=https://opencode.ai/zen/go/v1
-FUNNEL_DOMAIN=${FUNNEL_DOMAIN:-toolset-oci-1.tail2d4c18.ts.net}
+FUNNEL_DOMAIN=${FUNNEL_DOMAIN:-toolset-oci-1-1.tail2d4c18.ts.net}
 EOF
 )
 
@@ -73,7 +73,7 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   "echo '${ENV_B64}' | base64 -d | sudo tee ${REMOTE_DIR}/.env > /dev/null"
 
 # --- Transfer Caddyfile (must precede compose up) ---
-CADDY_DOMAIN="${FUNNEL_DOMAIN:-toolset-oci-1.tail2d4c18.ts.net}"
+CADDY_DOMAIN="${FUNNEL_DOMAIN:-toolset-oci-1-1.tail2d4c18.ts.net}"
 CADDYFILE_DIR="$(dirname "${COMPOSE_FILE}")"
 CADDYFILE="${CADDYFILE_DIR}/Caddyfile"
 if [ -f "$CADDYFILE" ]; then
@@ -182,7 +182,7 @@ LANDING_HTML=$(cat <<EOF
   Abre el <a href="/dashboard" style="color:#7ec8e3;">Control Plane</a> para ver todos los banks disponibles.
 </p>
 <div class="meta">
-  <p>MCP: <code>opencodego://toolset-oci-1.tail2d4c18.ts.net/hindsight/mcp/</code></p>
+  <p>MCP: <code>opencodego://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/mcp/</code></p>
   <p>Deploy: $(date -u +"%Y-%m-%d %H:%M UTC") &bull; OCI &bull; VM.Standard.A1.Flex &bull; ARM64</p>
 </div>
 </body>
