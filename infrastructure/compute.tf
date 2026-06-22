@@ -56,7 +56,7 @@ resource "oci_core_instance" "toolset" {
   }
 
   metadata = {
-    ssh_authorized_keys = var.ssh_public_key != "" ? var.ssh_public_key : file(var.ssh_public_key_path)
+    ssh_authorized_keys = var.ssh_public_key != "" ? var.ssh_public_key : try(file(var.ssh_public_key_path), "")
     user_data           = base64encode(templatefile("${path.module}/cloud-init.yaml", {
       tailscale_auth_key       = var.tailscale_auth_key
       infisical_encryption_key = var.infisical_encryption_key

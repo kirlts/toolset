@@ -140,6 +140,11 @@ write_files:
       tailscale up --auth-key=${tailscale_auth_key} --hostname=toolset-oci-1 --accept-routes --ssh || \
         echo "[bootstrap] WARNING: tailscale up failed (key may need regeneration)"
 
+      # ---- Allow standard SSH via Tailscale tunnel (100.64.0.0/10) ----
+      echo "[bootstrap] Adding firewall rule for Tailscale SSH..."
+      firewall-cmd --permanent --add-rich-rule='rule family="ipv4" source address="100.64.0.0/10" port port="22" protocol="tcp" accept'
+      firewall-cmd --reload
+
       # ---- Start Docker services ----
       echo "[bootstrap] Pulling and starting Docker services..."
       cd /opt/toolset
