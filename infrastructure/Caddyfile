@@ -7,9 +7,14 @@
 }
 
 :8080 {
-    # Hindsight API (health, v1/*, docs, mcp, etc.)
+    # Hindsight API (health, v1/*, docs, mcp, openapi.json, etc.)
     handle /hindsight/* {
         uri strip_prefix /hindsight
+        reverse_proxy hindsight:8888
+    }
+
+    # Hindsight API resources needed by Swagger UI (cargados desde la raiz)
+    handle /openapi.json {
         reverse_proxy hindsight:8888
     }
 
@@ -18,8 +23,11 @@
         reverse_proxy hindsight:9999
     }
 
-    # Redirects
-    redir /dashboard /cpanel/ 301
+    # Infisical (strippear prefix para que el SPA funcione en /)
+    handle /infisical/* {
+        uri strip_prefix /infisical
+        reverse_proxy infisical:8080
+    }
 
     # Landing page generada por deploy.sh
     @root expression `{http.request.uri.path} == '/'`
@@ -29,7 +37,7 @@
         file_server
     }
 
-    # Todo lo demas -> Infisical (SPA con assets root-relative)
+    # Todo lo demas -> Infisical (catch-all para assets root-relative)
     handle {
         reverse_proxy infisical:8080
     }

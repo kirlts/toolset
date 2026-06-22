@@ -168,8 +168,7 @@ LANDING_HTML=$(cat <<EOF
   <span class="pipe">├──</span> <span class="path"><a href="/hindsight/health">/hindsight/health</a></span>        <span class="desc">Hindsight &mdash; API Health</span>           <span class="status">✅ 200</span>
   <span class="pipe">├──</span> <span class="path"><a href="/hindsight/mcp/">/hindsight/mcp/</a></span>          <span class="desc">Hindsight &mdash; MCP (harnesses)</span>      <span class="status">✅ 200</span>
   <span class="pipe">├──</span> <span class="path"><a href="/hindsight/docs">/hindsight/docs</a></span>          <span class="desc">Hindsight &mdash; API Docs (Swagger)</span>   <span class="status">✅ 200</span>
-  <span class="pipe">├──</span> <span class="path"><a href="/cpanel/">/cpanel/</a></span>                 <span class="desc">Hindsight &mdash; Control Plane</span>        <span class="status">✅ 308</span>
-  <span class="pipe">└──</span> <span class="path"><a href="/dashboard">/dashboard</a></span>               <span class="desc">Redirecciona a /cpanel/</span>            <span class="status">✅ 301</span>
+  <span class="pipe">└──</span> <span class="path"><a href="/cpanel/">/cpanel/</a></span>                 <span class="desc">Hindsight &mdash; Control Plane</span>        <span class="status">✅ 308</span>
 </pre>
 </div>
 <div class="meta">
