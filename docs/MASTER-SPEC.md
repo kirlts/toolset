@@ -61,12 +61,14 @@
 | --- | --- | --- |
 | Local Engine | Antigravity 2.0 | Motor principal de deliberacion y planificacion local. |
 | Local Editor | Kilo Code (VS Code Extension) + OpenCode Go | Entorno por defecto conectado a OpenCode Go bajo suscripcion fija, integrado con Composio y Hindsight en modo Cloud (Fase 1). |
-| Provisioning | OpenTofu (Planned) | Aprovisionamiento declarativo e inmutable de la infraestructura. |
-| Network | Tailscale and Funnel (Planned) | Red privada entre local y nube sin exposicion de puertos publicos. |
-| Secrets | Infisical (Planned) | Gestion de variables de entorno inyectadas directamente en memoria. |
-| Sandbox | Daytona (Planned) | Creacion de micro-contenedores aislados para pruebas de codigo. |
-| Memory | Hindsight | Fase 1: Cloud MCP (vectorize.io). Fase 2: Self-hosted en OCI. Base de conocimiento centralizada. |
-| Integration | Composio | Pasarela de autenticacion OAuth para integraciones externas (Activo). |
+| Provisioning | OpenTofu | Aprovisionamiento declarativo e inmutable de la infraestructura. Activo. |
+| Network | Tailscale (Funnel Planned) | Red privada entre local y nube sin exposicion de puertos publicos. Activo. |
+| Container Runtime | Docker 29 + Compose Plugin | Orquestacion de servicios en el servidor OCI. Activo. |
+| Secrets | Infisical (Self-hosted en OCI) | Gestion de variables de entorno inyectadas directamente en memoria. Desplegado, pendiente integracion con servicios. |
+| Infisical Dependencies | PostgreSQL 16, Redis 7 | Base de datos y cache/cola requeridos por Infisical self-hosted. Activos. |
+| Sandbox | Daytona (Planned) | Creacion de micro-contenedores aislados para pruebas de codigo. Pendiente. |
+| Memory | Hindsight (self-hosted pendiente en OCI) | Base de conocimiento centralizada. Cloud actual; self-hosted en OCI con `ghcr.io/vectorize-io/hindsight:latest` vía Docker. Requiere pgvector + LLM API key. |
+| Integration | Composio | Pasarela de autenticacion OAuth para integraciones externas. Activo. |
 
 ---
 

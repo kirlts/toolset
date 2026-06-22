@@ -84,3 +84,79 @@
 - La infraestructura OIDC (Trust, Confidential App) queda configurada y lista para reactivarse cuando se resuelva el exchange.
 
 **Reversion conditions:** Resolver el token exchange OIDC, eliminar el secret `OCI_API_KEY` del repositorio, y restaurar el flujo de Identity Propagation Trust.
+
+---
+
+## [UD-005] Instancia ARM (A1.Flex) en lugar de AMD (E2.1.Micro)
+
+**Date:** 2026-06-22
+
+**Context:** La instancia VM.Standard.E2.1.Micro (AMD, 1 GB RAM) era insuficiente para el stack Toolset (Hindsight, Infisical, Daytona, Hermes). Se requería al menos 12 GB de RAM para operar todos los servicios.
+
+**Decision:** Desplegar VM.Standard.A1.Flex (Ampere ARM) con 2 OCPU y 12 GB RAM, el máximo permitido en el Always Free Tier de OCI.
+
+**Discarded alternatives:**
+- Usar dos instancias E2.1.Micro (1 GB cada una) y distribuir servicios (descartado: 1 GB es insuficiente para cualquier servicio individual del stack).
+
+**Consequences:**
+- Stack completo cabe en una sola instancia con margen de recursos.
+- ARM64 requiere imágenes Docker compatibles con arquitectura aarch64 (verificado: Docker, PostgreSQL, Redis, Infisical, Tailscale todos soportan ARM64).
+- Oracle Linux Cloud Developer no disponible para ARM — se usó OL9 estándar.
+- Disponibilidad de A1.Flex en sa-valparaiso-1 depende de capacidad del datacenter (riesgo en redeploy).
+
+---
+
+## [UD-006] Infisical con PostgreSQL en lugar de SQLite
+
+**Date:** 2026-06-22
+
+**Context:** La versión actual de Infisical (v0.161.3) no soporta SQLite como backend de base de datos. Requiere PostgreSQL obligatoriamente, además de Redis para caché/cola.
+
+**Decision:** Agregar contenedores de PostgreSQL 16 y Redis 7 al Docker Compose como dependencias de Infisical.
+
+**Discarded alternatives:**
+- Usar una versión anterior de Infisical con soporte SQLite (descartado: riesgo de seguridad y falta de soporte).
+- No desplegar Infisical hasta que sea necesario (descartado: el usuario quiere el stack completo listo).
+
+**Consequences:**
+- Stack de contenedores crece de 1 a 4 servicios (infisical, postgres, redis, + futuros).
+- Consumo adicional de RAM/CPU aceptable dentro de los 12 GB disponibles.
+- PostgreSQL y Redis usan imágenes Alpine optimizadas para ARM64.
+
+---
+
+## [UD-007] Hindsight auto-hosted en OCI como siguiente paso
+
+**Date:** 2026-06-22
+
+**Context:** El plan original (MASTER-SPEC §3) contemplaba migrar Hindsight a self-hosted en OCI. Se investigó y el Docker image `ghcr.io/vectorize-io/hindsight:latest` sí está disponible para ARM64. Requiere PostgreSQL 14+ con pgvector y una LLM API key.
+
+**Decision:** Agregar Hindsight self-hosted al roadmap del Toolset. Migrar el bank "toolset" desde hindsight cloud al auto-hosted en OCI.
+
+**Requirements:**
+- Instalar extensión pgvector en PostgreSQL 16 existente.
+- Configurar Hindsight con LLM provider (OpenAI / Groq / Ollama).
+- Migrar datos del bank "toolset" desde cloud.
+- Actualizar configuración MCP en Kilo Code.
+
+**Consequences:**
+- La migración de Hindsight a self-hosted elimina la dependencia del servicio cloud de vectorize.io.
+- Permite completar la Fase 2 de soberanía de infraestructura.
+
+---
+
+## [UD-008] SSH público cerrado, acceso exclusivo por Tailscale
+
+**Date:** 2026-06-22
+
+**Context:** MASTER-SPEC §4.2 exige que ningún puerto del servidor OCI esté expuesto públicamente. El puerto SSH (22) estaba abierto como conveniencia temporal durante el bootstrap.
+
+**Decision:** Restringir SSH entrante a solo la VCN (10.0.0.0/16). El acceso real se realiza vía Tailscale (IP 100.77.183.125).
+
+**Discarded alternatives:**
+- Cerrar SSH completamente y depender de Tailscale SSH (descartado: SELinux en OL9 bloquea Tailscale SSH; se requiere acceso de emergencia vía VCN).
+- Usar OCI Bastion como alternativa (descartado: añade complejidad innecesaria cuando Tailscale ya funciona).
+
+**Consequences:**
+- El bootstrap de una instancia nueva requiere abrir SSH temporalmente (~5-8 min hasta que Tailscale conecte).
+- Documentado como limitación conocida en la especificación del proyecto.

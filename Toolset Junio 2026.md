@@ -1,6 +1,6 @@
 # **Especificación de Toolset Personal**
 
-# **Junio 2026**
+# **Junio 2026** (Actualizado: 2026-06-22)
 
 Este documento define la infraestructura técnica para un *solo-dev* autónomo. El diseño prioriza la separación de responsabilidades entre la deliberación profunda en local y la ejecución asíncrona en la nube, mitigando el *vendor lock-in* y los costos variables de infraestructura.
 
@@ -17,13 +17,27 @@ La estación de trabajo gestiona la planificación, la edición quirúrgica y la
 
 La infraestructura opera como un nodo de ejecución persistente (24/7) en el nivel gratuito de OCI.
 
-* **Aprovisionamiento (OpenTofu):** Infraestructura inmutable. Define y despliega todo el stack desde cero mediante archivos de configuración declarativa, eliminando la configuración manual (SSH o Web UI).  
-* **Red (Tailscale & Funnel):** Crea una red privada (VLAN) que une la workstation local con el servidor en la nube sin exponer puertos públicos. "Tailscale Funnel" actúa como receptor seguro de eventos (webhooks) desde repositorios remotos.  
-* **Gestión de Secretos (Infisical):** Elimina el almacenamiento de archivos .env. Inyecta credenciales y tokens directamente en memoria durante el tiempo de ejecución (local o en *sandbox*).  
-* **Orquestación (Hermes Agent):** Procesa órdenes vía mensajería (WhatsApp/Discord). Delega tareas a subagentes, razona sobre el estado global y mantiene un hilo único de ejecución.  
-* **Sandboxing (Daytona):** Entorno de ejecución aislado. Clona repositorios en micro-contenedores temporales, ejecuta pruebas (Playwright/Docker), realiza arreglos al vuelo y destruye el entorno tras finalizar.  
-* **Memoria (Hindsight):** Centralizada y desplegada en OCI, expuesta por MCP. Utilizada por Hermes en Cloud, Antigravity/Claude Code y Kilo Code en local.  
-* **Integración (Composio):** Pasarela de autenticación OAuth para GitHub CLI y otras APIs comerciales.
+### 2.1 Instancia de Cómputo
+* **Shape:** VM.Standard.A1.Flex (Ampere ARM)
+* **OCPU:** 2 | **RAM:** 12 GB | **Boot Volume:** 100 GB (de 200 GB del pool Always Free)
+* **SO:** Oracle Linux 9.7 aarch64
+* **Región:** sa-valparaiso-1 | **AD:** SA-VALPARAISO-1-AD-1
+* **Runtime:** Docker 29.6.0 + Docker Compose Plugin
+
+### 2.2 Servicios Desplegados
+* **Aprovisionamiento (OpenTofu):** Infraestructura inmutable. Define y despliega todo el stack desde cero mediante archivos de configuración declarativa, eliminando la configuración manual (SSH o Web UI). ✅ Desplegado.
+* **Red (Tailscale):** Red privada (WireGuard) que une la workstation local con el servidor en la nube. No se exponen puertos públicos — el acceso SSH es exclusivamente vía Tailscale. ✅ Activo. (*Tailscale Funnel* para webhooks queda pendiente de configuración).
+* **Gestión de Secretos (Infisical):** Self-hosted en OCI. Inyecta credenciales en runtime sin archivos .env persistentes. Admin creado (`martin.gil.o@gmail.com`). ✅ Desplegado (pendiente integración con Hermes y Daytona).
+  * Dependencias: **PostgreSQL 16** (datos), **Redis 7** (caché/cola).
+* **Orquestación (Hermes Agent):** 🔲 Pendiente. Procesa órdenes vía WhatsApp/Discord, delega subagentes, coordina el sandbox.
+* **Sandboxing (Daytona):** 🔲 Pendiente. Crea micro-contenedores temporales para ejecución de código y pruebas.
+* **Memoria (Hindsight):** Cloud MCP (vectorize.io). ✅ Activo. El self-hosting es viable vía `ghcr.io/vectorize-io/hindsight:latest` (ARM64). Pendiente de despliegue en OCI para migrar desde el cloud.
+* **Integración (Composio):** Pasarela de autenticación OAuth para GitHub CLI y otras APIs comerciales. ✅ Activo.
+
+### 2.3 Pipeline CI/CD
+* **GitHub Actions + OpenTofu:** Despliegue automatizado de infraestructura. API key como autenticación temporal (OIDC Identity Propagation pendiente de resolver — ver TECHNICAL-DEBT.md).
+* **Remote State:** Almacenado en OCI Object Storage (bucket `toolset-opentofu-state`). Sincronización vía OCI CLI en el pipeline.
+* **Keepalive anti-reclamation:** Cron job cada 10 minutos que genera carga de CPU para evitar que OCI marque la instancia como idle.
 
 ## **3\. Sinergia y Caso de Uso**
 
@@ -38,6 +52,13 @@ La infraestructura opera como un nodo de ejecución persistente (24/7) en el niv
 
 ## **4\. Gobernanza y Sincronización**
 
-* **Memoria Centralizada:** Hindsight corre exclusivamente en la instancia de OCI. Tanto la workstation local como el servidor en la nube consultan la misma URL vía Tailscale, garantizando que el contexto no se fragmente.  
+* **Memoria Centralizada:** Hindsight corre como servicio cloud (vectorize.io). Tanto la workstation local como el servidor en la nube consultan la misma URL, garantizando que el contexto no se fragmente. *(Self-hosting descartado: no existe imagen Docker pública para ARM64.)*
 * **Consistencia de Caché:** Para evitar el *cache miss* en OpenCode Go, cada sesión de trabajo (ya sea en Kilo Code o en una tarea de Hermes) mantiene un modelo de inferencia único asignado. El usuario debe poder consultar y/o gestionar el modelo seleccionado fácilmente al interactuar con Hermes.  
 * **Independencia:** La infraestructura es recuperable y desplegable en su totalidad mediante OpenTofu. Si el proveedor de nube falla, la migración a un nuevo host requiere solo la ejecución de los scripts de aprovisionamiento existentes. La infraestructura es versionable.
+
+## **5\. Limitaciones Conocidas (Junio 2026)**
+
+* **Hindsight self-hosted pendiente:** El Docker image `ghcr.io/vectorize-io/hindsight:latest` está disponible. Requiere PostgreSQL 14+ con pgvector + LLM API key. Pendiente migración del bank "toolset" desde cloud a OCI.
+* **Tailscale SSH con SELinux:** Oracle Linux 9 tiene SELinux activo por defecto, lo que bloquea Tailscale SSH. El acceso SSH se realiza con llave convencional sobre la red Tailscale (IP 100.x.x.x).
+* **SSH público cerrado:** El puerto 22 solo acepta conexiones desde dentro de la VCN (10.0.0.0/16). El bootstrap inicial de una instancia nueva requiere acceso SSH temporal vía IP pública hasta que cloud-init complete la instalación de Tailscale (~5-8 minutos).
+* **OIDC Identity Propagation no funcional:** El pipeline CI/CD usa API key como puente. Ver TECHNICAL-DEBT.md DT-001.

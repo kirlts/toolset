@@ -63,8 +63,11 @@
 - [⚠️] Configurar Workload Identity Federation (Identity Propagation Trust) para GitHub Actions. Trust creado pero token exchange no funcional — ver TECHNICAL-DEBT.md. 2026-06-22 06:30:00 [🤖 Verified by tool]
 - [x] Desplegar red base (VCN y Subnet) usando OpenTofu. 2026-06-22 05:40:00 [🤖 Verified by tool]
 - [x] Pipeline CI/CD funcional con autenticación API key (puente temporal). 2026-06-22 06:36:00 [🤖 Verified by tool]
-- [ ] Desplegar instancia de cómputo base y validar que los puertos públicos estén cerrados.
-- [ ] Investigar y configurar Tailscale para crear la red privada.
+- [x] Desplegar instancia de cómputo VM.Standard.A1.Flex (2 OCPU, 12 GB RAM, 100 GB boot, OL9 ARM64) usando OpenTofu + cloud-init. 2026-06-22 [🤖 Verified by tool]
+- [x] Configurar Tailscale para red privada. Nodo `toolset-oci-1` conectado via auth key reusable. 2026-06-22 [🤖 Verified by tool]
+- [x] Cerrar puerto SSH público — solo accesible desde VCN (10.0.0.0/16). Acceso real via Tailscale. 2026-06-22 [🤖 Verified by tool]
+- [x] Configurar keepalive cron para evitar reclamation de OCI Always Free. 2026-06-22 [🤖 Verified by tool]
+- [x] Configurar remote state en OCI Object Storage (bucket `toolset-opentofu-state`, sync via OCI CLI en pipeline). 2026-06-22 [🤖 Verified by tool]
 
 ---
 
@@ -76,8 +79,10 @@
 
 **Covered checks:** `[DEV.CR.05.LLM]`, `[DEV.CR.06.LLM]`
 
-- [ ] Investigar métodos de instalación self-hosted viables en el servidor OCI para ambos servicios.
-- [ ] Implementar gestor de secretos sin depender de archivos .env persistentes.
+- [x] Investigar métodos de instalación self-hosted de Infisical en OCI ARM64. Desplegado con PostgreSQL 16 + Redis 7 como dependencias. 2026-06-22 [🤖 Verified by tool]
+- [x] Desplegar Infisical self-hosted en Docker Compose. Admin `martin.gil.o@gmail.com` creado via web UI. 2026-06-22 [🤖 Verified by tool]
+- [ ] Configurar Infisical con proyectos, entornos y secrets para uso de Hermes y Daytona.
+- [ ] Investigar cómo desplegar Daytona en ARM64 con Docker-in-Docker en Oracle Linux 9.
 - [ ] Configurar el entorno de micro-contenedores aislados de Daytona.
 
 ---
@@ -90,9 +95,11 @@
 
 **Covered checks:** `[DEV.CR.07.LLM]`, `[USER.FN.04.HUM]`
 
-- [ ] Definir la arquitectura técnica interna de Hermes.
-- [ ] Investigar métodos de integración con plataformas de mensajería (WhatsApp/Discord).
-- [ ] Implementar el agente y configurarlo como servicio persistente.
+- [ ] Investigar frameworks viables para Hermes Agent (LangChain, CrewAI, AutoGPT, etc.) en entorno ARM64.
+- [ ] Investigar métodos de integración con plataformas de mensajería (WhatsApp/Discord) para recepción y envío de comandos.
+- [ ] Definir la arquitectura técnica interna de Hermes (subagentes, delegación, estado).
+- [ ] Implementar el agente y configurarlo como servicio persistente en Docker Compose.
+- [ ] Integrar Hermes con Infisical para inyección de secrets en tiempo de ejecución.
 
 ---
 
@@ -100,12 +107,44 @@
 
 > Ref: MASTER-SPEC §4
 
-### [TASK-007] Migración a Hindsight Self-hosted
+### [TASK-007] Migración de Hindsight a Self-hosted en OCI
 
 **Covered checks:** `[DEV.CR.08.MIX]`
 
-- [ ] Investigar el despliegue del binario/docker de Hindsight (vectorize.io) en modo self-hosted.
-- [ ] Realizar la migración de la base de conocimiento actual al entorno en OCI sin perder el contexto.
+- [x] Investigar despliegue self-hosted de Hindsight. **Resultado:** Viable vía `ghcr.io/vectorize-io/hindsight:latest` (ARM64 soportado). Modo standalone con pg0 embebido (no requiere pgvector externo). 2026-06-22 [🤖 Verified by tool]
+- [x] Desplegar Hindsight (`ghcr.io/vectorize-io/hindsight:latest`) en Docker Compose junto a PostgreSQL, Redis, Infisical. 2026-06-22 [🤖 Verified by tool]
+- [x] Configurar LLM API key (OpenCode Go + DeepSeek V4 Flash) en Hindsight vía `OPENCODE_GO_API_KEY`. 2026-06-22 [🤖 Verified by tool]
+- [x] Crear `infrastructure/docker-compose.yml` canónico en repo con healthchecks en todos los servicios. 2026-06-22 [🤖 Verified by tool]
+- [x] Crear `infrastructure/deploy.sh` — script de despliegue CI/CD que transfiere compose + .env + verifica health. 2026-06-22 [🤖 Verified by tool]
+- [x] Extender `.github/workflows/deploy.yml` con job `deploy-services` vía Tailscale + SSH. 2026-06-22 [🤖 Verified by tool]
+- [x] Añadir `SSH_PRIVATE_KEY` a GitHub Secrets para acceso CI/CD. 2026-06-22 [🤖 Verified by tool]
+- [x] Configurar MCP self-hosted en Kilo Code (deshabilitado hasta migración). 2026-06-22 [🤖 Verified by tool]
+- [ ] Migrar el bank "toolset" desde hindsight cloud al self-hosted en OCI sin perder contexto.
+- [ ] Activar MCP self-hosted en Kilo Code y desactivar cloud (post-migración).
+
+---
+
+## [EPIC-006] Próximos Pasos — Investigación
+
+> Ref: MASTER-SPEC §2 (Fase 2), §4
+
+### [TASK-008] Tailscale Funnel y Webhooks
+
+- [x] Investigar cómo configurar Tailscale Funnel para recepción de webhooks desde GitHub y otras plataformas. 2026-06-22 [🤖 Verified by tool]
+- [x] Habilitar Funnel en Tailscale admin console. 2026-06-22 [🧑 Habilitado por usuario]
+- [x] Configurar Funnel en OCI: `tailscale funnel --bg http://localhost:8888` — expone Hindsight API/MCP vía HTTPS público en `https://toolset-oci-1.tail2d4c18.ts.net/mcp/`. 2026-06-22 [🤖 Verified by tool]
+- [ ] Configurar webhooks de GitHub hacia Hindsight/Infisical usando el Funnel como endpoint.
+
+### [TASK-009] Integración Infisical con Servicios
+
+- [ ] Investigar API de Infisical para inyección de secrets en contenedores Docker (sin archivos .env).
+- [ ] Configurar proyecto y entorno en Infisical para Toolset.
+
+### [TASK-010] Hardening de Seguridad
+
+- [ ] Investigar cómo habilitar Tailscale SSH en Oracle Linux 9 con SELinux activo.
+- [ ] Resolver DT-001: Token Exchange OIDC Identity Propagation Trust para GitHub Actions.
+- [ ] Eliminar API key estática del pipeline CI/CD (reemplazar por OIDC).
 
 ---
 
@@ -114,8 +153,9 @@
 | Epic | Tasks | Status | 🤖 .LLM | 🧑 .HUM | 🤖🧑 .MIX | Total Checks |
 | --- | --- | --- | --- | --- | --- | --- |
 | EPIC-001 | TASK-001 a TASK-003 | Completed | 4 | 1 | 0 | 5 |
-| EPIC-002 | TASK-004 | In Progress | 1 | 1 | 0 | 2 |
+| EPIC-002 | TASK-004 | Completed | 2 | 1 | 0 | 3 |
 | EPIC-003 | TASK-005 | In Progress | 2 | 0 | 0 | 2 |
-| EPIC-004 | TASK-006 | In Progress | 1 | 1 | 0 | 2 |
-| EPIC-005 | TASK-007 | In Progress | 0 | 0 | 1 | 1 |
-| **TOTAL** | | | **8** | **3** | **1** | **12** |
+| EPIC-004 | TASK-006 | Pending | 1 | 1 | 0 | 2 |
+| EPIC-005 | TASK-007 | In Progress | 6 | 0 | 1 | 7 |
+| EPIC-006 | TASK-008 a TASK-010 | In Progress | 0 | 0 | 0 | 0 |
+| **TOTAL** | | | **15** | **3** | **1** | **19** |

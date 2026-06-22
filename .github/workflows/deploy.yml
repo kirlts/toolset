@@ -1,4 +1,4 @@
-name: Deploy OpenTofu to OCI
+name: Deploy OpenTofu + Services to OCI
 
 on:
   push:
@@ -6,8 +6,14 @@ on:
       - main
   pull_request:
 
+env:
+  INFRA_DIR: ./infrastructure
+  SSH_HOST: opc@100.77.183.125
+  REMOTE_DIR: /opt/toolset
+
 jobs:
   opentofu:
+    name: OpenTofu Infrastructure
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Código
@@ -27,19 +33,94 @@ jobs:
             echo "key_file=$HOME/.oci/gh_key.pem"
           } > ~/.oci/config
 
+      - name: Instalar OCI CLI
+        run: |
+          python3 -m pip install --user oci-cli 2>/dev/null || true
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Descargar State Remoto (OCI Object Storage)
+        working-directory: ${{ env.INFRA_DIR }}
+        run: |
+          oci os object get \
+            -bn toolset-opentofu-state \
+            --name infrastructure/terraform.tfstate \
+            --file terraform.tfstate 2>/dev/null || echo "No remote state yet (first run)"
+
       - name: Instalar OpenTofu
         uses: opentofu/setup-opentofu@v1
 
       - name: Inicializar OpenTofu
-        working-directory: ./infrastructure
+        working-directory: ${{ env.INFRA_DIR }}
         run: tofu init
 
-      - name: Tofu Plan (Solo PRs)
+      - name: Tofu Plan
         if: github.event_name == 'pull_request'
-        working-directory: ./infrastructure
+        working-directory: ${{ env.INFRA_DIR }}
+        env:
+          TF_VAR_tailscale_auth_key: ${{ secrets.TAILSCALE_AUTH_KEY }}
+          TF_VAR_infisical_encryption_key: ${{ secrets.INFISICAL_ENCRYPTION_KEY }}
+          TF_VAR_infisical_auth_secret: ${{ secrets.INFISICAL_AUTH_SECRET }}
         run: tofu plan
 
-      - name: Tofu Apply (Solo Main)
+      - name: Tofu Apply
         if: github.ref == 'refs/heads/main'
-        working-directory: ./infrastructure
+        working-directory: ${{ env.INFRA_DIR }}
+        env:
+          TF_VAR_tailscale_auth_key: ${{ secrets.TAILSCALE_AUTH_KEY }}
+          TF_VAR_infisical_encryption_key: ${{ secrets.INFISICAL_ENCRYPTION_KEY }}
+          TF_VAR_infisical_auth_secret: ${{ secrets.INFISICAL_AUTH_SECRET }}
         run: tofu apply -auto-approve
+
+      - name: Subir State Remoto
+        if: github.ref == 'refs/heads/main'
+        working-directory: ${{ env.INFRA_DIR }}
+        run: |
+          oci os object put \
+            -bn toolset-opentofu-state \
+            --name infrastructure/terraform.tfstate \
+            --file terraform.tfstate \
+            --force
+
+  deploy-services:
+    name: Deploy Services (Docker Compose)
+    needs: opentofu
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Código
+        uses: actions/checkout@v4
+
+      - name: Install Tailscale
+        run: |
+          curl -fsSL https://tailscale.com/install.sh | sh
+
+      - name: Connect to Tailnet
+        run: |
+          sudo tailscale up \
+            --auth-key=${{ secrets.TAILSCALE_AUTH_KEY }} \
+            --hostname=gh-deploy \
+            --accept-routes \
+            --ssh
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+
+      - name: Verify connectivity
+        run: |
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
+            ${{ env.SSH_HOST }} "hostname && uptime"
+
+      - name: Deploy services
+        env:
+          SSH_HOST: ${{ env.SSH_HOST }}
+          INFISICAL_ENCRYPTION_KEY: ${{ secrets.INFISICAL_ENCRYPTION_KEY }}
+          INFISICAL_AUTH_SECRET: ${{ secrets.INFISICAL_AUTH_SECRET }}
+          INFISICAL_DB_PASSWORD: infisical
+          OPENCODE_GO_API_KEY: ${{ secrets.OPENCODE_GO_API_KEY }}
+        working-directory: ${{ env.INFRA_DIR }}
+        run: |
+          chmod +x deploy.sh
+          ./deploy.sh

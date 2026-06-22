@@ -1,0 +1,117 @@
+# Toolset Personal — Canonical Docker Compose
+# Managed by CI/CD pipeline. Do not edit manually on the server.
+# Variables in ${VAR} form are resolved from /opt/toolset/.env
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: infisical-pg
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${INFISICAL_DB_USER:-infisical}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    environment:
+      POSTGRES_USER: ${INFISICAL_DB_USER:-infisical}
+      POSTGRES_PASSWORD: ${INFISICAL_DB_PASSWORD}
+      POSTGRES_DB: ${INFISICAL_DB_NAME:-infisical}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    networks:
+      - toolset-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: infisical-redis
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - redis_data:/data
+    networks:
+      - toolset-net
+
+  infisical:
+    image: infisical/infisical:latest
+    container_name: infisical
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8081:8080"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      AUTH_SECRET: ${INFISICAL_AUTH_SECRET}
+      ENCRYPTION_KEY: ${INFISICAL_ENCRYPTION_KEY}
+      SITE_URL: ${INFISICAL_SITE_URL:-http://toolset-oci:8081}
+      DB_CONNECTION_URI: postgresql://${INFISICAL_DB_USER:-infisical}:${INFISICAL_DB_PASSWORD}@postgres:5432/${INFISICAL_DB_NAME:-infisical}
+      REDIS_URL: redis://redis:6379
+    volumes:
+      - infisical_data:/data
+    networks:
+      - toolset-net
+
+  hindsight:
+    image: ghcr.io/vectorize-io/hindsight:latest
+    container_name: hindsight
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8888:8888"
+      - "127.0.0.1:9999:9999"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8888/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    depends_on:
+      infisical:
+        condition: service_started
+    environment:
+      HINDSIGHT_API_LLM_PROVIDER: ${HINDSIGHT_API_LLM_PROVIDER:-openai}
+      HINDSIGHT_API_LLM_API_KEY: ${OPENCODE_GO_API_KEY}
+      HINDSIGHT_API_LLM_MODEL: ${HINDSIGHT_API_LLM_MODEL:-deepseek-v4-flash}
+      HINDSIGHT_API_LLM_BASE_URL: ${HINDSIGHT_API_LLM_BASE_URL:-https://opencode.ai/zen/go/v1}
+      HINDSIGHT_API_HOST: 0.0.0.0
+      HINDSIGHT_API_PORT: 8888
+    volumes:
+      - hindsight_data:/home/hindsight/.pg0
+    networks:
+      - toolset-net
+
+  # === PLACEHOLDER: Daytona sandbox engine (TASK-005) ===
+  # daytona:
+  #   image: daytonaio/daytona:latest
+  #   container_name: daytona
+  #   restart: unless-stopped
+  #   privileged: true
+  #   ports:
+  #     - "127.0.0.1:3000:3000"
+  #   environment:
+  #     DAYTONA_SERVER_MODE: local
+  #   volumes:
+  #     - daytona_data:/data
+  #     - /var/run/docker.sock:/var/run/docker.sock
+
+networks:
+  toolset-net:
+    driver: bridge
+
+volumes:
+  pg_data:
+  redis_data:
+  infisical_data:
+  hindsight_data:

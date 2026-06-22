@@ -43,8 +43,8 @@ resource "oci_core_default_security_list" "toolset_sl" {
   }
 
   ingress_security_rules {
-    source   = "0.0.0.0/0"
-    protocol = "6" # TCP
+    source   = "10.0.0.0/16"
+    protocol = "6" # TCP (SSH solo desde dentro de la VCN, acceso real via Tailscale)
     tcp_options {
       max = 22
       min = 22

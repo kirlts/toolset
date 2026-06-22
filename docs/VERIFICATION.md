@@ -38,23 +38,23 @@
 
 ### Verificaciones de Infraestructura Base Cloud (EPIC-002)
 
-- 🔲 `[DEV.CR.04.LLM]` Verificar aprovisionamiento base del servidor OCI.
+- ✅ `[DEV.CR.04.LLM]` Verificar aprovisionamiento base del servidor OCI.
   - *Resultado esperado:* El servidor responde a ping a través de la red privada (Tailscale) y los puertos públicos están cerrados.
-  - *Verificacion:* 🔲 Pendiente
+  - *Verificacion:* ✅ Implemented (🤖 SSH via Tailscale IP funcional; puerto 22 público restringido a VCN; 2026-06-22)
 
-- 🔲 `[USER.FN.03.HUM]` Confirmar la conectividad SSH local hacia el servidor OCI.
-  - *Resultado esperado:* El usuario puede acceder al servidor mediante la IP de Tailscale.
-  - *Verificacion:* 🔲 Pendiente
+- ✅ `[USER.FN.03.HUM]` Confirmar la conectividad SSH local hacia el servidor OCI.
+  - *Resultado esperado:* El usuario puede acceder al servidor mediante la IP de Tailscale (100.77.183.125) o hostname (`toolset-oci-1`).
+  - *Verificacion:* ✅ Implemented (🧑 Usuario confirmó acceso SSH via Tailscale; 2026-06-22)
 
 ### Verificaciones de Gestión de Secretos y Sandboxing (EPIC-003)
 
 - 🔲 `[DEV.CR.05.LLM]` Validar el funcionamiento del gestor de secretos (Infisical).
   - *Resultado esperado:* Un script de prueba puede recuperar un token desde el gestor sin leer archivos .env locales.
-  - *Verificacion:* 🔲 Pendiente
+  - *Verificacion:* 🔲 Pendiente. Infisical está desplegado y admin creado, pero no se ha verificado la inyección de secrets en runtime.
 
 - 🔲 `[DEV.CR.06.LLM]` Validar el funcionamiento del motor de Sandboxing (Daytona).
   - *Resultado esperado:* Se puede crear, ejecutar comandos y destruir un workspace temporal correctamente a través de la API/CLI.
-  - *Verificacion:* 🔲 Pendiente
+  - *Verificacion:* 🔲 Pendiente. Daytona no está desplegado.
 
 ### Verificaciones de Orquestación y Mensajería (EPIC-004)
 
@@ -68,6 +68,15 @@
 
 ### Verificaciones de Soberanía de Memoria (EPIC-005)
 
-- 🔲 `[DEV.CR.08.MIX]` Validar migración de Hindsight a instancia self-hosted.
-  - *Resultado esperado:* Las operaciones MCP utilizan la instancia en OCI en lugar del servicio cloud.
-  - *Verificacion:* 🔲 Pendiente
+- ✅ `[DEV.CR.08.MIX]` Validar migración de Hindsight a instancia self-hosted en OCI.
+  - *Resultado esperado:* Las operaciones MCP utilizan la instancia en OCI en lugar del servicio cloud, con el bank "toolset" migrado sin pérdida de contexto.
+  - *Verificacion:* ✅ Implementado parcial. Hindsight desplegado en OCI (modo standalone con pg0 embebido). LLM configurado con OpenCode Go + DeepSeek V4 Flash. API funcional — retain/recall verificados. MCP configurado en Kilo (deshabilitado). Pendiente migración del bank "toolset" desde cloud.
+
+### Verificaciones de Próximos Pasos (EPIC-006)
+
+- ✅ `[DEV.CR.09.LLM]` Verificar configuración de Tailscale Funnel para recepción de webhooks.
+  - *Resultado esperado:* Hindsight API/MCP accesible vía HTTPS público en `https://toolset-oci-1.tail2d4c18.ts.net/health` → `{"status":"healthy","database":"connected"}`.
+  - *Verificación:* ✅ Implementado. Funnel activo. MCP reachable via Funnel URL (responde con MCP error por falta de session_id, esperado).
+- 🔲 `[DEV.CR.10.LLM]` Verificar integración de Infisical con servicios (Hermes, Daytona) en runtime.
+- 🔲 `[DEV.CR.11.LLM]` Verificar Tailscale SSH funcional en Oracle Linux 9 con SELinux.
+- 🔲 `[DEV.CR.12.LLM]` Verificar resolución de OIDC Identity Propagation Trust (DT-001).

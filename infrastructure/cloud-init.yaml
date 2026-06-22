@@ -1,0 +1,156 @@
+#cloud-config
+package_update: true
+package_upgrade: true
+
+write_files:
+  - path: /etc/yum.repos.d/docker-ce.repo
+    permissions: "0644"
+    content: |
+      [docker-ce-stable]
+      name=Docker CE Stable - $basearch
+      baseurl=https://download.docker.com/linux/centos/9/$basearch/stable
+      enabled=1
+      gpgcheck=1
+      gpgkey=https://download.docker.com/linux/centos/gpg
+
+  - path: /etc/yum.repos.d/tailscale.repo
+    permissions: "0644"
+    content: |
+      [tailscale-stable]
+      name=Tailscale stable
+      baseurl=https://pkgs.tailscale.com/stable/oracle/9/$basearch/
+      enabled=1
+      gpgcheck=1
+      gpgkey=https://pkgs.tailscale.com/stable/oracle/9/repo.gpg
+
+  - path: /opt/toolset/docker-compose.yml
+    permissions: "0644"
+    content: |
+      services:
+        redis:
+          image: redis:7-alpine
+          container_name: infisical-redis
+          restart: unless-stopped
+          volumes:
+            - redis_data:/data
+
+        infisical:
+          image: infisical/infisical:latest
+          container_name: infisical
+          restart: unless-stopped
+          ports:
+            - "127.0.0.1:8081:8080"
+          environment:
+            AUTH_SECRET: "${infisical_auth_secret}"
+            ENCRYPTION_KEY: "${infisical_encryption_key}"
+            SITE_URL: "http://toolset-oci:8081"
+            DB_SQLITE_PATH: "/data/infisical.db"
+            REDIS_URL: "redis://redis:6379"
+          depends_on:
+            - redis
+          volumes:
+            - infisical_data:/data
+
+        # --- Daytona sandbox engine ---
+        # daytona:
+        #   image: daytonaio/daytona:latest
+        #   container_name: daytona
+        #   restart: unless-stopped
+        #   privileged: true
+        #   ports:
+        #     - "127.0.0.1:3000:3000"
+        #   environment:
+        #     DAYTONA_SERVER_MODE: "local"
+        #   volumes:
+        #     - daytona_data:/data
+        #     - /var/run/docker.sock:/var/run/docker.sock
+
+        # --- Hindsight self-hosted ---
+        # Investigar imagen oficial ARM64 (vectorizeio/hindsight)
+        # hindsight:
+        #   image: vectorizeio/hindsight:latest
+        #   container_name: hindsight
+        #   restart: unless-stopped
+        #   ports:
+        #     - "127.0.0.1:8080:8080"
+        #   environment:
+        #     HINDSIGHT_BANK_DIR: "/data"
+        #     HINDSIGHT_MCP_ENABLED: "true"
+        #   volumes:
+        #     - hindsight_data:/data
+
+        # --- Hermes orchestrator (custom) ---
+        # hermes:
+        #   build: /opt/toolset/hermes
+        #   container_name: hermes
+        #   restart: unless-stopped
+        #   ports:
+        #     - "127.0.0.1:4000:4000"
+        #   environment:
+        #     INFISICAL_ADDR: "http://infisical:8080"
+        #     HINDSIGHT_ADDR: "http://hindsight:8080"
+        #     DAYTONA_ADDR: "http://daytona:3000"
+        #   depends_on:
+        #     - infisical
+
+      volumes:
+        infisical_data:
+        redis_data:
+
+  - path: /opt/toolset/keepalive.sh
+    permissions: "0755"
+    content: |
+      #!/bin/bash
+      LOG="/var/log/toolset-keepalive.log"
+      START=$(date +%s)
+      END=$((START + 8))
+      while [ $(date +%s) -lt $END ]; do
+        echo "scale=5000; 4*a(1)" | bc -l > /dev/null 2>&1
+      done
+      echo "$(date -Iseconds) keepalive ok" >> "$LOG"
+
+  - path: /opt/toolset/bootstrap.sh
+    permissions: "0755"
+    content: |
+      #!/bin/bash
+      set -e
+      exec > /var/log/toolset-bootstrap.log 2>&1
+      echo "[bootstrap] Started at $(date -Iseconds)"
+
+      # ---- Wait for any running dnf process ----
+      while pgrep -x dnf > /dev/null 2>&1; do
+        echo "[bootstrap] Waiting for another dnf process..."
+        sleep 3
+      done
+
+      # ---- Install Docker ----
+      echo "[bootstrap] Installing Docker..."
+      dnf -y install docker-ce docker-ce-cli containerd.io docker-compose-plugin
+      systemctl enable --now docker
+      echo "[bootstrap] Docker installed and running."
+
+      # ---- Install Tailscale ----
+      echo "[bootstrap] Installing Tailscale..."
+      dnf -y install tailscale
+      systemctl enable --now tailscaled
+      echo "[bootstrap] Tailscale installed."
+
+      # ---- Join Tailscale ----
+      echo "[bootstrap] Joining Tailscale..."
+      tailscale up --auth-key=${tailscale_auth_key} --hostname=toolset-oci --accept-routes --ssh || \
+        echo "[bootstrap] WARNING: tailscale up failed (key may need regeneration)"
+
+      # ---- Start Docker services ----
+      echo "[bootstrap] Pulling and starting Docker services..."
+      cd /opt/toolset
+      docker compose pull 2>&1 | tee /var/log/toolset-pull.log || true
+      docker compose up -d 2>&1 | tee /var/log/toolset-up.log || true
+
+      # ---- Set up keepalive cron ----
+      echo "[bootstrap] Setting up keepalive cron..."
+      (crontab -l 2>/dev/null; echo "*/10 * * * * /opt/toolset/keepalive.sh") | crontab -
+
+      echo "[bootstrap] Completed at $(date -Iseconds)"
+
+runcmd:
+  - /opt/toolset/bootstrap.sh
