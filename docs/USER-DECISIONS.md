@@ -160,3 +160,90 @@
 **Consequences:**
 - El bootstrap de una instancia nueva requiere abrir SSH temporalmente (~5-8 min hasta que Tailscale conecte).
 - Documentado como limitación conocida en la especificación del proyecto.
+
+---
+
+## [UD-009] Hindsight self-hosted con pg0 embebido + OpenCode Go
+
+**Date:** 2026-06-22
+
+**Context:** Se investigó el despliegue self-hosted de Hindsight. La imagen `ghcr.io/vectorize-io/hindsight:latest` soporta modo standalone con base de datos embebida (pg0, SQLite-based), sin requerir PostgreSQL externo con pgvector. Para LLM provider se evaluaron OpenAI, Groq, DeepSeek directo, y OpenCode Go (suscripción existente).
+
+**Decision:** Desplegar Hindsight en modo standalone (pg0 embebido) sin PostgreSQL externo. Usar OpenCode Go como LLM provider con modelo DeepSeek V4 Flash via endpoint OpenAI-compatible (`https://opencode.ai/zen/go/v1`). Migrar bank "toolset" desde hindsight cloud al self-hosted.
+
+**Discarded alternatives:**
+- PostgreSQL externo con pgvector (descartado: pg0 embebido es suficiente para single-dev, evita complejidad operativa).
+- LLM directo DeepSeek (descartado: requería API key separada; OpenCode Go ya tiene suscripción activa).
+
+**Consequences:**
+- Hindsight self-hosted operativo sin base de datos adicional.
+- DeepSeek V4 Flash cuesta $0.14/M tokens (más barato que OpenAI).
+- Bank "toolset" migrado exitosamente (14 docs, 72 facts, 56 observaciones).
+- MCP configurado en Kilo Code vía Tailscale Funnel.
+
+**Reversion conditions:** Si pg0 no escala para el uso proyectado, migrar a PostgreSQL externo con pgvector.
+
+---
+
+## [UD-010] CI/CD pipeline extendido con deploy de servicios via SSH/Tailscale
+
+**Date:** 2026-06-22
+
+**Context:** El pipeline CI/CD solo gestionaba infraestructura OpenTofu. No había mecanismo para desplegar cambios en docker-compose.yml o secrets sin intervención manual SSH.
+
+**Decision:** Extender el pipeline con job `deploy-services` que se conecta al servidor OCI via Tailscale + SSH, transfiere el docker-compose.yml canónico (desde el repo), genera .env desde GitHub Secrets, y ejecuta `docker compose pull && docker compose up -d` con verificación de healthchecks.
+
+**Discarded alternatives:**
+- Infisical Agent como sidecar para inyección de secrets (descartado: aumenta complejidad, los bootstrap secrets de Infisical ya están en GitHub Secrets).
+- OCI Instance Agent runcommand (descartado: async, complejo de monitorear desde CI/CD).
+
+**Consequences:**
+- Sin gestión manual de archivos en el servidor — todo fluye por CI/CD.
+- SSH_PRIVATE_KEY almacenada como GitHub Secret.
+- Healthchecks nativos (no polling) en todos los servicios.
+
+**Reversion conditions:** Migrar a autenticación OIDC cuando DT-001 esté resuelto.
+
+---
+
+## [UD-011] Daytona reemplazado por sandbox Docker nativo de Hermes Agent
+
+**Date:** 2026-06-22
+
+**Context:** Daytona se consideró inicialmente como plataforma de sandboxing para Hermes. Investigación reveló que: (a) Daytona OSS deploy requiere 9 servicios (PostgreSQL propio, MinIO, Registry, etc.) y dominio público, (b) la comunidad de Hermes Agent (r/hermesagent) usa Docker nativo como estándar, (c) Hermes tiene integración nativa con Docker hardening (no-new-privs, capabilities drop, tmpfs, network none).
+
+**Decision:** Eliminar Daytona del stack. Hermes Agent usará su sandbox Docker nativo (`terminal.backend: docker`) con imagen efímera y hardening por defecto. Si en el futuro se necesita GPU o sandboxes persistentes cross-sesión, Hermes soporta Daytona Cloud, Modal, o Vercel Sandbox como backends intercambiables.
+
+**Discarded alternatives:**
+- Daytona OSS deploy en OCI (descartado: 9 servicios adicionales, no cabe en 12GB con el resto del stack).
+- E2B (descartado: requiere Nomad+Consul, heavy ops).
+- Beam beta9 (descartado: requiere Kubernetes).
+
+**Consequences:**
+- Menos servicios que operar en OCI.
+- Hermes puede cambiar de backend sin cambiar código (solo config).
+- Alineado con las mejores prácticas de la comunidad Hermes (r/hermesagent VPS megathread).
+
+**Reversion conditions:** Si se requiere GPU en sandboxes o persistencia long-tail, evaluar Daytona Cloud como backend de Hermes.
+
+---
+
+## [UD-012] Tailscale Funnel como mecanismo de exposición pública para MCP
+
+**Date:** 2026-06-22
+
+**Context:** El MCP de Hindsight self-hosted en OCI era accesible solo via Tailscale IP (100.77.183.125:8888). Para que cualquier harness (Kilo Code, Claude Code, Hermes) se conecte sin Tailscale, se necesitaba exponer el endpoint vía HTTPS público.
+
+**Decision:** Usar Tailscale Funnel para exponer Hindsight API/MCP en `https://toolset-oci-1.tail2d4c18.ts.net/`. Sin puertos abiertos en OCI (solo UDP 41641 de Tailscale). Habilitado desde admin console de Tailscale por el usuario.
+
+**Discarded alternatives:**
+- Caddy reverse proxy con certificados Let's Encrypt (descartado: requiere puerto 80/443 abierto, viola MASTER-SPEC §4.2).
+- Tailscale Serve (solo dentro del tailnet, no resuelve el problema).
+
+**Consequences:**
+- Hindsight MCP accesible desde cualquier máquina sin Tailscale.
+- Sin superficie de ataque adicional en OCI.
+- Funnel se mantiene activo entre deploys (verificado en deploy.sh).
+- La URL es pública (cualquiera puede intentar acceder), mitigado por oscuridad de la URL y formato MCP.
+
+**Reversion conditions:** Si se requiere autenticación en el MCP, habilitar `HINDSIGHT_CP_ACCESS_KEY` en Hindsight y agregar header de Authorization en el MCP config.

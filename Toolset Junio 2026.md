@@ -27,11 +27,12 @@ La infraestructura opera como un nodo de ejecución persistente (24/7) en el niv
 ### 2.2 Servicios Desplegados
 * **Aprovisionamiento (OpenTofu):** Infraestructura inmutable. Define y despliega todo el stack desde cero mediante archivos de configuración declarativa, eliminando la configuración manual (SSH o Web UI). ✅ Desplegado.
 * **Red (Tailscale):** Red privada (WireGuard) que une la workstation local con el servidor en la nube. No se exponen puertos públicos — el acceso SSH es exclusivamente vía Tailscale. ✅ Activo. (*Tailscale Funnel* para webhooks queda pendiente de configuración).
-* **Gestión de Secretos (Infisical):** Self-hosted en OCI. Inyecta credenciales en runtime sin archivos .env persistentes. Admin creado (`martin.gil.o@gmail.com`). ✅ Desplegado (pendiente integración con Hermes y Daytona).
+* **Gestión de Secretos (Infisical):** Self-hosted en OCI. Inyecta credenciales en runtime sin archivos .env persistentes. Admin creado (`martin.gil.o@gmail.com`). ✅ Desplegado (pendiente integración con Hermes).
   * Dependencias: **PostgreSQL 16** (datos), **Redis 7** (caché/cola).
-* **Orquestación (Hermes Agent):** 🔲 Pendiente. Procesa órdenes vía WhatsApp/Discord, delega subagentes, coordina el sandbox.
-* **Sandboxing (Daytona):** 🔲 Pendiente. Crea micro-contenedores temporales para ejecución de código y pruebas.
-* **Memoria (Hindsight):** Cloud MCP (vectorize.io). ✅ Activo. El self-hosting es viable vía `ghcr.io/vectorize-io/hindsight:latest` (ARM64). Pendiente de despliegue en OCI para migrar desde el cloud.
+* **Orquestación (Hermes Agent):** 🔲 Pendiente (Nous Research, OSS). Procesa órdenes vía WhatsApp/Discord, delega subagentes, ejecuta código en sandbox Docker nativo. Pendiente de despliegue en OCI.
+  * Sandbox por defecto: Docker efímero (`terminal.backend: docker`) con hardening automático (no-new-privs, capabilities drop, tmpfs restringido, network none por defecto).
+  * Alternativas configurables: SSH backend, Daytona Cloud, Modal, Vercel Sandbox.
+* **Memoria (Hindsight):** Self-hosted en OCI (`ghcr.io/vectorize-io/hindsight:latest`, modo standalone pg0). Bank "toolset" migrado desde cloud. ✅ Activo. MCP vía Tailscale Funnel en `https://toolset-oci-1.tail2d4c18.ts.net/mcp/`.
 * **Integración (Composio):** Pasarela de autenticación OAuth para GitHub CLI y otras APIs comerciales. ✅ Activo.
 
 ### 2.3 Pipeline CI/CD
@@ -46,13 +47,13 @@ La infraestructura opera como un nodo de ejecución persistente (24/7) en el niv
 * *Situación:* El usuario solicita a Hermes levantar un entorno desplegando el código de un repositorio dado, y realizar cambios, diagnosticar, ver capturas, o más, desde un entorno móvil / de mensajería.   
 1. La orden llega vía texto o audio a Hermes utilizando sus integraciones nativas con Whatsapp o Discord  
 2. Hermes delega a un subagente asíncrono para no bloquear la comunicación y poder entregar reportes de estado al usuario proactivamente o cuando este se lo solicita.  
-3. El subagente solicita credenciales de entorno a Infisical, levanta un *sandbox* en Daytona, crea una rama nueva para su tarea en el repositorio ejecuta Playwright para capturar screenshots si es necesario, y reporta resultado, junto con screenshots opcionalmente.  
+3. El subagente solicita credenciales de entorno a Infisical, levanta un *sandbox* Docker efímero vía Hermes (contenedor aislado con hardening por defecto), clona el repositorio en su rama, ejecuta Playwright para capturar screenshots si es necesario, y reporta resultado, junto con screenshots opcionalmente.  
 4. Hermes gestiona las operaciones en Github mediante CLI, Composio, o MCP.  
 5. Hermes envía el reporte final o solicita intervención del usuario.
 
 ## **4\. Gobernanza y Sincronización**
 
-* **Memoria Centralizada:** Hindsight corre como servicio cloud (vectorize.io). Tanto la workstation local como el servidor en la nube consultan la misma URL, garantizando que el contexto no se fragmente. *(Self-hosting descartado: no existe imagen Docker pública para ARM64.)*
+* **Memoria Centralizada:** Hindsight self-hosted en OCI. Tanto la workstation local como el servidor en la nube consultan la misma URL, garantizando que el contexto no se fragmente.
 * **Consistencia de Caché:** Para evitar el *cache miss* en OpenCode Go, cada sesión de trabajo (ya sea en Kilo Code o en una tarea de Hermes) mantiene un modelo de inferencia único asignado. El usuario debe poder consultar y/o gestionar el modelo seleccionado fácilmente al interactuar con Hermes.  
 * **Independencia:** La infraestructura es recuperable y desplegable en su totalidad mediante OpenTofu. Si el proveedor de nube falla, la migración a un nuevo host requiere solo la ejecución de los scripts de aprovisionamiento existentes. La infraestructura es versionable.
 

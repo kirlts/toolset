@@ -75,15 +75,14 @@
 
 > Ref: MASTER-SPEC §3, §4
 
-### [TASK-005] Despliegue de Infisical y Daytona
+### [TASK-005] Despliegue de Infisical
 
-**Covered checks:** `[DEV.CR.05.LLM]`, `[DEV.CR.06.LLM]`
+**Covered checks:** `[DEV.CR.05.LLM]`
 
 - [x] Investigar métodos de instalación self-hosted de Infisical en OCI ARM64. Desplegado con PostgreSQL 16 + Redis 7 como dependencias. 2026-06-22 [🤖 Verified by tool]
 - [x] Desplegar Infisical self-hosted en Docker Compose. Admin `martin.gil.o@gmail.com` creado via web UI. 2026-06-22 [🤖 Verified by tool]
-- [ ] Configurar Infisical con proyectos, entornos y secrets para uso de Hermes y Daytona.
-- [ ] Investigar cómo desplegar Daytona en ARM64 con Docker-in-Docker en Oracle Linux 9.
-- [ ] Configurar el entorno de micro-contenedores aislados de Daytona.
+- [ ] Configurar Infisical con proyectos, entornos y secrets para uso de Hermes.
+- [ ] Integrar Infisical Agent con Hermes para inyección de secrets en runtime.
 
 ---
 
@@ -95,11 +94,14 @@
 
 **Covered checks:** `[DEV.CR.07.LLM]`, `[USER.FN.04.HUM]`
 
-- [ ] Investigar frameworks viables para Hermes Agent (LangChain, CrewAI, AutoGPT, etc.) en entorno ARM64.
+- [x] Investigar Hermes Agent (Nous Research) — framework OSS real con sandbox Docker nativo, subagentes asíncronos, v0.15.0 (May 2026). 2026-06-22 [🤖 Verified by tool]
+- [x] Investigar sandbox backend: comunidad usa Docker nativo (`terminal.backend: docker`) con hardening automático. Daytona/Modal/Vercel como backends alternativos configurables. 2026-06-22 [🤖 Verified by tool]
+- [x] Daytona eliminado del stack — Hermes usa sandbox Docker nativo. 2026-06-22 [🧑 UD-011]
 - [ ] Investigar métodos de integración con plataformas de mensajería (WhatsApp/Discord) para recepción y envío de comandos.
 - [ ] Definir la arquitectura técnica interna de Hermes (subagentes, delegación, estado).
 - [ ] Implementar el agente y configurarlo como servicio persistente en Docker Compose.
 - [ ] Integrar Hermes con Infisical para inyección de secrets en tiempo de ejecución.
+- [ ] Verificar integración Hermes → Hindsight (MCP), Hermes → Composio (MCP).
 
 ---
 
@@ -159,8 +161,8 @@
 | --- | --- | --- | --- | --- | --- | --- |
 | EPIC-001 | TASK-001 a TASK-003 | Completed | 4 | 1 | 0 | 5 |
 | EPIC-002 | TASK-004 | Completed | 2 | 1 | 0 | 3 |
-| EPIC-003 | TASK-005 | In Progress | 2 | 0 | 0 | 2 |
-| EPIC-004 | TASK-006 | Pending | 1 | 1 | 0 | 2 |
+| EPIC-003 | TASK-005 | Pending | 1 | 0 | 0 | 1 |
+| EPIC-004 | TASK-006 | In Progress | 4 | 1 | 0 | 5 |
 | EPIC-005 | TASK-007 | Completed | 8 | 0 | 1 | 9 |
 | EPIC-006 | TASK-008 a TASK-010 | In Progress | 1 | 1 | 0 | 2 |
-| **TOTAL** | | | **17** | **4** | **1** | **22** |
+| **TOTAL** | | | **18** | **4** | **1** | **23** |
