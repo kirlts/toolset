@@ -173,7 +173,7 @@ LANDING_HTML=$(cat <<EOF
 <p style="margin-top:1.5em;font-weight:bold;color:#f0c674;">🧠 Memory Banks</p>
 <div class="tree">
 <pre>
-  <span class="pipe">└──</span> <span class="path"><a href="/dashboard">/bank/toolset</a></span>              <span class="desc">toolset &mdash; banco actual</span>             <span class="status">✅ 128 facts</span>
+  <span class="pipe">└──</span> <span class="path"><a href="/dashboard">/dashboard</a></span>                  <span class="desc">toolset &mdash; banco actual</span>             <span class="status">✅ 128 facts</span>
 </pre>
 </div>
 <p style="margin:0.5em 0 0 1.5em;color:#888;font-size:0.85em;">
@@ -234,7 +234,7 @@ echo "  ── Services ──────────────────�
 echo ""
 echo "  ── Internal (via Tailscale) ──────────────"
   echo "  Hindsight API    http://100.77.183.125:8888 (via Funnel: /hindsight/*)"
-  echo "  Hindsight CP     http://100.77.183.125:9999 (via Funnel: /cpanel/*)"
+  echo "  Hindsight CP     http://100.77.183.125:9999 (via Funnel: /dashboard)"
   echo "  Infisical        http://100.77.183.125:8081 (via Funnel: /)"
 echo ""
 echo "  ── Docker Status ─────────────────────────"

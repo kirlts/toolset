@@ -7,36 +7,55 @@
 }
 
 :8080 {
-    # Hindsight Control Plane (Next.js SPA) — assets y pagina nativa
-    @cp_native path_regexp cp_native ^/(dashboard|_next)(/.*)?$
+    # Hindsight Control Plane (Next.js SPA)
+    @cp_native path_regexp cp_native ^/(dashboard|api|_next)(/.*)?$
     handle @cp_native {
         reverse_proxy hindsight:9999
     }
-    # CP SPA fallback: paths que solo existen en cliente
-    @cp_spa path_regexp cp_spa ^/(bank|cpanel)(/.*)?$
-    handle @cp_spa {
+    # SPA fallback: /bank/* no tiene SSR en CP → servir shell de /dashboard
+    handle /bank/* {
+        # API calls relativas desde /bank/* → proxy directo a CP sin rewrite
+        handle /bank/api/* {
+            uri strip_prefix /bank
+            reverse_proxy hindsight:9999
+        }
+        # Assets desde /bank/_next/* → proxy directo
+        handle /bank/_next/* {
+            uri strip_prefix /bank
+            reverse_proxy hindsight:9999
+        }
+        # Paginas → SPA fallback
+        handle {
+            rewrite * /dashboard
+            reverse_proxy hindsight:9999
+        }
+    }
+    handle /bank {
         rewrite * /dashboard
         reverse_proxy hindsight:9999
     }
 
     # Hindsight API (health, v1/*, docs, mcp, openapi.json, etc.)
-    @hindsight path_regexp /hindsight/.+
-    handle @hindsight {
+    handle /hindsight/* {
         uri strip_prefix /hindsight
         reverse_proxy hindsight:8888
     }
 
     # Swagger UI needs openapi.json from Hindsight
-    @openapi path /openapi.json
-    handle @openapi {
+    handle /openapi.json {
         reverse_proxy hindsight:8888
     }
 
     # Service directory/landing page
-    @status path_regexp /status(/.*)?
-    handle @status {
+    handle /status/* {
         root * /usr/share/caddy/landing
         try_files {path} index.html
+        file_server
+    }
+    handle /status {
+        rewrite * /status/
+        uri strip_prefix /status
+        root * /usr/share/caddy/landing
         file_server
     }
 
