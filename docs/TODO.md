@@ -119,8 +119,13 @@
 - [x] Extender `.github/workflows/deploy.yml` con job `deploy-services` vía Tailscale + SSH. 2026-06-22 [🤖 Verified by tool]
 - [x] Añadir `SSH_PRIVATE_KEY` a GitHub Secrets para acceso CI/CD. 2026-06-22 [🤖 Verified by tool]
 - [x] Configurar MCP self-hosted en Kilo Code (deshabilitado hasta migración). 2026-06-22 [🤖 Verified by tool]
-- [ ] Migrar el bank "toolset" desde hindsight cloud al self-hosted en OCI sin perder contexto.
-- [ ] Activar MCP self-hosted en Kilo Code y desactivar cloud (post-migración).
+- [x] Migrar el bank "toolset" desde hindsight cloud al self-hosted en OCI sin perder contexto. 2026-06-22 [🤖 Verified by tool]
+  - Exportado: 14 documentos, 72 facts, 56 observaciones via `document-transfer`.
+  - Importado: mismo conteo verificado en self-hosted.
+  - Recall funcional: 119 resultados retornados.
+- [x] Activar MCP self-hosted en Kilo Code y desactivar cloud (post-migración). 2026-06-22 [🤖 Changed in kilo.jsonc]
+  - `hindsight-selfhosted`: activo, URL via Funnel.
+  - `hindsight-toolset` + `hindsight-cl-concerts`: desactivados (`disabled: true`).
 
 ---
 
@@ -156,6 +161,6 @@
 | EPIC-002 | TASK-004 | Completed | 2 | 1 | 0 | 3 |
 | EPIC-003 | TASK-005 | In Progress | 2 | 0 | 0 | 2 |
 | EPIC-004 | TASK-006 | Pending | 1 | 1 | 0 | 2 |
-| EPIC-005 | TASK-007 | In Progress | 6 | 0 | 1 | 7 |
-| EPIC-006 | TASK-008 a TASK-010 | In Progress | 0 | 0 | 0 | 0 |
-| **TOTAL** | | | **15** | **3** | **1** | **19** |
+| EPIC-005 | TASK-007 | Completed | 8 | 0 | 1 | 9 |
+| EPIC-006 | TASK-008 a TASK-010 | In Progress | 1 | 1 | 0 | 2 |
+| **TOTAL** | | | **17** | **4** | **1** | **22** |

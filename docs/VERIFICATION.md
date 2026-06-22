@@ -70,7 +70,7 @@
 
 - ✅ `[DEV.CR.08.MIX]` Validar migración de Hindsight a instancia self-hosted en OCI.
   - *Resultado esperado:* Las operaciones MCP utilizan la instancia en OCI en lugar del servicio cloud, con el bank "toolset" migrado sin pérdida de contexto.
-  - *Verificacion:* ✅ Implementado parcial. Hindsight desplegado en OCI (modo standalone con pg0 embebido). LLM configurado con OpenCode Go + DeepSeek V4 Flash. API funcional — retain/recall verificados. MCP configurado en Kilo (deshabilitado). Pendiente migración del bank "toolset" desde cloud.
+  - *Verificacion:* ✅ Implementado. Hindsight desplegado en OCI (modo standalone con pg0 embebido). LLM configurado con OpenCode Go + DeepSeek V4 Flash. Bank "toolset" migrado desde cloud (14 docs, 72 facts, 56 observaciones). Recall funcional. MCP self-hosted activo en Kilo Code. Cloud desactivado.
 
 ### Verificaciones de Próximos Pasos (EPIC-006)
 

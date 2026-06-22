@@ -32,6 +32,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `SSH_PRIVATE_KEY` como GitHub Secret para acceso CI/CD al servidor OCI.
 - Tailscale Funnel habilitado en OCI: `https://toolset-oci-1.tail2d4c18.ts.net/` → `http://localhost:8888` (Hindsight API + MCP público vía HTTPS).
 - `deploy.sh` ahora verifica y asegura que Tailscale Funnel esté activo post-deploy.
+- Migración del bank "toolset" desde Hindsight Cloud al self-hosted en OCI (14 docs, 72 facts, 56 observaciones exportados/importados vía `document-transfer`). Recall verificado.
+- Conmutación MCP en Kilo Code: `hindsight-selfhosted` activado (Funnel URL), `hindsight-toolset` y `hindsight-cl-concerts` desactivados (`disabled: true`).
 
 ### Fixed
 - Healthcheck de Hindsight corregido: usa `/health` en puerto 8888 en lugar de `/api/health` (404).
