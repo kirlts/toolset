@@ -85,6 +85,11 @@
         file_server
     }
 
+    # Health endpoint (always routes to Hindsight API)
+    handle /health {
+        reverse_proxy hindsight:8888
+    }
+
     # Everything else → Infisical (catch-all: /api/v1/admin/*, /api/v1/auth/*, etc.)
     handle {
         reverse_proxy infisical:8080
