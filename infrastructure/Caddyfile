@@ -7,12 +7,12 @@
 }
 
 :8080 {
-    # Hindsight Control Plane (nativo: /dashboard, SPA: /bank/*, /cpanel/*)
-    @cp_dash path /dashboard
-    handle @cp_dash {
+    # Hindsight Control Plane (Next.js SPA) — assets y pagina nativa
+    @cp_native path_regexp cp_native ^/(dashboard|_next)(/.*)?$
+    handle @cp_native {
         reverse_proxy hindsight:9999
     }
-    # SPA fallback: /bank, /cpanel y subrutas -> servir shell de /dashboard
+    # CP SPA fallback: paths que solo existen en cliente
     @cp_spa path_regexp cp_spa ^/(bank|cpanel)(/.*)?$
     handle @cp_spa {
         rewrite * /dashboard

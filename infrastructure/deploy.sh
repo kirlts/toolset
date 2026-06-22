@@ -163,7 +163,6 @@ LANDING_HTML=$(cat <<EOF
 <p>Servicios autogestionados en OCI (sa-valparaiso-1).</p>
 <div class="tree">
 <pre>
-  <span class="path">/</span>                        <span class="desc">Landing page</span>            <span class="status">✅ 200</span>
   <span class="pipe">├──</span> <span class="path"><a href="/">/</a></span>                        <span class="desc">Infisical &mdash; Gestor de Secretos</span>    <span class="status">✅ 200</span>
   <span class="pipe">├──</span> <span class="path"><a href="/hindsight/health">/hindsight/health</a></span>        <span class="desc">Hindsight &mdash; API Health</span>           <span class="status">✅ 200</span>
   <span class="pipe">├──</span> <span class="path"><a href="/hindsight/mcp/">/hindsight/mcp/</a></span>          <span class="desc">Hindsight &mdash; MCP (harnesses)</span>      <span class="status">✅ 200</span>
@@ -171,6 +170,17 @@ LANDING_HTML=$(cat <<EOF
   <span class="pipe">└──</span> <span class="path"><a href="/dashboard">/dashboard</a></span>                <span class="desc">Hindsight &mdash; Control Plane</span>        <span class="status">✅ 200</span>
 </pre>
 </div>
+<p style="margin-top:1.5em;font-weight:bold;color:#f0c674;">🧠 Memory Banks</p>
+<div class="tree">
+<pre>
+  <span class="pipe">└──</span> <span class="path"><a href="/dashboard">/bank/toolset</a></span>              <span class="desc">toolset &mdash; banco actual</span>             <span class="status">✅ 128 facts</span>
+</pre>
+</div>
+<p style="margin:0.5em 0 0 1.5em;color:#888;font-size:0.85em;">
+  Los banks se nombran segun el repositorio (<code>hindsight-&lt;project&gt;</code>).
+  Cada repositorio nuevo crea un bank automaticamente via MCP.
+  Abre el <a href="/dashboard" style="color:#7ec8e3;">Control Plane</a> para ver todos los banks disponibles.
+</p>
 <div class="meta">
   <p>MCP: <code>opencodego://toolset-oci-1.tail2d4c18.ts.net/hindsight/mcp/</code></p>
   <p>Deploy: $(date -u +"%Y-%m-%d %H:%M UTC") &bull; OCI &bull; VM.Standard.A1.Flex &bull; ARM64</p>
