@@ -53,6 +53,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    env_file:
+      - /opt/toolset/.env
     environment:
       AUTH_SECRET: ${INFISICAL_AUTH_SECRET}
       ENCRYPTION_KEY: ${INFISICAL_ENCRYPTION_KEY}
@@ -108,7 +110,7 @@ services:
       hindsight:
         condition: service_healthy
       infisical:
-        condition: service_healthy
+        condition: service_started
     environment:
       FUNNEL_DOMAIN: ${FUNNEL_DOMAIN:-toolset-oci-1.tail2d4c18.ts.net}
     volumes:
