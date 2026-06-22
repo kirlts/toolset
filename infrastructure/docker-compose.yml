@@ -92,19 +92,29 @@ services:
     networks:
       - toolset-net
 
-  # === PLACEHOLDER: Daytona sandbox engine (TASK-005) ===
-  # daytona:
-  #   image: daytonaio/daytona:latest
-  #   container_name: daytona
-  #   restart: unless-stopped
-  #   privileged: true
-  #   ports:
-  #     - "127.0.0.1:3000:3000"
-  #   environment:
-  #     DAYTONA_SERVER_MODE: local
-  #   volumes:
-  #     - daytona_data:/data
-  #     - /var/run/docker.sock:/var/run/docker.sock
+  caddy:
+    image: caddy:2-alpine
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      hindsight:
+        condition: service_healthy
+      infisical:
+        condition: service_started
+    environment:
+      FUNNEL_DOMAIN: ${FUNNEL_DOMAIN:-toolset-oci-1.tail2d4c18.ts.net}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    networks:
+      - toolset-net
 
 networks:
   toolset-net:

@@ -54,6 +54,7 @@ OPENCODE_GO_API_KEY=${OPENCODE_GO_API_KEY}
 HINDSIGHT_API_LLM_PROVIDER=openai
 HINDSIGHT_API_LLM_MODEL=deepseek-v4-flash
 HINDSIGHT_API_LLM_BASE_URL=https://opencode.ai/zen/go/v1
+FUNNEL_DOMAIN=${FUNNEL_DOMAIN:-toolset-oci-1.tail2d4c18.ts.net}
 EOF
 )
 
@@ -70,6 +71,21 @@ echo "[DEPLOY] Writing .env on remote server..."
 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   "${SSH_HOST}" \
   "echo '${ENV_B64}' | base64 -d | sudo tee ${REMOTE_DIR}/.env > /dev/null"
+
+# --- Transfer Caddyfile (must precede compose up) ---
+CADDY_DOMAIN="${FUNNEL_DOMAIN:-toolset-oci-1.tail2d4c18.ts.net}"
+CADDYFILE_DIR="$(dirname "${COMPOSE_FILE}")"
+CADDYFILE="${CADDYFILE_DIR}/Caddyfile"
+if [ -f "$CADDYFILE" ]; then
+  echo "[DEPLOY] Transferring Caddyfile..."
+  scp -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    "$CADDYFILE" "${SSH_HOST}:/tmp/Caddyfile"
+  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    "${SSH_HOST}" "sudo mv -f /tmp/Caddyfile ${REMOTE_DIR}/Caddyfile"
+  echo "[DEPLOY] Caddyfile transferred (domain: ${CADDY_DOMAIN})"
+else
+  echo "[DEPLOY] WARNING: Caddyfile not found at $CADDYFILE"
+fi
 
 # --- Pull images ---
 echo "[DEPLOY] Pulling container images..."
@@ -120,28 +136,45 @@ while [ "$ELAPSED" -lt "$HEALTH_TIMEOUT" ]; do
   ELAPSED=$((ELAPSED + HEALTH_INTERVAL))
 done
 
-# --- Ensure Tailscale Funnel is active ---
-echo "[DEPLOY] Verifying Tailscale Funnel..."
-FUNNEL_STATUS=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-  "${SSH_HOST}" "sudo tailscale funnel status 2>&1" || echo "FUNNEL_FAILED")
-if echo "$FUNNEL_STATUS" | grep -q "Funnel on"; then
-  echo "[DEPLOY] Tailscale Funnel OK"
-elif echo "$FUNNEL_STATUS" | grep -q "FUNNEL_FAILED"; then
-  echo "[DEPLOY] WARNING: Could not verify Funnel (non-fatal)"
-  echo "  Manual: ssh ${SSH_HOST} 'sudo tailscale funnel --bg http://localhost:8888'"
-else
-  echo "[DEPLOY] Enabling Tailscale Funnel..."
+# --- Ensure Tailscale Funnel points to Caddy (multi-service proxy) ---
+FUNNEL_TARGET="http://localhost:8080"
+echo "[DEPLOY] Ensuring Tailscale Funnel -> Caddy (${FUNNEL_TARGET})..."
+CURRENT_FUNNEL=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  "${SSH_HOST}" "sudo tailscale funnel status 2>&1" || echo "")
+if echo "$CURRENT_FUNNEL" | grep -q "localhost:8080"; then
+  echo "[DEPLOY] Tailscale Funnel already targets Caddy"
+elif echo "$CURRENT_FUNNEL" | grep -q "Funnel on"; then
+  echo "[DEPLOY] Reconfiguring Funnel from direct Hindsight -> Caddy..."
   ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    "${SSH_HOST}" "sudo tailscale funnel --bg http://localhost:8888 2>&1" | sed 's/^/  /'
+    "${SSH_HOST}" "sudo tailscale funnel --bg ${FUNNEL_TARGET} 2>&1" | sed 's/^/  /'
+else
+  echo "[DEPLOY] Enabling Tailscale Funnel -> Caddy..."
+  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    "${SSH_HOST}" "sudo tailscale funnel --bg ${FUNNEL_TARGET} 2>&1" | sed 's/^/  /'
 fi
 
-if [ "$ALL_HEALTHY" = true ]; then
-  echo "[DEPLOY] All services healthy after ${ELAPSED}s."
-else
-  echo "[DEPLOY] WARNING: Not all services reported healthy within ${HEALTH_TIMEOUT}s."
-  echo "=== Final Container Status ==="
-  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    "${SSH_HOST}" \
-    "cd ${REMOTE_DIR} && sudo docker compose ps --format 'table {{.Name}}\t{{.Status}}\t{{.Health}}'"
-  echo "[DEPLOY] Check logs: ssh ${SSH_HOST} 'cd ${REMOTE_DIR} && sudo docker compose logs --tail=50 <service>'"
-fi
+# --- Post-deploy summary ---
+echo ""
+echo "============================================"
+echo "  Toolset Personal — Deploy Complete"
+echo "============================================"
+echo ""
+echo "  Funnel URL:  https://${CADDY_DOMAIN}/"
+echo ""
+echo "  ── Services ──────────────────────────────"
+echo "  Hindsight API    https://${CADDY_DOMAIN}/health"
+echo "  Hindsight CP     https://${CADDY_DOMAIN}/cp/"
+echo "  Infisical        https://${CADDY_DOMAIN}/infisical/"
+echo "  Hindsight MCP    https://${CADDY_DOMAIN}/mcp/"
+echo "  API Docs         https://${CADDY_DOMAIN}/docs"
+echo ""
+echo "  ── Internal (via Tailscale) ──────────────"
+echo "  Hindsight API    http://100.77.183.125:8888"
+echo "  Hindsight CP     http://100.77.183.125:9999"
+echo "  Infisical        http://100.77.183.125:8081"
+echo ""
+echo "  ── Docker Status ─────────────────────────"
+ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  "${SSH_HOST}" \
+  "cd ${REMOTE_DIR} && sudo docker compose ps --format 'table {{.Name}}\t{{.Status}}\t{{.Health}}'"
+echo "============================================"

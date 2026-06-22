@@ -26,7 +26,14 @@ La infraestructura opera como un nodo de ejecución persistente (24/7) en el niv
 
 ### 2.2 Servicios Desplegados
 * **Aprovisionamiento (OpenTofu):** Infraestructura inmutable. Define y despliega todo el stack desde cero mediante archivos de configuración declarativa, eliminando la configuración manual (SSH o Web UI). ✅ Desplegado.
-* **Red (Tailscale):** Red privada (WireGuard) que une la workstation local con el servidor en la nube. No se exponen puertos públicos — el acceso SSH es exclusivamente vía Tailscale. ✅ Activo. (*Tailscale Funnel* para webhooks queda pendiente de configuración).
+* **Red (Tailscale):** Red privada (WireGuard) que une la workstation local con el servidor en la nube. No se exponen puertos públicos — el acceso SSH es exclusivamente vía Tailscale. ✅ Activo.
+  * **Tailscale Funnel** para acceso público a servicios: `https://toolset-oci-1.tail2d4c18.ts.net/`. Caddy como reverse proxy multi-servicio:
+    * `/` → Landing page con enlaces a todos los servicios.
+    * `/health`, `/api/*`, `/mcp/*`, `/docs`, `/openapi.json` → Hindsight API.
+    * `/cp/*` → Hindsight Control Plane (UI).
+    * `/infisical/*` → Infisical (gestor de secretos).
+    * `/hermes/*` → 🔲 Hermes (futuro).
+  * Las URLs se imprimen automáticamente al final de cada deploy (ver `deploy.sh`).
 * **Gestión de Secretos (Infisical):** Self-hosted en OCI. Inyecta credenciales en runtime sin archivos .env persistentes. Admin creado (`martin.gil.o@gmail.com`). ✅ Desplegado (pendiente integración con Hermes).
   * Dependencias: **PostgreSQL 16** (datos), **Redis 7** (caché/cola).
 * **Orquestación (Hermes Agent):** 🔲 Pendiente (Nous Research, OSS). Procesa órdenes vía WhatsApp/Discord, delega subagentes, ejecuta código en sandbox Docker nativo. Pendiente de despliegue en OCI.
