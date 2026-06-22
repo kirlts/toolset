@@ -42,8 +42,11 @@ for var in "${REQUIRED_VARS[@]}"; do
 done
 [ "$MISSING" -eq 1 ] && exit 1
 
-# --- Build .env content (base64 to avoid special char issues) ---
-ENV_B64=$(cat <<EOF | base64 -w0
+# --- Write .env on remote ---
+echo "[DEPLOY] Writing .env on remote server..."
+ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  "${SSH_HOST}" \
+  "sudo tee ${REMOTE_DIR}/.env > /dev/null" <<ENVEOF
 INFISICAL_ENCRYPTION_KEY=${INFISICAL_ENCRYPTION_KEY}
 INFISICAL_AUTH_SECRET=${INFISICAL_AUTH_SECRET}
 INFISICAL_DB_PASSWORD=${INFISICAL_DB_PASSWORD}
@@ -55,22 +58,7 @@ HINDSIGHT_API_LLM_PROVIDER=openai
 HINDSIGHT_API_LLM_MODEL=deepseek-v4-flash
 HINDSIGHT_API_LLM_BASE_URL=https://opencode.ai/zen/go/v1
 FUNNEL_DOMAIN=${FUNNEL_DOMAIN:-toolset-oci-1-1.tail2d4c18.ts.net}
-EOF
-)
-
-DC=$(basename "$COMPOSE_FILE")
-# --- Transfer compose file (via /tmp for sudo) ---
-echo "[DEPLOY] Transferring ${DC} to ${SSH_HOST}:${REMOTE_DIR}/"
-scp -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-  "${COMPOSE_FILE}" "${SSH_HOST}:/tmp/${DC}"
-ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-  "${SSH_HOST}" "sudo mv -f /tmp/${DC} ${REMOTE_DIR}/${DC}"
-
-# --- Write .env on remote ---
-echo "[DEPLOY] Writing .env on remote server..."
-ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-  "${SSH_HOST}" \
-  "echo '${ENV_B64}' | base64 -d | sudo tee ${REMOTE_DIR}/.env > /dev/null"
+ENVEOF
 
 # --- Transfer Caddyfile (must precede compose up) ---
 CADDY_DOMAIN="${FUNNEL_DOMAIN:-toolset-oci-1-1.tail2d4c18.ts.net}"
