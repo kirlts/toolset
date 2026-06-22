@@ -42,11 +42,16 @@ for var in "${REQUIRED_VARS[@]}"; do
 done
 [ "$MISSING" -eq 1 ] && exit 1
 
-# --- Write .env on remote ---
-echo "[DEPLOY] Writing .env on remote server..."
-ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+# --- Write .env on remote (skip if server healthy, avoid recreating Infisical) ---
+echo "[DEPLOY] Checking .env status..."
+ENV_NEEDS_WRITE=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   "${SSH_HOST}" \
-  "sudo tee ${REMOTE_DIR}/.env > /dev/null" <<ENVEOF
+  "[ ! -f ${REMOTE_DIR}/.env ] && echo yes || sudo docker compose -f ${REMOTE_DIR}/docker-compose.yml ps --format '{{.Health}}' 2>/dev/null | grep -q 'unhealthy' && echo yes || echo no" 2>&1)
+if [ "$ENV_NEEDS_WRITE" = "yes" ]; then
+  echo "[DEPLOY] Writing .env on remote server..."
+  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    "${SSH_HOST}" \
+    "sudo tee ${REMOTE_DIR}/.env > /dev/null" <<ENVEOF
 INFISICAL_ENCRYPTION_KEY=${INFISICAL_ENCRYPTION_KEY}
 INFISICAL_AUTH_SECRET=${INFISICAL_AUTH_SECRET}
 INFISICAL_DB_PASSWORD=${INFISICAL_DB_PASSWORD}
@@ -59,6 +64,9 @@ HINDSIGHT_API_LLM_MODEL=deepseek-v4-flash
 HINDSIGHT_API_LLM_BASE_URL=https://opencode.ai/zen/go/v1
 FUNNEL_DOMAIN=${FUNNEL_DOMAIN:-toolset-oci-1-1.tail2d4c18.ts.net}
 ENVEOF
+else
+  echo "[DEPLOY] Server healthy. Skipping .env rewrite (preserves Infisical keys)."
+fi
 
 # --- Transfer Caddyfile (must precede compose up) ---
 CADDY_DOMAIN="${FUNNEL_DOMAIN:-toolset-oci-1-1.tail2d4c18.ts.net}"
