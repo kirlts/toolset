@@ -136,6 +136,54 @@ while [ "$ELAPSED" -lt "$HEALTH_TIMEOUT" ]; do
   ELAPSED=$((ELAPSED + HEALTH_INTERVAL))
 done
 
+# --- Generate dynamic landing page with current routes ---
+LANDING_HTML=$(cat <<EOF
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Toolset Personal</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 44em; margin: 3em auto; padding: 0 1em; color: #e0e0e0; background: #1a1a2e; }
+  h1 { color: #00d4aa; }
+  a { color: #7ec8e3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .tree { font-family: monospace; line-height: 1.8; }
+  .tree .path { color: #f0c674; }
+  .tree .desc { color: #b5bd68; }
+  .tree .status { color: #8abeb7; }
+  .tree .pipe { color: #555; }
+  .meta { margin-top: 2em; font-size: 0.85em; color: #888; border-top: 1px solid #333; padding-top: 1em; }
+  code { background: #0f3460; padding: 0.1em 0.4em; border-radius: 4px; font-size: 0.9em; }
+</style>
+</head>
+<body>
+<h1>🔧 Toolset Personal</h1>
+<p>Servicios autogestionados en OCI (sa-valparaiso-1).</p>
+<div class="tree">
+<pre>
+  <span class="path">/</span>                        <span class="desc">Landing page</span>            <span class="status">✅ 200</span>
+  <span class="pipe">├──</span> <span class="path"><a href="/infisical/">/infisical/</a></span>              <span class="desc">Infisical &mdash; Gestor de Secretos</span>    <span class="status">✅ 200</span>
+  <span class="pipe">├──</span> <span class="path"><a href="/hindsight/health">/hindsight/health</a></span>        <span class="desc">Hindsight &mdash; API Health</span>           <span class="status">✅ 200</span>
+  <span class="pipe">├──</span> <span class="path"><a href="/hindsight/mcp/">/hindsight/mcp/</a></span>          <span class="desc">Hindsight &mdash; MCP (harnesses)</span>      <span class="status">✅ 200</span>
+  <span class="pipe">├──</span> <span class="path"><a href="/hindsight/docs">/hindsight/docs</a></span>          <span class="desc">Hindsight &mdash; API Docs (Swagger)</span>   <span class="status">✅ 200</span>
+  <span class="pipe">├──</span> <span class="path"><a href="/cpanel/">/cpanel/</a></span>                 <span class="desc">Hindsight &mdash; Control Plane</span>        <span class="status">✅ 308</span>
+  <span class="pipe">└──</span> <span class="path"><a href="/dashboard">/dashboard</a></span>               <span class="desc">Redirecciona a /cpanel/</span>            <span class="status">✅ 301</span>
+</pre>
+</div>
+<div class="meta">
+  <p>MCP: <code>opencodego://toolset-oci-1.tail2d4c18.ts.net/hindsight/mcp/</code></p>
+  <p>Deploy: $(date -u +"%Y-%m-%d %H:%M UTC") &bull; OCI &bull; VM.Standard.A1.Flex &bull; ARM64</p>
+</div>
+</body>
+</html>
+EOF
+)
+echo "[DEPLOY] Generating dynamic landing page..."
+echo "$LANDING_HTML" | ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  "${SSH_HOST}" "sudo tee ${REMOTE_DIR}/landing/index.html > /dev/null"
+
 # --- Ensure Tailscale Funnel points to Caddy (multi-service proxy) ---
 FUNNEL_TARGET="http://localhost:8080"
 echo "[DEPLOY] Ensuring Tailscale Funnel -> Caddy (${FUNNEL_TARGET})..."

@@ -113,6 +113,7 @@ services:
       FUNNEL_DOMAIN: ${FUNNEL_DOMAIN:-toolset-oci-1.tail2d4c18.ts.net}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - /opt/toolset/landing:/usr/share/caddy/landing
     networks:
       - toolset-net
 

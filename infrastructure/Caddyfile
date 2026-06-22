@@ -21,42 +21,12 @@
     # Redirects
     redir /dashboard /cpanel/ 301
 
-    # Landing page (solo para la raiz exacta, no para /infisical/*)
+    # Landing page generada por deploy.sh
     @root expression `{http.request.uri.path} == '/'`
     handle @root {
-        respond `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Toolset Personal</title>
-<style>
-  body { font-family: system-ui, sans-serif; max-width: 40em; margin: 4em auto; padding: 0 1em; color: #e0e0e0; background: #1a1a2e; }
-  h1 { color: #00d4aa; }
-  a { color: #7ec8e3; }
-  ul { list-style: none; padding: 0; }
-  li { margin: 0.75em 0; }
-  li a { display: block; padding: 0.75em 1em; background: #16213e; border-radius: 8px; text-decoration: none; }
-  li a:hover { background: #0f3460; }
-  .meta { margin-top: 2em; font-size: 0.85em; color: #888; }
-  code { background: #0f3460; padding: 0.1em 0.4em; border-radius: 4px; font-size: 0.9em; }
-</style>
-</head>
-<body>
-<h1>🔧 Toolset Personal</h1>
-<p>Servicios autogestionados en OCI (sa-valparaiso-1).</p>
-<ul>
-  <li><a href="/infisical/">Infisical &mdash; Gestor de Secretos</a></li>
-  <li><a href="/hindsight/health">Hindsight &mdash; API Health</a></li>
-  <li><a href="/hindsight/docs">Hindsight &mdash; API Docs (Swagger)</a></li>
-  <li><a href="/cpanel/">Hindsight &mdash; Control Plane</a></li>
-</ul>
-<div class="meta">
-  <p>MCP: <code>https://toolset-oci-1.tail2d4c18.ts.net/hindsight/mcp/</code></p>
-  <p>OCI &bull; VM.Standard.A1.Flex &bull; ARM64</p>
-</div>
-</body>
-</html>` 200
+        root * /usr/share/caddy/landing
+        try_files index.html
+        file_server
     }
 
     # Todo lo demas -> Infisical (SPA con assets root-relative)
