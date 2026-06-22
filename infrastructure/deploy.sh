@@ -143,14 +143,20 @@ CURRENT_FUNNEL=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null
   "${SSH_HOST}" "sudo tailscale funnel status 2>&1" || echo "")
 if echo "$CURRENT_FUNNEL" | grep -q "localhost:8080"; then
   echo "[DEPLOY] Tailscale Funnel already targets Caddy"
-elif echo "$CURRENT_FUNNEL" | grep -q "Funnel on"; then
-  echo "[DEPLOY] Reconfiguring Funnel from direct Hindsight -> Caddy..."
-  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    "${SSH_HOST}" "sudo tailscale funnel --bg ${FUNNEL_TARGET} 2>&1" | sed 's/^/  /'
 else
-  echo "[DEPLOY] Enabling Tailscale Funnel -> Caddy..."
+  echo "[DEPLOY] Configuring Tailscale Funnel on :443 -> Caddy..."
   ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     "${SSH_HOST}" "sudo tailscale funnel --bg ${FUNNEL_TARGET} 2>&1" | sed 's/^/  /'
+fi
+
+# --- Remove legacy Funnel on :8443 if present ---
+echo "[DEPLOY] Checking for legacy Funnel :8443..."
+HAS_8443=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  "${SSH_HOST}" "sudo tailscale funnel status 2>&1" | grep -c "8443" || true)
+if [ "$HAS_8443" -gt 0 ]; then
+  echo "[DEPLOY] Removing legacy Funnel :8443... (Infisical ahora va por Caddy)"
+  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    "${SSH_HOST}" "sudo tailscale funnel --https=8443 off 2>&1" | sed 's/^/  /'
 fi
 
 # --- Post-deploy summary ---
@@ -162,16 +168,16 @@ echo ""
 echo "  Funnel URL:  https://${CADDY_DOMAIN}/"
 echo ""
 echo "  ── Services ──────────────────────────────"
-echo "  Hindsight API    https://${CADDY_DOMAIN}/health"
-echo "  Hindsight CP     https://${CADDY_DOMAIN}/cp/"
-echo "  Infisical        https://${CADDY_DOMAIN}/infisical/"
-echo "  Hindsight MCP    https://${CADDY_DOMAIN}/mcp/"
-echo "  API Docs         https://${CADDY_DOMAIN}/docs"
+  echo "  Infisical        https://${CADDY_DOMAIN}/"
+  echo "  Hindsight API    https://${CADDY_DOMAIN}/hindsight/health"
+  echo "  Hindsight CP     https://${CADDY_DOMAIN}/cpanel/"
+  echo "  Hindsight MCP    https://${CADDY_DOMAIN}/hindsight/mcp/"
+  echo "  API Docs         https://${CADDY_DOMAIN}/hindsight/docs"
 echo ""
 echo "  ── Internal (via Tailscale) ──────────────"
-echo "  Hindsight API    http://100.77.183.125:8888"
-echo "  Hindsight CP     http://100.77.183.125:9999"
-echo "  Infisical        http://100.77.183.125:8081"
+  echo "  Hindsight API    http://100.77.183.125:8888 (via Funnel: /hindsight/*)"
+  echo "  Hindsight CP     http://100.77.183.125:9999 (via Funnel: /cpanel/*)"
+  echo "  Infisical        http://100.77.183.125:8081 (via Funnel: /)"
 echo ""
 echo "  ── Docker Status ─────────────────────────"
 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
