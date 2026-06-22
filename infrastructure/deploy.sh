@@ -101,7 +101,7 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
 
 # --- Wait for healthchecks ---
 echo "[DEPLOY] Waiting for healthchecks..."
-HEALTH_TIMEOUT=120
+HEALTH_TIMEOUT=300
 HEALTH_INTERVAL=10
 ELAPSED=0
 ALL_HEALTHY=false
