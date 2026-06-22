@@ -13,11 +13,11 @@
 | 🔲 | Pending |
 
 ## Primary Checks (Author-Provided)
-<!-- If explicit checks provided by the author were extracted in Phase 0, display them here verbatim. Otherwise, delete this section. -->
+<!-- If explicit checks provided by the author were extracted in Phase 0, they are displayed here verbatim. Otherwise, this section is deleted. -->
 -
 
 ## Abbreviation Key
-<!-- Include the abbreviation key from Phase 4 so readers can decode check IDs. -->
+<!-- The abbreviation key from Phase 4 is included so readers can decode check IDs. -->
 | Full Name | Abbreviation | Type |
 |---|---|---|
 | [pending] | [pending] | Actor / Category |
@@ -26,7 +26,7 @@
 | Pre-verifiable by AI, final human validation | MIX | Verifier |
 
 ## [Actor Name 1]
-<!-- Extract checks from Phase 4 VERBATIM. Do NOT rephrase, soften, or generalize the check text. Semantic identity between Phase 4 and this document is mandatory. Group checks by actor. -->
+<!-- The agent extracts checks from Phase 4 VERBATIM. The agent does not rephrase, soften, or generalize the check text. Semantic identity between Phase 4 and this document is mandatory. The agent groups checks by actor. -->
 - 🧑 `[ACTOR.CAT.NN.HUM]` [Observable Action] → [Expected Result]. *(Validated promise)*
 - 🤖 `[ACTOR.CAT.NN.LLM]` [Observable Action] → [Expected Result]. *(Validated promise)*
 - 🤖🧑 `[ACTOR.CAT.NN.MIX]` [Observable Action] → [Expected Result]. *(Validated promise)*

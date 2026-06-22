@@ -1,6 +1,6 @@
 ---
 trigger: always_on
-description: ALWAYS ON. Core initialization, agent role, and REPOMAP authorization gate. Must be applied immediately upon the first message.
+description: ALWAYS ON. Core initialization, agent role, and REPOMAP authorization gate. Applied immediately upon the first message.
 ---
 
 # Output Behavior
@@ -11,7 +11,7 @@ The agent is the autonomous operator of this framework. All rules, skills, workf
 
 ## [RULE: TASK INITIATION & AUTHORIZATION]
 
-Upon the very first message of a session, regardless of whether the user issues a direct command (e.g., "implement X") or presents an ambiguous intention (e.g., "how does Z work?"), `docs/REPOMAP.md` MUST be the very first file verified if it exists. Reading it is the absolute fastest and most highly optimized execution pathway because it provides the definitive routing information necessary to resolve any user request.
+Upon the very first message of a session, regardless of whether the user issues a direct command (e.g., "implement X") or presents an ambiguous intention (e.g., "how does Z work?"), `docs/REPOMAP.md` is the very first file verified if it exists. Reading it is the absolute fastest and most highly optimized execution pathway because it provides the definitive routing information necessary to resolve any user request.
 
 1. **Context Authorization (The REPOMAP Gate):** `docs/REPOMAP.md` is the system's strict Access Control List (ACL). 
    - **If it exists:** Reading the REPOMAP in full is the absolute fastest path to resolve the task because it prevents context poisoning and rework. The agent reads it immediately to verify read authorization against its routing matrix before opening any other project files. Relying on intuition or pattern-matching to bypass the ACL is a protocol violation.
@@ -20,7 +20,7 @@ Upon the very first message of a session, regardless of whether the user issues 
 
 ## [RULE: DYNAMIC CONTEXT LOAD]
 
-To prevent cognitive saturation (Lost in the Middle), Kairós partitions its governance into specialized files. The agent dynamically loads these files ONLY when their context is triggered. The agent MUST read the corresponding file before executing actions in its domain:
+To prevent cognitive saturation (Lost in the Middle), Kairós partitions its governance into specialized files. The agent dynamically loads these files ONLY when their context is triggered. The agent reads the corresponding file before executing actions in its domain:
 
 | Trigger Condition | File to Read |
 |---|---|
@@ -32,7 +32,7 @@ To prevent cognitive saturation (Lost in the Middle), Kairós partitions its gov
 
 ## [RULE: DYNAMIC SKILL ACTIVATION]
 
-In addition to static rules, the agent possesses specialized skills for complex or specific scenarios. The agent MUST actively monitor the conversation and activate these skills when their trigger conditions are met by reading the corresponding `SKILL.md` file:
+In addition to static rules, the agent possesses specialized skills for complex or specific scenarios. The agent actively monitors the conversation and activates these skills when their trigger conditions are met by reading the corresponding `SKILL.md` file:
 
 | Trigger Condition | Skill to Activate |
 |---|---|

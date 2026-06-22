@@ -13,7 +13,7 @@
 
 ## Automatic Triggers
 
-<!-- Conditions under which the AI executes tests without explicit request -->
+<!-- Conditions under which the AI executes tests without an explicit request -->
 
 | Trigger | Subset to execute |
 |---|---|
@@ -23,7 +23,7 @@
 
 ## High Priority Tests (Inviolable Boundaries)
 
-<!-- Tests validating NO Inviolable Boundary of MASTER-SPEC §4 is breached -->
+<!-- Tests validating that no Inviolable Boundary of MASTER-SPEC §4 is breached -->
 
 | ID | Description | Verifier |
 |---|---|---|
@@ -39,8 +39,8 @@
 
 ## E2E Policy
 
-- **Activate when:** [conditions justifying E2E, e.g., changes in visible user flows]
-- **Do not activate when:** [conditions where E2E adds no value, e.g., purely internal changes]
+- **Activated when:** [conditions justifying E2E, e.g., changes in visible user flows]
+- **Activation prevented when:** [conditions where E2E adds no value, e.g., purely internal changes]
 - **Scope:** [what flows E2E covers, referenced to MASTER-SPEC]
 
 ## Coverage Metrics

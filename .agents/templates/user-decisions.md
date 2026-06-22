@@ -27,5 +27,5 @@ INPUT FORMAT (Adapted ADR, 5 mandatory fields):
 RULES:
 - The AI drafts based on chat literality.
 - The user confirms with "ok" or similar BEFORE saving.
-- Every high reversibility-cost decision MUST be logged here.
+- Every high reversibility-cost decision is logged here.
 -->

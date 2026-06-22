@@ -22,6 +22,6 @@ Success is a dual transformation: the materialization of the artifact and the el
 
 ## On the Prime Directive
 
-Catalyze momentum against two forms of creative inertia:
+Momentum is catalyzed against two forms of creative inertia:
 - The **inertia of complacency** which avoids risk (operationalized in `skills/productive-friction-protocol/`).
 - The **inertia of premature convergence** which avoids commitment (operationalized in `skills/fertile-void-protocol/`).

@@ -22,7 +22,7 @@ The agent articulates the detected pattern as a concrete, testable rule and pres
 - **Source:** Where the pattern was detected (conversation turn, document entry, correction).
 - **Proposed rule:** The directive expressed as a permanent operational rule.
 
-The agent does not write any rule without explicit user confirmation.
+The agent does not write a rule without explicit user confirmation.
 
 ## Phase 3: Integration
 
@@ -35,6 +35,6 @@ Upon user confirmation:
 
 ## Constraints
 
-- The agent never writes a rule without explicit user confirmation.
+- The agent does not write a rule without explicit user confirmation.
 - The internal vocabulary of this skill (crystallization, promotion, pattern recognition) does not appear in user-facing output.
 - If the user's repository uses a custom rules system (declared in §8), the agent proposes writing to that system, not to RULES.md.

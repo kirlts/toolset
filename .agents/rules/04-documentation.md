@@ -7,11 +7,11 @@ description: Applies when creating, reading, or modifying project documentation 
 
 ## [RULE: REPOSITORY LOCALIZATION]
 
-The repository code, comments, and specific Kairós artifacts (`docs/MASTER-SPEC.md`, `docs/TODO.md`, etc.) belong to the Project Domain. When creating, writing to, or editing these files, the system silently detects the dominant language of the target file (or the user's project context) and strictly appends or modifies content in that same language. Leaking English governance reasoning into localized project documentation is strictly forbidden.
+The repository code, comments, and specific Kairós artifacts (`docs/MASTER-SPEC.md`, `docs/TODO.md`, etc.) belong to the Project Domain. When creating, writing to, or editing these files, the system silently detects the dominant language of the target file (or the user's project context) and strictly appends or modifies content in that same language. Leaking English governance reasoning into localized project documentation is not permitted.
 
 ## Documentary Axis
 
-All guiding project documents reside in `/docs/`. The canonical templates reside in `.agents/templates/`. When creating a new document, copy the corresponding template and populate it with the project's content.
+All guiding project documents reside in `/docs/`. The canonical templates reside in `.agents/templates/`. When creating a new document, the corresponding template is copied and populated with the project's content.
 
 | Document | Template | Purpose |
 |---|---|---|
@@ -22,10 +22,9 @@ All guiding project documents reside in `/docs/`. The canonical templates reside
 | `docs/USER-DECISIONS.md` | `.agents/templates/user-decisions.md` | Human decisions using an ADR 5-field format. |
 | `docs/CHANGELOG.md` | `.agents/templates/changelog.md` | Versioned history. Keep a Changelog format. |
 | `docs/TECHNICAL-DEBT.md` | `.agents/templates/technical-debt.md` | Ephemeral file. Self-liquidates when 100% completed. |
-| `docs/TEST.md` | (generated via /test) | Testing contract. Must be read if it exists. |
-| `docs/RULES.md` | `.agents/templates/rules.md` | Repository-specific operational rules for the AI agent. **Not mandatory.** Only exists if the user declares rules. |
-| `docs/LIVING-DOCUMENT.md` | `.agents/templates/living-document.md` | Pedagogical narrative. **Isolated from normal operations.** Can ONLY be created or modified via the `/narrate` workflow. |
-
+| `docs/TEST.md` | (generated via /test) | Testing contract. It is read if it exists. |
+| `docs/RULES.md` | `.agents/templates/rules.md` | Repository-specific operational rules for the AI agent. **This is not mandatory.** Only exists if the user declares rules. |
+| `docs/LIVING-DOCUMENT.md` | `.agents/templates/living-document.md` | Pedagogical narrative. **Isolated from normal operations.** It is created or modified exclusively via the `/narrate` workflow. |
 
 ## Work Cycle
 
@@ -37,7 +36,7 @@ All guiding project documents reside in `/docs/`. The canonical templates reside
 
 ## Framework Hermeticity
 
-If the current working directory is the canonical Kairós repository, the files inside `/docs/` are master templates and must NOT be polluted with session-specific logic. Ephemeral logs must go to volatile areas.
+If the current working directory is the canonical Kairós repository, the files inside `/docs/` are master templates and are not polluted with session-specific logic. Ephemeral logs go to volatile areas.
 
 ## Anti-Bias Heuristics Protocol
 
@@ -49,8 +48,8 @@ Before writing a heuristic into `docs/MEMORY.md`:
 
 ## Terminal Bypass
 
-The terminal command retry limit is 1. Upon the second failure, blind direct execution is disabled; output must be redirected to a temporary file and inspected via file-reading tools.
+The terminal command retry limit is 1. Upon the second failure, blind direct execution is disabled; output is redirected to a temporary file and inspected via file-reading tools.
 
 ## Workflow Fidelity
 
-Workflows are executed exactly to the letter, step by step, including any nested workflows within them. Internal paraphrasing, skipping steps, or compressing workflow instructions is disabled. Every step of a workflow must produce a verifiable artifact before advancing to the next.
+Workflows are executed exactly to the letter, step by step, including any nested workflows within them. Internal paraphrasing, skipping steps, or compressing workflow instructions is disabled. Every step of a workflow produces a verifiable artifact before advancing to the next.

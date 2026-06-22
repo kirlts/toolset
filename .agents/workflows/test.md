@@ -20,7 +20,7 @@ The system scans the repository looking for evidence of an existing testing stra
 
 - If NO testing evidence is found → **Mode 1: Propose strategy**
 - If an existing strategy is found and is at least partially appropriate for the repository's scope → **Mode 2: Execute existing suite**
-- If an existing strategy is found but is entirely inadequate for the current scope (e.g., only tests from an abandoned module) → **Mode 1**, but document what was found and why it is discarded
+- If an existing strategy is found but is entirely inadequate for the current scope (e.g., only tests from an abandoned module) → **Mode 1**, but the system documents what was found and why it is discarded.
 
 ---
 
@@ -41,8 +41,8 @@ The testing strategy is designed from the user's perspective: what needs verific
 | Layer | Typical Tool | Target Coverage | Authority | Success Criterion |
 |---|---|---|---|---|
 | Unit tests | vitest, pytest, go test, jest | Business logic, pure functions, utilities | `.LLM` (fully automatable) | Every function with non-trivial logic has a test |
-| Integration tests | vitest, pytest, supertest | End-to-end data flows, APIs, DB queries | `.MIX` (agent designs and runs; human validates critical flow coverage) | Every endpoint/critical flow has a test |
-| E2E / visual tests | Playwright | Visible user flows, UI regressions | `.MIX` (agent executes; human validates visual correctness) | Every critical flow in MASTER-SPEC has a test |
+| Integration tests | vitest, pytest, supertest | End-to-end data flows, APIs, DB queries | `.MIX` (system designs and runs; human validates critical flow coverage) | Every endpoint/critical flow has a test |
+| E2E / visual tests | Playwright | Visible user flows, UI regressions | `.MIX` (system executes; human validates visual correctness) | Every critical flow in MASTER-SPEC has a test |
 | Exploratory / perceptual | Manual | UX coherence, aesthetic judgment, edge cases requiring domain intuition | `.HUM` (requires human execution) | Critical judgment calls documented |
 
 The user can always implicitly override any element of the proposed strategy (e.g., "I don't want Playwright" → respected without questioning).
@@ -98,7 +98,7 @@ The detected testing strategy is loaded:
 The subset to execute is determined:
 - If the user specifies the subset in the invocation (e.g., `/test auth`), that subset is executed.
 - If the conversational context implies an area (e.g., "I just refactored the auth module"), tests for that area are executed.
-- If there is no specific context, execute the full suite.
+- If there is no specific context, the system executes the full suite.
 
 ### Step 3: Execute Tests
 
@@ -114,4 +114,4 @@ The relevant tests are executed using the detected runner. If a test fails:
 - Coverage count is updated if applicable.
 - If the project uses a legacy strategy without a formal TEST.md, its migration to `docs/TEST.md` is proposed for future executions.
 
-**HALT. Workflow complete.**
+**The system halts and the workflow completes.**

@@ -53,12 +53,12 @@ Conversation mode is maintained when:
 Each role profile contains a `Documentation Triggers` section that defines what THIS persona considers worth formalizing. These are domain-specific and derived from the subject's epistemology: what they would consider "serious" work requiring a written record versus a quick take.
 
 **Evaluation order:**
-1. Check global criteria first.
-2. If no global criterion is met, check the role's `Documentation Triggers`.
-3. If neither matches, default to Conversation mode.
-4. If the invocation message and conversational context are ambiguous, default to Conversation mode.
+1. The system checks global criteria first.
+2. If no global criterion is met, the system checks the role's `Documentation Triggers`.
+3. If neither matches, the system defaults to Conversation mode.
+4. If the invocation message and conversational context are ambiguous, the system defaults to Conversation mode.
 
-**Mid-session escalation:** The system may offer to escalate from Conversation to Audit mode, but never switches automatically without user confirmation.
+**Mid-session escalation:** The system may offer to escalate from Conversation to Audit mode, but does not switch automatically without user confirmation.
 
 ---
 
@@ -74,7 +74,7 @@ Each role profile contains a `Documentation Triggers` section that defines what 
 
 If no roles exist, the system outputs: "No roles found. Use `/create-role` to extract a persona from source material."
 
-**HALT.**
+**The workflow halts.**
 
 ---
 
@@ -164,4 +164,4 @@ When `/role off` is invoked:
 2. **If the session was in Conversation mode:** Deactivation completes silently.
 3. **If the session was in Audit mode:** The session working document is preserved in the artifact directory. If a results document was not generated and the working document contains 3+ substantive findings, the system offers: "The session logged [N] findings. Generate a results document before closing?" If the user declines, deactivation completes silently.
 
-**HALT.**
+**The workflow halts.**

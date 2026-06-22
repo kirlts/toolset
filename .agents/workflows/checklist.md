@@ -4,7 +4,7 @@ description: /checklist - Generates an exhaustive, domain-agnostic MECE verifica
 
 # Checklist (Standalone Promise Decomposition)
 
-Generate a complete, domain-agnostic verification checklist from any input (text, documentation, images, URLs, code, or any combination). The checklist is a self-contained deliverable. It does NOT integrate into MASTER-SPEC, TODO.md, or any project documentation. The output is an internal chat artifact; the user decides what to do with it.
+The system generates a complete, domain-agnostic verification checklist from any input (text, documentation, images, URLs, code, or any combination). The checklist is a self-contained deliverable. It does NOT integrate into MASTER-SPEC, TODO.md, or any project documentation. The output is an internal chat artifact; the user decides what to do with it.
 
 ## Core Constraint
 
@@ -40,7 +40,7 @@ The output of /checklist is an internal artifact of the conversation. The altera
 
 ## STEP 2: The Core Loop (Phases 0 to 5 + Domain Intelligence)
 
-Within `[subject]_working.md`, process Phase 0 through Phase 5 sequentially, including Phase 0.5 (Domain Intelligence) between Phase 0 and Phase 1.
+The system processes Phase 0 through Phase 5 sequentially within `[subject]_working.md`, including Phase 0.5 (Domain Intelligence) between Phase 0 and Phase 1.
 
 - **The Anchor Rule:** The system writes `<!-- CHECKPOINT: Phase [N] started -->` precisely when beginning a new phase block.
 - **Tool-Level Pacing Mandate (Anti-One-Shot):** Attempting to generate Phases 0-5 in a single file-writing execution is strictly forbidden. The system executes this iteratively:
@@ -48,7 +48,7 @@ Within `[subject]_working.md`, process Phase 0 through Phase 5 sequentially, inc
   2. A file modification tool outputs ONLY Phase N and its Gate to the file.
   3. The Gate determines progression; the system evaluates the Gate before proceeding to Phase N+1 in a SUBSEQUENT writing operation.
 - **The Gate Rule (CoT Enforcement):** The system proceeds to Phase N+1 ONLY AFTER ALL guardrails in the `⛔ GATE N` table are marked `[x]`. The Reasoning column is populated FIRST with genuine analytical friction.
-- **The Halt Condition:** If any guardrail evaluates to a fundamental failure, the system HALTs and corrects the structural gap before proceeding.
+- **The Halt Condition:** If any guardrail evaluates to a fundamental failure, the system halts and corrects the structural gap before proceeding.
    - *ANTI-PATTERN:* Parsing through Phases 0-5 all at once, filling all matrices, and then bulk-checking all the Gates at the very end.
    - *ANTI-PATTERN:* Treating Gates as a formality by writing "Yes, this is correct" in every Reasoning cell without genuine interrogation.
 
@@ -60,7 +60,7 @@ Once GATE 5 is successfully resolved:
 3. The header fields (Domain, Audience, Date, Source context) are populated.
 4. ONLY the final list of synthesized checks from Phase 4 is extracted and grouped cleanly under each Actor. All reasoning matrices, gate tables, or phase markers are eliminated.
    - *ANTI-PATTERN:* Including traces of your logic (e.g., "Because this actor interacts with...") or retaining deliberation artifacts in the clean document.
-   - *ANTI-PATTERN:* Rewriting or paraphrasing checks during extraction to "improve readability" or "smooth the language." The check text in the deliverable MUST be semantically identical to the synthesized check in Phase 4. Cosmetic rewording that dilutes specificity, softens falsability, or generalizes an observable action is a corruption of the algorithm's output.
+   - *ANTI-PATTERN:* Rewriting or paraphrasing checks during extraction to "improve readability" or "smooth the language." The check text in the deliverable is semantically identical to the synthesized check in Phase 4. Cosmetic rewording that dilutes specificity, softens falsability, or generalizes an observable action is avoided as it corrupts the algorithm's output.
 5. The quantitative footer with explicit per-actor counts is populated.
 
 ## STEP 4: Self-Verification Audit (GATE 6)
@@ -72,4 +72,4 @@ This is the terminal gate. The system executes it AFTER generating the deliverab
 3. **Hard Failure Protocol:** If G6-DENSITY fails for ANY actor (any actor has <10 checks), the system returns to Phase 2 in the working document, expands the Promise Matrix for that actor, propagates through Phases 3-4, regenerates the deliverable, and re-runs GATE 6. Exceptions are prohibited.
 4. Once all GATE 6 invariants pass, the `[subject]_checklist.md` is presented to the user in chat.
 
-**HALT. The system generates a summary and terminates.**
+**The system halts, generates a summary, and terminates.**

@@ -11,7 +11,7 @@ The model's training data has a cutoff date. In technology, a 12-18 month gap ca
 
 ### 1. Controlled Ignorance Declaration (Internal)
 
-Before recommending a technology, the system declares internally: "My knowledge of [topic] has an estimated cutoff date. I must verify." This silent cognitive trigger operates entirely internally and is never communicated to the user.
+Before recommending a technology, the system declares internally: "My knowledge of [topic] has an estimated cutoff date. Verification is required." This silent cognitive trigger operates entirely internally and is not communicated to the user.
 
 ### 2. Mandatory Searches
 
@@ -47,10 +47,10 @@ The research triangulates a minimum of 2 independent sources dated within the la
 
 ### 5. Presentation
 
-Research is presented in the format that best serves the user's expressed intention. The fixed data point, regardless of presentation format: each source must include a URL with the access date. If no recent sources were found: "I found no sources from the last 12 months. My recommendation is based on knowledge with a lag of [X months]. Verify manually before implementing."
+Research is presented in the format that best serves the user's expressed intention. The fixed data point, regardless of presentation format: each source includes a URL with the access date. If no recent sources were found: "I found no sources from the last 12 months. My recommendation is based on knowledge with a lag of [X months]. Manual verification is required before implementation."
 
 ## Activation Limits
 
-- **Omit completely** for purely conceptual questions or language syntax that does not involve evolving ecosystems (e.g., "how does a `for` loop work in Python").
-- **Reduce to 2 searches (current state + critical)** for binary decisions between mature, stable technologies (e.g., "Flask vs FastAPI", "PostgreSQL vs MySQL").
-- **Execute all 4 searches** ONLY for full stack evaluations, emerging technologies, or radical architectural shifts.
+- **The skill is omitted completely** for purely conceptual questions or language syntax that does not involve evolving ecosystems (e.g., "how does a `for` loop work in Python").
+- **The system reduces searches to 2 (current state + critical)** for binary decisions between mature, stable technologies (e.g., "Flask vs FastAPI", "PostgreSQL vs MySQL").
+- **The system executes all 4 searches** ONLY for full stack evaluations, emerging technologies, or radical architectural shifts.

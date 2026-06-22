@@ -8,7 +8,7 @@ This workflow automates the creation of a new Kairós framework version. It mana
 
 ## Step 0: Environment Guard
 
-This workflow modifies the global distribution manifest. It MUST ONLY be executed if the current ecosystem is designated as the canonical Kairós repository that redistributes to others. If you are in a client repository (e.g., an app, a service), you MUST IMMEDIATELY ABORT and notify the user.
+This workflow modifies the global distribution manifest. It is executed only if the current ecosystem is designated as the canonical Kairós repository that redistributes to others. If the execution is within a client repository (e.g., an app, a service), the system immediately aborts and notifies the user.
 
 ## Step 1: Detection and Analysis
 
@@ -22,7 +22,7 @@ This workflow modifies the global distribution manifest. It MUST ONLY be execute
 
 ## Step 2: Automatic SemVer Calculation
 
-The AI determines the version bump type (SemVer) based on the severity and nature of the Diff:
+The system determines the version bump type (SemVer) based on the severity and nature of the Diff:
 
 - **MAJOR BUMP (`v(X+1).0.0`):**
   - Framework files were deleted (killing dependencies of previous rules/workflows).
@@ -91,7 +91,7 @@ The master templates in `.agents/templates/` are the source of truth for documen
 
 1. **Inventory**: All existing templates in `.agents/templates/` are listed.
 2. **Documentary Cross-Reference**: For each template corresponding to an axis document (`master-spec.md`, `todo.md`, `memory.md`, `changelog.md`, `user-decisions.md`, `technical-debt.md`), the system verifies:
-   - The template structure conforms to the rules in `.agents/rules/04-documentation.md`. If a rule mandates a field or format, the template MUST have it.
+   - The template structure conforms to the rules in `.agents/rules/04-documentation.md`. If a rule mandates a field or format, the template has it.
    - No orphan templates exist (templates no workflow or rule references).
    - No missing templates exist (documents mentioned in rules whose template is absent).
 3. **Workflow Template Cross-Reference**: For each workflow template (`derive-working.md`, `derive-checklist.md`, `checklist-working.md`, `checklist-output.md`), the system verifies:
@@ -102,7 +102,7 @@ The master templates in `.agents/templates/` are the source of truth for documen
    - [WARNING] Templates with minor discrepancies (outdated fields).
    - [FAILURE] Templates with critical discrepancies (workflow references missing template, or mismatch).
 
-If [FAILURE] discrepancies are detected, the AI MUST correct them as part of the release. [WARNING] discrepancies are documented and corrected if the effort is low.
+If [FAILURE] discrepancies are detected, the system corrects them as part of the release. [WARNING] discrepancies are documented and corrected if the effort is low.
 
 ## Step 5: Final Verification
 

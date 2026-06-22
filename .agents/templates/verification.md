@@ -32,4 +32,4 @@ Implementation format (with mandatory timestamp):
   ✅ Implemented (🤖🧑 Pre-verified by [tool], confirmed by user; YYYY-MM-DD HH:MM)
 -->
 
-> Pending formal verification; execute `/derive` to populate this section.
+> Pending formal verification; the agent executes `/derive` to populate this section.

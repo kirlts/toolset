@@ -29,8 +29,8 @@ The first line is extracted as the remote version. The rest of the file represen
 
 ## Step 2: Version Comparison
 
-- If local version == remote version → report "Kairós is up to date" and stop.
-- If local version < remote version → proceed with update.
+- If local version == remote version → the system reports "Kairós is up to date" and stops.
+- If local version < remote version → the system proceeds with the update.
 
 ## Step 3: Change Detection
 
@@ -39,8 +39,8 @@ Using the manifest from the remote `kairos-version.txt`:
 For EACH path listed in the remote manifest vs the local manifest:
 
 1. **ADD:** If the path exists in the remote manifest but NOT locally → new file.
-2. **MODIFY:** If the path exists in both → potential modification. Read both versions (remote and local). If they differ → change detected.
-3. **DELETE:** If the path exists in the local manifest but NOT in the remote → file removed in the new version. Also, ensure any resulting empty master directories (like old `skills/` folders) are subsequently purged.
+2. **MODIFY:** If the path exists in both → potential modification. Both versions (remote and local) are read. If they differ → change detected.
+3. **DELETE:** If the path exists in the local manifest but NOT in the remote → file removed in the new version. Also, any resulting empty master directories (like old `skills/` folders) are subsequently purged.
 
 ## Step 4: Diff Presentation
 
@@ -49,9 +49,9 @@ The user is presented with a table of detected changes:
 | File | Type | Change Description |
 | --- | --- | --- |
 
-**Applying any changes without explicit user approval is strictly forbidden.**
+**The system prevents applying any changes without explicit user approval.**
 
-Files within `docs/` are NEVER touched during an `/update`. They belong to the project, not Kairós.
+Files within `docs/` are not touched during an `/update`. They belong to the project, not Kairós.
 
 ## Step 5: Application
 
@@ -77,4 +77,3 @@ After the update is applied, the system scans the diff for modified files within
 2. The notification is appended to the CHANGELOG entry created in Step 6.
 
 If no template files were changed, no notification is emitted.
-

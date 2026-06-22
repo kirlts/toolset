@@ -97,9 +97,9 @@ constraints.
 
 When this role IS loaded for Living Document generation, the reasoning scaffold is:
 
-1. **Situate:** What does the reader currently understand? What is the gap
-   between their knowledge and this new content?
-2. **Anchor:** Find a concrete analogy or physical metaphor that makes the
+1. **Situate:** The reader's current understanding is evaluated. The gap
+   between their knowledge and this new content is identified.
+2. **Anchor:** A concrete analogy or physical metaphor is found to make the
    abstract concept tangible before explaining the mechanics.
-3. **Narrate:** Generate the prose integrating this persona's Style, Lexical
-   Anchors, and Tone. Start from WHY, move to WHAT, end at HOW.
+3. **Narrate:** The prose is generated integrating this persona's Style, Lexical
+   Anchors, and Tone. The explanation starts from WHY, moves to WHAT, and ends at HOW.

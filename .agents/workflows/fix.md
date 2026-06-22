@@ -8,7 +8,7 @@ This workflow diagnoses and resolves technical debt through a rigorous 5-phase p
 
 ## Mode Detection
 
-- **`/fix` (no arguments):** Global scan. Identify technical debt patterns across the codebase.
+- **`/fix` (no arguments):** Global scan. Identifies technical debt patterns across the codebase.
 - **`/fix [text]` (focused):** Surgical repair of the specific error or area described.
 
 ---
@@ -22,9 +22,9 @@ This workflow diagnoses and resolves technical debt through a rigorous 5-phase p
 
 **Output of Phase 1:** Prioritized list of targets with severity (High / Medium / Low) and authority classification:
 
-- `.LLM`: Debt the agent can resolve autonomously (formatting, type errors, dependency updates, mechanical refactoring).
+- `.LLM`: Debt the system resolves autonomously (formatting, type errors, dependency updates, mechanical refactoring).
 - `.HUM`: Debt requiring human architectural judgment (design pattern changes, irreversible trade-offs, strategic decisions).
-- `.MIX`: Debt requiring collaborative resolution (the agent proposes, the human validates the approach before execution).
+- `.MIX`: Debt requiring collaborative resolution (the system proposes, the human validates the approach before execution).
 
 ## Phase 2: Chesterton's Fence
 
@@ -59,7 +59,7 @@ For Low severity targets or mechanical corrections (typos, types, imports):
 2. Each subtask references the MASTER-SPEC §8 check it satisfies (if applicable).
 3. Corrections are classified by severity AND authority (from Phase 1):
    - **Quick Wins** (Low severity, `.LLM` authority): Applied immediately. Tests, dependencies, types, imports.
-   - **Structural Corrections** (High/Medium severity, `.HUM` or `.MIX` authority): Changes respecting the MASTER-SPEC architecture are proposed. `.HUM` targets require user confirmation before execution. `.MIX` targets are pre-verified by the agent, then presented for validation.
+   - **Structural Corrections** (High/Medium severity, `.HUM` or `.MIX` authority): Changes respecting the MASTER-SPEC architecture are proposed. `.HUM` targets require user confirmation before execution. `.MIX` targets are pre-verified by the system, then presented for validation.
 4. `docs/TECHNICAL-DEBT.md` is updated. Discovered items are added, and resolved ones are marked with timestamps depending on the project's native check format.
 
 **Output of Phase 4:** Corrected code + updated TECHNICAL-DEBT.md.
@@ -71,4 +71,4 @@ For Low severity targets or mechanical corrections (typos, types, imports):
 3. If the correction reveals a transferable pattern, it becomes a candidate for `docs/MEMORY.md` (using the anti-bias protocol: verify if the pattern is generalizable).
 4. The `/document` workflow executes as the mandatory closing step.
 
-**Output of Phase 5:** Synchronized documentation. Workflow complete.
+**Output of Phase 5:** Synchronized documentation. Workflow completes.

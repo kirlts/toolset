@@ -39,7 +39,7 @@ When invoked without source material, the system outputs a structured guide orga
 
 The system concludes with: "Paste or attach your source material and re-invoke `/create-role [alias]` to begin extraction."
 
-**HALT. No files are created in guidance mode.**
+**The workflow halts. No files are created in guidance mode.**
 
 ---
 
@@ -49,10 +49,10 @@ The system concludes with: "Paste or attach your source material and re-invoke `
 
 **Objective:** Determine the quality and type of available behavioral signal.
 
-1. Classify source type (transcript, essay, interview, mixed).
-2. Assess behavioral density across the four dimensions. For each dimension, the system evaluates: does the material contain enough signal to populate the corresponding profile section?
-3. If multi-speaker: isolate the target subject's utterances. Heuristic: longest consecutive blocks, first-person reasoning chains, named attribution.
-4. If density is critically low across all four dimensions: halt and report which dimensions lack signal. Suggest supplementary source types.
+1. The system classifies the source type (transcript, essay, interview, mixed).
+2. The system assesses behavioral density across the four dimensions. For each dimension, the system evaluates: does the material contain enough signal to populate the corresponding profile section?
+3. If multi-speaker: the system isolates the target subject's utterances. Heuristic: longest consecutive blocks, first-person reasoning chains, named attribution.
+4. If density is critically low across all four dimensions: the workflow halts and reports which dimensions lack signal, and suggests supplementary source types.
 
 **Output of Phase 1:** Source profile (type, per-dimension density assessment, speaker isolation result if applicable).
 
@@ -60,15 +60,15 @@ The system concludes with: "Paste or attach your source material and re-invoke `
 
 **Objective:** Decompose the source material into tagged clusters.
 
-1. Read the full source material.
-2. Identify thematic clusters:
+1. The system reads the full source material.
+2. The system identifies thematic clusters:
    - **Reasoning chains:** Where the subject explains *why* they made a decision.
    - **Value statements:** Where the subject expresses what matters to them.
    - **Aversion triggers:** Where the subject criticizes, rejects, or expresses distaste.
    - **Linguistic signatures:** Recurring phrases, sentence structures, verbal habits.
-3. Tag each cluster with its extraction dimension (Epistemology / Style / Lexical / Aversion).
-4. Select 3-5 verbatim fragments with the highest behavioral signal for the Exemplar Fragments section. Moments of disagreement, trade-off reasoning, and strong opinions carry the most signal.
-5. Identify **audit-worthy signal**: passages where the subject distinguishes between serious/complex work and quick assessments. Look for:
+3. The system tags each cluster with its extraction dimension (Epistemology / Style / Lexical / Aversion).
+4. The system selects 3-5 verbatim fragments with the highest behavioral signal for the Exemplar Fragments section. Moments of disagreement, trade-off reasoning, and strong opinions carry the most signal.
+5. The system identifies **audit-worthy signal**: passages where the subject distinguishes between serious/complex work and quick assessments. Look for:
    - Topics they treat with sustained rigor (multiple reasoning chains, explicit trade-off weighing)
    - Contexts where they go beyond instinct into structured analysis
    - Domains they consider high-stakes or irreversible
@@ -141,14 +141,14 @@ they apply to technical decisions. Stated as observable behavioral facts.]
      are derived from the persona's epistemology: what THIS subject considers
      serious work that warrants a written record. -->
 
-**Escalate to Audit mode when the task involves:**
+**The system escalates to Audit mode when the task involves:**
 
 | Trigger | Rationale (grounded in this persona's epistemology) |
 |---|---|
 | [e.g., Cross-module dependency analysis] | [Why this persona treats this as high-stakes] |
 | [e.g., Any discussion of memory allocation strategy] | [Why this persona formalizes this] |
 
-**Stay in Conversation mode for:**
+**The system stays in Conversation mode for:**
 
 | Situation | Rationale |
 |---|---|
@@ -193,7 +193,7 @@ Kairos governs WHAT the agent is permitted to do.
 | Documentation Triggers has at least 1 Audit entry and 1 Conversation entry | Entries grounded in persona's epistemology, not generic heuristics |
 | No slop patterns | No em dashes, no negative parallelisms, no servile language, no corporate-motivational copy |
 
-If any check fails, return to Phase 3 and correct the gap.
+If any check fails, the system returns to Phase 3 and corrects the gap.
 
 **Subset classification:**
 - Phases 1-3: `.LLM` (automated extraction).
@@ -201,4 +201,4 @@ If any check fails, return to Phase 3 and correct the gap.
 
 **Final output:** The system presents a summary of the extracted persona, then: "This profile is ready. Review `.agents/roles/[alias].md` and confirm the extraction captures the subject's reasoning patterns. Activate with `/role [alias]`."
 
-**HALT. Workflow complete.**
+**The workflow halts. Workflow complete.**

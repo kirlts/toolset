@@ -33,18 +33,18 @@ COMPLETION TIMESTAMP FORMAT:
 - [x] Subtask completed `YYYY-MM-DD HH:MM:SS`
 
 CLOSING RULE CONDITIONED BY VERIFIER TYPE:
-- Tasks EXCLUSIVELY containing .LLM checks: the AI can close them autonomously with a timestamp.
+- Tasks EXCLUSIVELY containing .LLM checks are closed autonomously by the AI with a timestamp.
   Format: - [x] [TASK-NNN]; YYYY-MM-DD HH:MM [🤖 Verified by tool]
-- Tasks containing AT LEAST ONE .HUM or .MIX check: the AI CANNOT mark it as completed
+- Tasks containing AT LEAST ONE .HUM or .MIX check are not marked as completed by the AI
   without explicit user confirmation.
   Format: - [x] [TASK-NNN]; YYYY-MM-DD HH:MM [🧑 Verified by user]
   Format: - [x] [TASK-NNN]; YYYY-MM-DD HH:MM [🤖🧑 Pre-verified + confirmed by user]
 
 GENERAL RULES:
-- Every TASK must have the "Covered checks:" field with VERIFICATION.md IDs (including .LLM/.HUM/.MIX suffix).
+- Every TASK has the "Covered checks:" field with VERIFICATION.md IDs (including .LLM/.HUM/.MIX suffix).
 - If the task is purely governance: **Covered checks:** Transversal governance
-- Timestamps are mandatory when marking a subtask as completed.
-- It is FORBIDDEN to use generic terms like "active" or leave the field empty.
+- Timestamps are applied when marking a subtask as completed.
+- The use of generic terms like "active" or leaving the field empty is prevented.
 -->
 
 ---

@@ -20,13 +20,13 @@
 [pending]
 
 ## Author-Provided Rules
-<!-- If the input contained explicit acceptance criteria provided by the human, list them here verbatim. If none, delete this section entirely. -->
+<!-- If the input contained explicit acceptance criteria provided by the human, they are listed here verbatim. If none, this section is deleted entirely. -->
 -
 
 ---
 
 ## Abbreviation Key
-<!-- Include the abbreviation key from Phase 4 so readers can decode check IDs. -->
+<!-- The abbreviation key from Phase 4 is included so readers can decode check IDs. -->
 | Full Name | Abbreviation | Type |
 |---|---|---|
 | [pending] | [pending] | Actor / Category |
@@ -35,7 +35,7 @@
 | Pre-verifiable, final human validation | MIX | Verifier |
 
 ## [Actor Name 1]
-<!-- Extract checks from Phase 4 VERBATIM. Do NOT rephrase, soften, or generalize the check text. Semantic identity between Phase 4 and this document is mandatory. Group checks by actor. Use domain-native actor names. -->
+<!-- The agent extracts checks from Phase 4 VERBATIM. The agent does not rephrase, soften, or generalize the check text. Semantic identity between Phase 4 and this document is mandatory. The agent groups checks by actor. The agent uses domain-native actor names. -->
 - 🧑 `[ACTOR-CAT-NNN.HUM]` [Observable Action] → [Expected Result].
 - 🤖 `[ACTOR-CAT-NNN.LLM]` [Observable Action] → [Expected Result].
 - 🤖🧑 `[ACTOR-CAT-NNN.MIX]` [Observable Action] → [Expected Result].

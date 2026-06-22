@@ -1,7 +1,7 @@
 # MEMORY: Transferable Heuristics
 
-> Repository of patterns and lessons that would be useful in any project, regardless of the domain.
-> Append-Only file. Forbidden to reduce, delete, or synthesize prior content.
+> Repository of patterns and lessons that are useful in any project, regardless of the domain.
+> Append-Only file. The system prevents reducing, deleting, or synthesizing prior content.
 
 | Symbol | Meaning |
 |---|---|
@@ -21,10 +21,10 @@ INPUT FORMAT:
 **Source:** [Cited URL] | [Confirmed by user - no external source]
 
 RULES:
-- Only heuristics TRANSFERABLE to other projects. No session logs or changelogs.
-- Before writing, verify with web search if the pattern is generalizable.
-- If there is no external confirmation, request user confirmation.
-- If the user confirms: tag [Confirmed by user - no external source].
-- If not confirmed: DO NOT write in MEMORY.
-- Verbatim quotes from the user when they capture pure intention.
+- Only heuristics TRANSFERABLE to other projects are included. Session logs or changelogs are excluded.
+- Before writing, the agent verifies with web search if the pattern is generalizable.
+- If there is no external confirmation, the agent requests user confirmation.
+- If the user confirms: the pattern is tagged [Confirmed by user - no external source].
+- If not confirmed: the pattern is not written in MEMORY.
+- Verbatim quotes from the user are included when they capture pure intention.
 -->

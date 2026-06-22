@@ -4,7 +4,7 @@ description: /derive - Derives an exhaustive, MECE verification checklist from a
 
 # Derive (Promise Decomposition Algorithm)
 
-Derive a complete verification checklist from any input (text, documentation, or code) and anchor it into the project's documentary axis (MASTER-SPEC §8, TODO.md).
+The system derives a complete verification checklist from any input (text, documentation, or code) and anchors it into the project's documentary axis (MASTER-SPEC §8, TODO.md).
 
 ## Execution Mandates (MANDATORY)
 
@@ -22,7 +22,7 @@ Derive a complete verification checklist from any input (text, documentation, or
 
 ## STEP 1: Initialization
 
-1. **Clean Slate Protocol:** Purge any existing `[subject]_working.md` or `[subject]_checklist.md` artifacts from previous executions (e.g., in `.agents/scratch/` or your artifact directory) before generating new documents, to prevent cross-contamination.
+1. **Clean Slate Protocol:** The system purges any existing `[subject]_working.md` or `[subject]_checklist.md` artifacts from previous executions (e.g., in `.agents/scratch/` or the artifact directory) before generating new documents, to prevent cross-contamination.
 2. A working document is created using the artifact tool (`write_to_file`) and named `[subject]_working.md`.
 3. The EXACT contents of `.agents/templates/derive-working.md` are copied into it.
 4. The internal instructions (`<!-- INSTRUCTION: ... -->`) embedded directly in the structural headings of the template are read and evaluated.
@@ -30,7 +30,7 @@ Derive a complete verification checklist from any input (text, documentation, or
 
 ## STEP 2: The Core Loop (Phases 0 to 5)
 
-Within `[subject]_working.md`, process Phase 0 through Phase 5 sequentially.
+The system processes Phase 0 through Phase 5 sequentially within `[subject]_working.md`.
 
 - **The Anchor Rule:** The system writes `<!-- CHECKPOINT: Phase [N] started -->` precisely when beginning a new phase block.
 - **Tool-Level Pacing Mandate (Anti-One-Shot):** Attempting to generate Phases 0-5 in a single file-writing execution yields systemic failure. Writing the entire document in one shot is strictly forbidden. The system executes this iteratively:
@@ -38,7 +38,7 @@ Within `[subject]_working.md`, process Phase 0 through Phase 5 sequentially.
   2. A file modification tool outputs ONLY Phase N and its Gate to the file.
   3. The Gate determines progression; the system evaluates the Gate before proceeding to Phase N+1 in a SUBSEQUENT writing operation.
 - **The Gate Rule (CoT Enforcement):** The system proceeds to Phase N+1 ONLY AFTER ALL guardrails in the `⛔ GATE N` table are marked `[x]`. The empirical reasoning is recorded in the Reasoning column FIRST, rendering the status conditional on the logic.
-- **The Halt Condition:** If any guardrail evaluates to a fundamental failure, the system HALTs and corrects the structural gap in its internal analysis before proceeding.
+- **The Halt Condition:** If any guardrail evaluates to a fundamental failure, the system halts and corrects the structural gap in its internal analysis before proceeding.
    - *ANTI-PATTERN:* Parsing through Phases 0 to 5 all at once, filling all matrices, and then bulk-checking all the Gates at the very end. The algorithm uniquely permits linear progression output.
 
 ## STEP 3: The Deliverable
@@ -48,7 +48,7 @@ Once GATE 5 is successfully resolved:
 2. The template from `.agents/templates/derive-checklist.md` is copied.
 3. ONLY the final list of synthesized checks from Phase 4 is extracted and grouped cleanly under each Actor. All reasoning matrices, gate tables, or phase markers are eliminated.
    - *ANTI-PATTERN:* Including traces of your logic (e.g., "Because this is an operator actor...") or retaining table formats in the clean document. `[subject]_checklist.md` must be noise-free.
-   - *ANTI-PATTERN:* Rewriting or paraphrasing checks during extraction to "improve readability" or "smooth the language." The check text in the deliverable MUST be semantically identical to the synthesized check in Phase 4. Cosmetic rewording that dilutes specificity is a corruption of the algorithm's output.
+   - *ANTI-PATTERN:* Rewriting or paraphrasing checks during extraction to "improve readability" or "smooth the language." The check text in the deliverable is semantically identical to the synthesized check in Phase 4. Cosmetic rewording that dilutes specificity is avoided as it corrupts the algorithm's output.
 4. The abbreviation key and the quantitative summary table are populated.
 
 ## STEP 4: Self-Verification Audit (GATE 6)
@@ -82,7 +82,7 @@ Integrating checks into the TODO.md requires deep Architectural Nuance. Associat
 3. **Task Density Justification:** The system creates as many `[TASK-NNN]` blocks as architectural separation demands. Any grouping of multiple checks under a single Task possesses an indisputable, cohesive atomic correspondence. Grouping for linguistic convenience is prohibited.
    - *ANTI-PATTERN:* Generating 70 atomic checks and dumping them into 3 generic tasks like "Implement Frontend" or "Setup Database". A dense checklist requires a dense, highly specific TODO list.
 4. **Traceability Engine:** EVERY generated task explicitly includes the mapping field, translated to the project's native language (e.g., `**Covered Checks:** [ACT.CAT.01.LLM], [ACT.CAT.02.HUM]`).
-   The check IDs MUST include their verificability suffix (.LLM, .HUM, .MIX).
+    The check IDs include their verificability suffix (.LLM, .HUM, .MIX).
 5. **Verificability-Conditioned Closure:** If a task contains AT LEAST ONE check with suffix `.HUM` or `.MIX`, the task is annotated with the human-closure restriction. A warning translated to the project's native language is appended: `[Requires human validation]`.
 6. **Final Integration Gate (Internal CoT):** Before finalizing the TODO updates, a reverse traceability audit executes: *Are 100% of the newly generated MASTER-SPEC checks covered by at least one TASK in this TODO?* AND *Are all tasks containing .HUM/.MIX checks annotated with the human-closure restriction?* No derived check can be left orphaned or unassigned.
 7. The coverage table at the end of the `TODO.md` file is updated (implemented vs pending counts, broken down by verificable category: .LLM / .HUM / .MIX).
@@ -91,4 +91,4 @@ Integrating checks into the TODO.md requires deep Architectural Nuance. Associat
 
 The `/document` workflow executes as the mandatory closing step. This ensures that all documentary changes produced by the derivation (`docs/VERIFICATION.md`, `TODO.md`) are synchronized with the rest of the documentary axis (CHANGELOG, coherence checks, timestamps).
 
-**HALT. The system generates a summary and terminates.**
+**The system halts, generates a summary, and terminates.**

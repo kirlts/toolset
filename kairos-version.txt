@@ -1,10 +1,10 @@
-v3.5.0
+v4.0.0
 .agents/epub/style.css
 .agents/knowledge/ai-smell-registry.md
 .agents/knowledge/constitution.md
 .agents/knowledge/narrator-voice.md
-.agents/roles/.gitkeep
 .agents/roles/director.md
+.agents/roles/.gitkeep
 .agents/roles/martin.md
 .agents/roles/narrator.md
 .agents/roles/senior-coder.md
@@ -19,7 +19,6 @@ v3.5.0
 .agents/skills/standard-research/SKILL.md
 .agents/skills/suggest-rules/SKILL.md
 .agents/skills/visual-excellence-protocol/SKILL.md
-.agents/templates/TEST.md
 .agents/templates/changelog.md
 .agents/templates/checklist-output.md
 .agents/templates/checklist-working.md
@@ -35,6 +34,7 @@ v3.5.0
 .agents/templates/role-session-working.md
 .agents/templates/rules.md
 .agents/templates/technical-debt.md
+.agents/templates/TEST.md
 .agents/templates/todo.md
 .agents/templates/user-decisions.md
 .agents/templates/verification.md

@@ -18,7 +18,7 @@
 
 **Indirect beneficiary:** [If applicable: who benefits as a secondary consequence.]
 
-**What it IS NOT:** [What this project does NOT attempt to be. This protects the scope from unintended expansion. If there are no scope constraints, write: "No defined scope constraints."]
+**What it IS NOT:** [What this project does NOT attempt to be. This protects the scope from unintended expansion. If there are no scope constraints, the statement "No defined scope constraints." is written.]
 
 ---
 
@@ -53,7 +53,7 @@
 
 ## §4. Constraints (Inviolable Boundaries)
 
-> These constraints override any other decision. They are the lines that must not be crossed.
+> These constraints override any other decision. They are lines that the system prevents from being crossed.
 
 1. [e.g., Zero user data transmission outside the browser]
 2. [e.g., Compatibility with Chrome, Firefox, and Safari]
@@ -109,7 +109,7 @@
 
 ## §8. Operational Rules
 
-> How the AI agent should operate within this repository.
+> How the AI agent operates within this repository.
 
 **Rules location:** [One of the following]
 - `docs/RULES.md`

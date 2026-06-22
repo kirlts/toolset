@@ -17,7 +17,7 @@
 ## Prologue: What This Is and Why It Exists
 
 <!-- 
-  GENERATION INSTRUCTIONS (delete this block when populating):
+  GENERATION INSTRUCTIONS (the agent deletes this block when populating):
 
   This is the first chapter the reader encounters. Its job is to answer
   three questions before any technical detail appears:
@@ -26,9 +26,10 @@
     2. Who commissioned it and why does it matter to them?
     3. What will the reader understand by the end of this document?
 
-  Write in prose. No bullet points. No lists. Speak directly to the reader.
-  Use the voice protocol in .agents/knowledge/narrator-voice.md.
-  WHY before WHAT before HOW.
+  The text is written in prose. Bullet points and lists are not used. 
+  The text speaks directly to the reader.
+  The agent uses the voice protocol in .agents/knowledge/narrator-voice.md.
+  The structure follows WHY before WHAT before HOW.
 -->
 
 [Prologue prose goes here.]
@@ -39,15 +40,15 @@
 
 <!-- 
   Each chapter covers one coherent functional area of the project.
-  Structure within a chapter is prose, not headers and bullets.
-  A chapter should be self-contained: a reader who jumps to it
-  should understand what they are reading within the first paragraph.
+  Structure within a chapter is prose, without headers and bullets.
+  A chapter is self-contained: a reader who jumps to it
+  understands what they are reading within the first paragraph.
 
-  Chapter length: no minimum, no maximum. The chapter ends when
-  the topic is fully explained, not when a word count is reached.
+  Chapter length has no minimum or maximum. The chapter ends when
+  the topic is fully explained, rather than when a word count is reached.
 
-  If diagrams are needed, place them inline with prose context
-  immediately before them. Never use a diagram as a substitute
+  If diagrams are needed, they are placed inline with prose context
+  immediately before them. Diagrams are not used as a substitute
   for explanation.
 -->
 
@@ -62,8 +63,8 @@
 ---
 
 <!--
-  ADD CHAPTERS AS NEEDED.
+  Chapters are added as needed.
   The /narrate workflow proposes chapter structure at genesis time
   and updates individual chapters at each synchronization.
-  Do not add chapters manually — let /narrate manage the structure.
+  Chapters are not added manually; the /narrate workflow manages the structure.
 -->

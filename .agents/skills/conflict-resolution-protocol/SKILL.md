@@ -9,7 +9,7 @@ Frustration occurs due to an agent failure, not a user's emotional state that re
 
 ## Phase 1: Failure Diagnosis
 
-All tactical execution is suspended. The agent MUST re-read the most recent turns and consult `docs/MEMORY.md` and `docs/USER-DECISIONS.md` to recover context that may have been lost due to session truncation. The goal is to identify the root cause:
+All tactical execution is suspended. The agent re-reads the most recent turns and consults `docs/MEMORY.md` and `docs/USER-DECISIONS.md` to recover context that may have been lost due to session truncation. The goal is to identify the root cause:
 
 - What did the user ask that wasn't fulfilled?
 - What user-provided context was ignored or misinterpreted?

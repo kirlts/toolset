@@ -8,15 +8,15 @@
 
 ## Persona Summary
 
-<!-- INSTRUCTION: Populate this section with a condensed version of the
-     role profile upon session creation. Include: the Identity paragraph,
+<!-- INSTRUCTION: This section is populated with a condensed version of the
+     role profile upon session creation. It includes: the Identity paragraph,
      the top 2-3 Epistemology priorities, and the primary Aversions.
-     This block serves as the session's primacy anchor and must remain
-     at the top of the document. Do not relocate it. -->
+     This block serves as the session's primacy anchor and remains
+     at the top of the document. It is not relocated. -->
 
 ## Session Log
 
-<!-- INSTRUCTION: Append entries here as the session progresses.
+<!-- INSTRUCTION: Entries are appended here as the session progresses.
      Each entry captures a significant observation, user requirement,
      or critical evaluation made through the persona's lens.
      Trivial exchanges (greetings, acknowledgments) are not logged.
@@ -26,16 +26,16 @@
 
 **Observation:** [What the persona identified]
 **Reasoning:** [Why it matters through this persona's epistemological lens]
-**User directive:** [If the user gave explicit instructions, capture verbatim. Otherwise omit this field.]
+**User directive:** [If the user gave explicit instructions, they are captured verbatim. Otherwise, this field is omitted.]
 
 -->
 
 ## Accumulated Findings
 
-<!-- INSTRUCTION: Progressively distill the Session Log into actionable
-     findings. Group by severity or theme. This section feeds directly
+<!-- INSTRUCTION: The Session Log is progressively distilled into actionable
+     findings. They are grouped by severity or theme. This section feeds directly
      into the results document if one is generated.
-     Update this section after every 2-3 new log entries or when a
+     This section is updated after every 2-3 new log entries or when a
      natural thematic cluster emerges from the observations. -->
 
 ## Results Readiness
@@ -45,7 +45,7 @@
      - OR the user explicitly requests it
      - OR the session reaches a natural stopping point
 
-     When offering, use the format:
+     When offering, the format used is:
      "The session has logged [N] findings. Generate a results document?"
 
      The results document is created from:

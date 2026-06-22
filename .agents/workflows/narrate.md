@@ -6,7 +6,7 @@ description: /narrate - Creates or synchronizes the Living Document (docs/LIVING
 
 This workflow manages the creation, synchronization, and regeneration of the Living Document. It is the manual fallback for the auto-detection system defined in `04-documentation.md`. The Living Document is an agent-authored, human-directed pedagogical narrative of the project, structured as a book.
 
-> **MANDATORY:** Before executing ANY mode, the agent MUST read:
+> **MANDATORY:** Before executing ANY mode, the agent reads:
 > 1. `.agents/knowledge/narrator-voice.md` (voice protocol with generation constraints)
 > 2. `.agents/roles/narrator.md` (narrator voice profile, if it exists)
 > 3. `docs/MASTER-SPEC.md` (project specification, if it exists)
@@ -36,7 +36,7 @@ Does the project have implemented code/content?
         intentions (MASTER-SPEC §1, TODO.md, or user's stated goals).
 ```
 
-In both cases, initialize `docs/LIVING-DOCUMENT.md` from the canonical skeleton at `.agents/templates/living-document.md`. Replace `[Project Name]` with the project's name. The generation instructions inside HTML comments are removed during population.
+In both cases, the agent initializes `docs/LIVING-DOCUMENT.md` from the canonical skeleton at `.agents/templates/living-document.md`. The system replaces `[Project Name]` with the project's name. The generation instructions inside HTML comments are removed during population.
 
 ### Step 2: Chapter Planning
 
@@ -68,7 +68,7 @@ For each chapter in the approved plan:
 
 1. **Load voice protocol** from `.agents/knowledge/narrator-voice.md`.
 2. **Load narrator role** from `.agents/roles/narrator.md` (if it exists).
-3. **Gather source material:** Read the relevant code, configuration, documentation, and commit history for this chapter's topic.
+3. **Gather source material:** The agent reads the relevant code, configuration, documentation, and commit history for this chapter's topic.
 4. **Apply the narrator's reasoning scaffold:**
    - **Situate:** What does the reader currently understand at this point in the book?
    - **Anchor:** Find a concrete analogy or scenario that makes the topic tangible.
@@ -86,9 +86,9 @@ The generated chapters are assembled into `docs/LIVING-DOCUMENT.md` with:
 
 ### Step 5: EPUB Generation
 
-See **Mandatory EPUB Generation** section below. Execute it now.
+See **Mandatory EPUB Generation** section below. The system executes it now.
 
-After EPUB generation, report to the user:
+After EPUB generation, the agent reports to the user:
 
 ```
 Living Document created: docs/LIVING-DOCUMENT.md
@@ -102,7 +102,7 @@ Review the document. If any section doesn't match your expectations,
 point me to it and I'll adjust.
 ```
 
-**HALT. Workflow complete.**
+**The workflow halts. Workflow complete.**
 
 ---
 
@@ -133,16 +133,16 @@ The agent generates a drift summary:
 
 For each chapter with drift:
 
-1. Load voice protocol and narrator role.
-2. Regenerate the stale sections within the chapter, preserving sections that are still current.
-3. If new topics exist that do not fit into any existing chapter, propose a new chapter. Await user confirmation.
-4. Verify all updates against anti-slop constraints.
+1. The agent loads the voice protocol and narrator role.
+2. The agent regenerates the stale sections within the chapter, preserving sections that are still current.
+3. If new topics exist that do not fit into any existing chapter, the agent proposes a new chapter. The agent awaits user confirmation.
+4. The agent verifies all updates against anti-slop constraints.
 
 ### Step 4: EPUB Generation
 
-See **Mandatory EPUB Generation** section below. Execute it now.
+See **Mandatory EPUB Generation** section below. The system executes it now.
 
-After EPUB generation, report to the user:
+After EPUB generation, the agent reports to the user:
 
 ```
 Living Document synchronized: docs/LIVING-DOCUMENT.md
@@ -150,7 +150,7 @@ EPUB exported: docs/LIVING-DOCUMENT.epub
 [N] chapters updated, [M] unchanged, [K] new chapters added.
 ```
 
-**HALT. Workflow complete.**
+**The workflow halts. Workflow complete.**
 
 ---
 
@@ -162,31 +162,31 @@ Executes when the user specifies a chapter or topic: `/narrate [chapter/topic]`.
 
 ```
 Does the specified chapter/topic exist in the Living Document?
-  YES → Regenerate that chapter from current project state.
-  NO  → Create a new chapter for the specified topic. Insert it at
+  YES → The system regenerates that chapter from current project state.
+  NO  → The system creates a new chapter for the specified topic and inserts it at
         the appropriate position in the book's flow.
 ```
 
 ### Step 2: Generate
 
-1. Load voice protocol and narrator role.
-2. Gather all source material relevant to the specified topic.
-3. Generate the chapter using the narrator's reasoning scaffold.
-4. Verify against anti-slop constraints.
-5. If creating a new chapter, update the table of contents.
+1. The agent loads the voice protocol and narrator role.
+2. The agent gathers all source material relevant to the specified topic.
+3. The agent generates the chapter using the narrator's reasoning scaffold.
+4. The agent verifies against anti-slop constraints.
+5. If creating a new chapter, the agent updates the table of contents.
 
 ### Step 3: EPUB Generation
 
-See **Mandatory EPUB Generation** section below. Execute it now.
+See **Mandatory EPUB Generation** section below. The system executes it now.
 
-After EPUB generation, report to the user:
+After EPUB generation, the agent reports to the user:
 
 ```
 Chapter "[Title]" [regenerated / created].
 EPUB exported: docs/LIVING-DOCUMENT.epub
 ```
 
-**HALT. Workflow complete.**
+**The workflow halts. Workflow complete.**
 
 ---
 
@@ -198,15 +198,15 @@ This step runs at the end of EVERY /narrate execution, in all three modes. It is
 
 ```
 Is pandoc installed? (run: which pandoc)
-  YES → Proceed.
-  NO  → Run: sudo apt install pandoc
-        If installation fails, report the error and skip EPUB generation.
-        Log a warning that EPUB was not generated.
+  YES → The system proceeds.
+  NO  → The system runs: sudo apt install pandoc
+        If installation fails, the system reports the error and skips EPUB generation.
+        The system logs a warning that EPUB was not generated.
 ```
 
 ### Extract Project Title
 
-Read the project title from:
+The system reads the project title from:
 1. `docs/MASTER-SPEC.md` §1 Identity section (preferred).
 2. The `docs/LIVING-DOCUMENT.md` first `# Heading` (fallback).
 3. The repository directory name (last resort).
@@ -242,8 +242,8 @@ No `--epub-embed-font` is used. The stylesheet's font stack relies on the e-read
 
 ```
 Did pandoc exit with code 0?
-  YES → docs/LIVING-DOCUMENT.epub was created. Report to user.
-  NO  → Report the pandoc error output. Do not count the EPUB as generated.
+  YES → docs/LIVING-DOCUMENT.epub was created. The agent reports to user.
+  NO  → The agent reports the pandoc error output. The system does not count the EPUB as generated.
         The Markdown Living Document is still valid. EPUB failure is non-blocking.
 ```
 

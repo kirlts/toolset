@@ -6,7 +6,7 @@ description: /document - Synchronizes the documentary axis (MASTER-SPEC, TODO, M
 
 This workflow ensures that all project documentation accurately reflects the current state of the code and architecture.
 
-> **MANDATORY:** Before executing ANY mode, the agent MUST read ALL template files from `.agents/templates/` into working memory. Failure to do so invalidates the synchronization. The templates define the canonical structure; no document can be considered synchronized if its format diverges from its template.
+> **Standard Requirement:** Before executing any mode, the system reads all template files from `.agents/templates/` into working memory. Skipping this step invalidates the synchronization. The templates define the canonical structure; a document is not considered synchronized if its format diverges from its template.
 
 ## Mode Detection
 
@@ -17,11 +17,11 @@ This workflow ensures that all project documentation accurately reflects the cur
 
 ## Step 0: Structural Lint (MANDATORY in both modes)
 
-Runs unconditionally before any content synchronization or audit. Detects format divergence between existing documentation and canonical templates.
+The system runs structural lint unconditionally before any content synchronization or audit. It detects format divergence between existing documentation and canonical templates.
 
 ### 0.1. Load Canonical Templates
 
-Read every template file from `.agents/templates/` into working memory:
+The system reads every template file from `.agents/templates/` into working memory:
 
 | Template File | Governs |
 |---|---|
@@ -36,17 +36,17 @@ Read every template file from `.agents/templates/` into working memory:
 
 ### 0.2. Verify Mandatory Sections
 
-For each existing document in `docs/`, compare against its canonical template:
+For each existing document in `docs/`, the system compares it against its canonical template:
 
 1. **Header and identity line:** Does the document start with the canonical header pattern?
 2. **Symbol Legend:** Does the document contain the Kairós Symbol Legend table (if the template defines one)?
 3. **Mandatory sections:** Does the document contain every section defined in the template (e.g., `## §8. Verification Checklist` with canonical numbering)?
-4. **Closing markers:** Is the closing line (e.g., "Fin de la Especificación Maestra" or equivalent) positioned AFTER all canonical sections, not before?
+4. **Closing markers:** Is the closing line (e.g., "End of the Master Specification" or equivalent) positioned AFTER all canonical sections, not before?
 5. **Summary table structure:** Does the summary table (if template defines one) contain all canonical columns (e.g., `.LLM / .HUM / .MIX` columns in TODO.md)?
 
 ### 0.3. Verify Mandatory Fields Per Item
 
-For repeating items (TASKs, checks, heuristics, decisions), verify mandatory fields exist:
+For repeating items (TASKs, checks, heuristics, decisions), the system verifies mandatory fields exist:
 
 | Document | Item Type | Mandatory Field | If Missing |
 |---|---|---|---|
@@ -91,9 +91,10 @@ For each document in docs/:
     This is legacy content with no current equivalent.
     DO NOT delete. Append to an "Archived Sections" area at the bottom
     of the document, clearly marked as legacy. Present to user for review.
+```
 
 #### Tactical Porting: MASTER-SPEC §8 → VERIFICATION.md
-If the system detects that `docs/MASTER-SPEC.md` contains a populated `§8. Verification Checklist` (legacy format), the system MUST perform an automatic, non-destructive migration before running lint rules:
+If the system detects that `docs/MASTER-SPEC.md` contains a populated `§8. Verification Checklist` (legacy format), the system performs an automatic, non-destructive migration before running lint rules:
 1. Extract the ENTIRE contents of `§8` verbatim.
 2. Initialize `docs/VERIFICATION.md` using its canonical template and deposit the extracted checks.
 3. Remove the entire `§8` section from `MASTER-SPEC.md`.
@@ -103,13 +104,13 @@ If the system detects that `docs/MASTER-SPEC.md` contains a populated `§8. Veri
 
 ### 0.5. Structural Lint Report
 
-Generate a lint report BEFORE proceeding to Audit or Normal Mode:
+The system generates a lint report BEFORE proceeding to Audit or Normal Mode:
 
 | Document | Divergence | Type | Severity | Action | Status |
 |---|---|---|---|---|---|
 | [file] | [what diverges from template] | Missing Section / Legacy Format / Stale Content / Missing Field | High / Medium | [what was done/proposed] | ✅ Fixed / ⏳ Pending approval |
 
-If the report contains zero divergences, log: `Structural Lint: PASS (0 divergences)`.
+If the report contains zero divergences, the system logs: `Structural Lint: PASS (0 divergences)`.
 
 If the report contains divergences, all autonomous fixes are applied before proceeding. Pending-approval items are presented to the user. The workflow is blocked (no further steps execute) until every pending-approval item is explicitly resolved by the user.
 
@@ -117,7 +118,7 @@ If the report contains divergences, all autonomous fixes are applied before proc
 
 ## Audit Mode (cold-start)
 
-Executes when `/document` is invoked without prior work context. Its purpose is to detect structural divergence between existing documentation and current templates embedded in `.agents/templates/`.
+The system executes this mode when `/document` is invoked without prior work context. Its purpose is to detect structural divergence between existing documentation and current templates embedded in `.agents/templates/`.
 
 ### Step 1: Inventory Existing Documentation
 
@@ -182,7 +183,7 @@ Generate consolidated table:
 
 ## Normal Mode (incremental synchronization)
 
-Executes directly without prior user validation.
+The system executes this mode directly without prior user validation.
 
 ### Code Synchronization
 
@@ -203,7 +204,7 @@ The system verifies that no deliverables marked as "complete" contain:
 |---|---|
 | **Corporate-Motivational Copy** | "Unlock your potential", "Seamless experience", "Cutting-edge solution", "Empower your workflow", "Transform your business", "Innovative platform", adjectives empty of specific content |
 | **Mocked Data** | Hardcoded constants simulating real data, dummy arrays disconnected from data sources, mocked HTTP responses presented as real integration |
-| **RLHF Documentation Patterns** | "It's worth noting that", "Cabe destacar que", "Es importante señalar", negative parallelisms ("not just X, but Y"), servile positivity |
+| **RLHF Documentation Patterns** | "It's worth noting that", "It is important to point out", negative parallelisms ("not just X, but Y"), servile positivity |
 | **Em dashes** | Any instance of the character (—). Zero tolerance |
 
 If slop or mocks are detected in "completed" features, the system reports them in the gap table and creates a purge TASK in TODO.md.
@@ -230,7 +231,7 @@ The system verifies no internal contradictions exist:
 
 Deterministic 6-step algorithm:
 
-**STEP 0. INPUT VALIDATION (mandatory field audit):** Before running the coherence algorithm, scan ALL TASKs in TODO.md:
+**STEP 0. INPUT VALIDATION (mandatory field audit):** Before running the coherence algorithm, the system scans ALL TASKs in TODO.md:
 
 ```
 For each TASK in TODO.md:
@@ -271,11 +272,11 @@ Total checks: N
   - TASKs missing "Covered checks:" field: N [list]
 ```
 
-If checks without verificability suffix (legacy) are detected, classify them retroactively using the Decision Tree in `derive-working.md`. If non-destructive (adding suffixes), execute autonomously. If destructive (renaming IDs), require human approval.
+If checks without verificability suffix (legacy) are detected, the system classifies them retroactively using the Decision Tree in `derive-working.md`. If non-destructive (adding suffixes), execute autonomously. If destructive (renaming IDs), require human approval.
 
 ### Routing Matrix Sync (REPOMAP)
 
 1. The `/repomap` workflow executes and overwrites `docs/REPOMAP.md` to match the repository's current physical state.
 2. One line is appended to the `/document` sync report: "REPOMAP synchronized."
 
-> **CRITICAL ISOLATION RULE:** The `/document` workflow MUST NEVER read, write, or touch `docs/LIVING-DOCUMENT.md`. The Living Document is strictly isolated and can ONLY be modified via the `/narrate` workflow.
+> **Critical Isolation Rule:** The `/document` workflow does not read, write, or touch `docs/LIVING-DOCUMENT.md`. The Living Document is strictly isolated and is modified exclusively via the `/narrate` workflow.

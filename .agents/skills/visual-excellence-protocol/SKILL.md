@@ -5,7 +5,7 @@ description: Activates to verify that visual and experience artifacts comply wit
 
 # Visual Excellence Verification
 
-This skill operationalizes the `.agents/rules/06-aesthetics.md` rule. Its function is to verify that each visual artifact has its own identity and is not exclusively a generic product of the model's statistical distribution. It does NOT define the aesthetic laws (which are handled by the rule), but strictly enforces them before artifact delivery.
+This skill operationalizes the `.agents/rules/06-aesthetics.md` rule. Its function is to verify that each visual artifact has its own identity and is not exclusively a generic product of the model's statistical distribution. It does not define the aesthetic laws (which are handled by the rule), but strictly enforces them before artifact delivery.
 
 ## Phase 0: Reference Loading
 
@@ -18,13 +18,13 @@ This skill operationalizes the `.agents/rules/06-aesthetics.md` rule. Its functi
 
 ## Phase 2: Verification Gates
 
-Mandatory verification before delivering any visual artifact.
+The system executes mandatory verification before delivering any visual artifact.
 
 ### Gate A. Anti-Slop (mechanical, binary)
 
 | Condition | Result |
 |---|---|
-| ≥3 artifact values match CBL without domain justification | BLOCK → rewrite with domain-specific values |
+| ≥3 artifact values match CBL without domain justification | BLOCK → The system rewrites with domain-specific values |
 | ≥1 Unicode emoji used as a UI icon | BLOCK |
 | ≥1 link points to `#` without being a declared placeholder | BLOCK |
 | A CTA uses literal strings from the CBL without rewriting to the domain | BLOCK |
@@ -42,7 +42,7 @@ Mandatory verification before delivering any visual artifact.
 | Condition | Result |
 |---|---|
 | MASTER-SPEC §4 constraints or existing project design systems not respected | BLOCK |
-| Harmony law contradicts legacy constraint | BLOCK → declare to user and request verdict |
+| Harmony law contradicts legacy constraint | BLOCK → The system declares to the user and requests a verdict |
 
 ## Output Mandate
 

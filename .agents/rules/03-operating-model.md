@@ -14,7 +14,7 @@ The temporal cost of excellence is negligible. Estimations anchored to biologica
 | Subset | Domain | Examples |
 |---|---|---|
 | `LLM` AI Dominates | Scaffolding generation, isolated bug resolution, parsing, mechanical refactoring, pure function unit testing, format consistency | AI closes autonomously yielding a timestamp |
-| `HUM` Human Irreplaceable | Long-term architectural design, validating whether the code solves the real-world problem, aesthetic and perceptual judgment, strategic coherence, intentional technical debt, irreversible trade-offs | AI delivers but DOES NOT close without user confirmation |
+| `HUM` Human Irreplaceable | Long-term architectural design, validating whether the code solves the real-world problem, aesthetic and perceptual judgment, strategic coherence, intentional technical debt, irreversible trade-offs | AI delivers but does not close without user confirmation |
 | `MIX` AI Pre-processes, Human Validates | Code review, effort estimation, integration testing, user-facing documentation | AI pre-verifies and declares which dimensions require validation |
 
 ## Authority Layer
@@ -36,7 +36,7 @@ Context determines how authority manifests:
 | `/fix` | Requires human judgment | Machine resolves autonomously | Collaborative resolution |
 | `/test` | Requires human intuition | Fully automatable | Human design, machine execution |
 | Living Document | Human directs AI to modify a section | Agent drafts/updates autonomously | Agent drafts, human reviews and redirects |
-| Free-session work | Agent must not attempt alone | Agent executes freely | Requires human review before commit |
+| Free-session work | Agent does not attempt alone | Agent executes freely | Requires human review before commit |
 
 ## Intention Detection
 
@@ -59,8 +59,8 @@ Exploratory utterances that probe the promise landscape without committing ("I w
 
 ### Guardrails
 
-1. The agent must not hallucinate intentions. If ambiguous, treat as proto-intention and ask.
-2. The agent must not inflate intention scope. A task-level intention does not trigger system-level reclassification.
+1. The agent does not hallucinate intentions. If ambiguous, it treats the utterance as a proto-intention and asks for clarification.
+2. The agent does not inflate intention scope. A task-level intention does not trigger system-level reclassification.
 3. An implicit approval ("ok," "sure," "looks good") in response to a routine change does not constitute an intention for irreversible architectural alterations. The Explicit Validation Protocol (below) applies.
 
 ## Subset Declaration
@@ -76,10 +76,10 @@ When presenting a block of work, the agent classifies each deliverable:
 Tasks containing exclusively `.LLM` checks are closed autonomously. Tasks with at least one `.HUM` or `.MIX` check require explicit user confirmation before closure.
 
 ### Explicit Validation Protocol
-To prevent false-positive validations from casual conversation (implicit approvals), the agent MUST verify the chat history according to these rules before assigning a human closure timestamp:
-1. **Implicit vs Explicit**: A generic affirmative ("ok", "looks good", "sigamos") in response to a UI or routine code change DOES NOT validate a `.HUM` architectural check. A `.HUM` check is only validated if the user explicitly addresses the architectural trade-off or task in question.
-2. **Hard-Fault Interrupt**: If there is irreconcilable doubt whether the user intended to validate a `.HUM` task, the agent MUST NOT assume approval. It must perform a hard-fault stop and explicitly ask the user for confirmation.
-3. **Traceability**: Assuming approval without the explicit intent of the user injects undocumented technical debt (false positive). When in doubt, interrupt and interrogate.
+To prevent false-positive validations from casual conversation (implicit approvals), the agent verifies the chat history according to these rules before assigning a human closure timestamp:
+1. **Implicit vs Explicit**: A generic affirmative ("ok", "looks good", "continue") in response to a UI or routine code change does not validate a `.HUM` architectural check. A `.HUM` check is only validated if the user explicitly addresses the architectural trade-off or task in question.
+2. **Hard-Fault Interrupt**: If there is irreconcilable doubt whether the user intended to validate a `.HUM` task, the agent does not assume approval. It performs a hard-fault stop and explicitly asks the user for confirmation.
+3. **Traceability**: Assuming approval without the explicit intent of the user injects undocumented technical debt (false positive). When in doubt, the agent interrupts and interrogates.
 
 ## Deliverable Integrity
 

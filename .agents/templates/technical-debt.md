@@ -21,5 +21,5 @@ INPUT FORMAT:
 
 SELF-LIQUIDATION RULE:
 When 100% of the entries show ✅, this file is deleted from the repository.
-Its resolution must be backed up in CHANGELOG.md or MASTER-SPEC.md.
+Its resolution is backed up in CHANGELOG.md or MASTER-SPEC.md.
 -->
