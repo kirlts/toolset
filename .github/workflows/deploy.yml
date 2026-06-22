@@ -32,12 +32,9 @@ jobs:
             "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=oci" | jq -r '.value')
 
           OCI_SESSION=$(curl -sL -X POST \
-            -d "grant_type=urn:ietf:params:oauth:grant-type:token-exchange" \
-            -d "client_id=${{ secrets.OCI_OAUTH_CLIENT_ID }}" \
-            -d "client_secret=${{ secrets.OCI_OAUTH_CLIENT_SECRET }}" \
-            -d "subject_token=$GITHUB_OIDC_TOKEN" \
-            -d "subject_token_type=urn:ietf:params:oauth:token-type:jwt" \
-            -d "requested_token_type=urn:ietf:params:oauth:token-type:access_token" \
+            -u "${{ secrets.OCI_OAUTH_CLIENT_ID }}:${{ secrets.OCI_OAUTH_CLIENT_SECRET }}" \
+            -d "grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer" \
+            -d "assertion=$GITHUB_OIDC_TOKEN" \
             "${{ secrets.OCI_DOMAIN_URL }}/oauth2/v1/token")
 
           echo "OCI response: $OCI_SESSION"
