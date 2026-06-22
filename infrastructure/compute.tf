@@ -59,6 +59,10 @@ resource "oci_core_instance" "toolset" {
   }
 
   preserve_boot_volume = true
+
+  lifecycle {
+    ignore_changes = [metadata]
+  }
 }
 
 output "instance_public_ip" {
