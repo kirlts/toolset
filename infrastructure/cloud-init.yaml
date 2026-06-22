@@ -137,7 +137,7 @@ write_files:
 
       # ---- Join Tailscale ----
       echo "[bootstrap] Joining Tailscale..."
-      tailscale up --auth-key=${tailscale_auth_key} --hostname=toolset-oci --accept-routes --ssh || \
+      tailscale up --auth-key=${tailscale_auth_key} --hostname=toolset-oci-1 --accept-routes --ssh || \
         echo "[bootstrap] WARNING: tailscale up failed (key may need regeneration)"
 
       # ---- Allow standard SSH via Tailscale tunnel (100.64.0.0/10) ----
