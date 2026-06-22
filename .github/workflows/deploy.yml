@@ -36,15 +36,18 @@ jobs:
             -d "client_id=${{ secrets.OCI_OAUTH_CLIENT_ID }}" \
             -d "client_secret=${{ secrets.OCI_OAUTH_CLIENT_SECRET }}" \
             -d "subject_token=$GITHUB_OIDC_TOKEN" \
-            -d "subject_token_type=urn:ietf:params:oauth:token-type:id_token" \
+            -d "subject_token_type=urn:ietf:params:oauth:token-type:jwt" \
+            -d "requested_token_type=urn:ietf:params:oauth:token-type:access_token" \
             "${{ secrets.OCI_DOMAIN_URL }}/oauth2/v1/token")
 
+          echo "OCI response: $OCI_SESSION"
           ACCESS_TOKEN=$(echo "$OCI_SESSION" | jq -r '.access_token')
           if [ "$ACCESS_TOKEN" = "null" ]; then
             echo "ERROR: Token exchange falló"
             echo "$OCI_SESSION"
             exit 1
           fi
+          echo "Token exchange exitoso"
           echo "$ACCESS_TOKEN" > /tmp/oci_session_token
 
           {
