@@ -8,23 +8,31 @@
 
 :8080 {
     # Hindsight Control Plane (Next.js SPA)
-    @cp_native path_regexp cp_native ^/(dashboard|api|_next)(/.*)?$
+    @cp_native path_regexp cp_native ^/(dashboard|_next)(/.*)?$
     handle @cp_native {
         reverse_proxy hindsight:9999
     }
+    # CP API routes
+    handle /api/version {
+        reverse_proxy hindsight:9999
+    }
+    handle /api/banks/* {
+        reverse_proxy hindsight:9999
+    }
+    handle /api/banks {
+        reverse_proxy hindsight:9999
+    }
+
     # SPA fallback: /bank/* no tiene SSR en CP → servir shell de /dashboard
     handle /bank/* {
-        # API calls relativas desde /bank/* → proxy directo a CP sin rewrite
         handle /bank/api/* {
             uri strip_prefix /bank
             reverse_proxy hindsight:9999
         }
-        # Assets desde /bank/_next/* → proxy directo
         handle /bank/_next/* {
             uri strip_prefix /bank
             reverse_proxy hindsight:9999
         }
-        # Paginas → SPA fallback
         handle {
             rewrite * /dashboard
             reverse_proxy hindsight:9999
@@ -59,7 +67,7 @@
         file_server
     }
 
-    # Everything else → Infisical (catch-all, SPA works natively at root)
+    # Everything else → Infisical (catch-all: /api/v1/admin/*, /api/v1/auth/*, etc.)
     handle {
         reverse_proxy infisical:8080
     }
