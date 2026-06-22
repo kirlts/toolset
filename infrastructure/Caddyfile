@@ -7,19 +7,24 @@
 }
 
 :8080 {
+    # Hindsight Control Plane (nativo: /dashboard, SPA: /bank/*, /cpanel/*)
+    @cp_dash path /dashboard
+    handle @cp_dash {
+        reverse_proxy hindsight:9999
+    }
+    # SPA fallback: /bank, /cpanel y subrutas -> servir shell de /dashboard
+    @cp_spa path_regexp cp_spa ^/(bank|cpanel)(/.*)?$
+    handle @cp_spa {
+        rewrite * /dashboard
+        reverse_proxy hindsight:9999
+    }
+
     # Hindsight API (health, v1/*, docs, mcp, openapi.json, etc.)
     @hindsight path_regexp /hindsight/.+
     handle @hindsight {
         uri strip_prefix /hindsight
         reverse_proxy hindsight:8888
     }
-
-    # Hindsight Control Plane (served at /dashboard, redirects from legacy /cpanel)
-    @cp path_regexp /dashboard(/.*)?
-    handle @cp {
-        reverse_proxy hindsight:9999
-    }
-    redir /cpanel{uri} /dashboard{uri} 301
 
     # Swagger UI needs openapi.json from Hindsight
     @openapi path /openapi.json
