@@ -97,44 +97,21 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
 echo "[DEPLOY] Recreating services..."
 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   "${SSH_HOST}" \
-  "cd ${REMOTE_DIR} && sudo docker compose up -d --remove-orphans 2>&1" | sed 's/^/  [UP] /'
+  "cd ${REMOTE_DIR} && sudo docker compose up -d --remove-orphans --wait --wait-timeout 300 2>&1" | sed 's/^/  [UP] /'
 
-# --- Wait for healthchecks ---
-echo "[DEPLOY] Waiting for healthchecks..."
-HEALTH_TIMEOUT=300
-HEALTH_INTERVAL=10
-ELAPSED=0
-ALL_HEALTHY=false
-
-while [ "$ELAPSED" -lt "$HEALTH_TIMEOUT" ]; do
-  STATUS=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    "${SSH_HOST}" \
-    "cd ${REMOTE_DIR} && sudo docker compose ps --format '{{.Name}} {{.Status}}' 2>&1")
-
-  UNHEALTHY=$(echo "$STATUS" | grep -c "unhealthy" 2>/dev/null || true)
-  EXITED=$(echo "$STATUS" | grep -c "Exited" 2>/dev/null || true)
-
-  if [ "$UNHEALTHY" -gt 0 ] || [ "$EXITED" -gt 0 ]; then
-    echo "[HEALTH] Unhealthy or exited containers detected:"
-    echo "$STATUS" | grep -E "unhealthy|Exited" | sed 's/^/  /'
-    echo "[HEALTH] Aborting — manual intervention required."
-    echo ""
-    echo "=== Container Status ==="
-    echo "$STATUS"
-    exit 1
-  fi
-
-  ALL_UP=$(echo "$STATUS" | grep -c "healthy" 2>/dev/null || true)
-  TOTAL=$(echo "$STATUS" | wc -l)
-
-  if [ "$TOTAL" -gt 0 ] && [ "$ALL_UP" -eq "$TOTAL" ]; then
-    ALL_HEALTHY=true
-    break
-  fi
-
-  sleep "$HEALTH_INTERVAL"
-  ELAPSED=$((ELAPSED + HEALTH_INTERVAL))
-done
+# --- Verify healthchecks (docker compose --wait already validated) ---
+echo "[DEPLOY] Verifying final health status..."
+HEALTH_REPORT=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  "${SSH_HOST}" \
+  "cd ${REMOTE_DIR} && sudo docker compose ps --format '{{.Name}} {{.Status}}' 2>&1")
+UNHEALTHY=$(echo "$HEALTH_REPORT" | grep -c "unhealthy" 2>/dev/null || true)
+EXITED=$(echo "$HEALTH_REPORT" | grep -c "Exited" 2>/dev/null || true)
+if [ "$UNHEALTHY" -gt 0 ] || [ "$EXITED" -gt 0 ]; then
+  echo "[FAIL] Unhealthy or exited containers detected:"
+  echo "$HEALTH_REPORT" | grep -E "unhealthy|Exited" | sed 's/^/  /'
+  exit 1
+fi
+echo "[DEPLOY] All services healthy."
 
 # --- Generate dynamic landing page with current routes ---
 LANDING_HTML=$(cat <<EOF
