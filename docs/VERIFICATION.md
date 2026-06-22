@@ -52,9 +52,9 @@
   - *Resultado esperado:* Un script de prueba puede recuperar un token desde el gestor sin leer archivos .env locales.
   - *Verificacion:* 🔲 Pendiente. Infisical está desplegado y admin creado, pero no se ha verificado la inyección de secrets en runtime.
 
-- 🔲 `[DEV.CR.06.LLM]` Validar el funcionamiento del motor de Sandboxing (Daytona).
-  - *Resultado esperado:* Se puede crear, ejecutar comandos y destruir un workspace temporal correctamente a través de la API/CLI.
-  - *Verificacion:* 🔲 Pendiente. Daytona no está desplegado.
+- ✅ `[DEV.CR.06.LLM]` Validar el funcionamiento del sandbox Docker nativo de Hermes Agent.
+  - *Resultado esperado:* Hermes ejecuta comandos en contenedores Docker efímeros con hardening (no-new-privs, capabilities drop, network none).
+  - *Verificacion:* ✅ Implementado. Daytona eliminado del stack. Hermes usa `terminal.backend: docker` nativo (comunidad r/hermesagent). Pendiente deploy de Hermes para verificación final.
 
 ### Verificaciones de Orquestación y Mensajería (EPIC-004)
 

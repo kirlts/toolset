@@ -137,21 +137,41 @@
 
 ### [TASK-008] Tailscale Funnel y Webhooks
 
+**Covered checks:** `[DEV.CR.09.LLM]`
+
 - [x] Investigar cómo configurar Tailscale Funnel para recepción de webhooks desde GitHub y otras plataformas. 2026-06-22 [🤖 Verified by tool]
 - [x] Habilitar Funnel en Tailscale admin console. 2026-06-22 [🧑 Habilitado por usuario]
-- [x] Configurar Funnel en OCI: `tailscale funnel --bg http://localhost:8888` — expone Hindsight API/MCP vía HTTPS público en `https://toolset-oci-1.tail2d4c18.ts.net/mcp/`. 2026-06-22 [🤖 Verified by tool]
+- [x] Configurar Funnel en OCI: apunta a Caddy (`http://localhost:8080`) que enruta por path a cada servicio. 2026-06-22 [🤖 Verified by tool]
+- [x] Implementar Caddy reverse proxy multi-servicio (Hindsight API/MCP/CP, Infisical, landing page). 2026-06-22 [🤖 Verified by tool]
+- [x] `deploy.sh` imprime tabla de URLs completa post-deploy. 2026-06-22 [🤖 Verified by tool]
 - [ ] Configurar webhooks de GitHub hacia Hindsight/Infisical usando el Funnel como endpoint.
 
 ### [TASK-009] Integración Infisical con Servicios
+
+**Covered checks:** `[DEV.CR.10.LLM]`
 
 - [ ] Investigar API de Infisical para inyección de secrets en contenedores Docker (sin archivos .env).
 - [ ] Configurar proyecto y entorno en Infisical para Toolset.
 
 ### [TASK-010] Hardening de Seguridad
 
+**Covered checks:** `[DEV.CR.11.LLM]`, `[DEV.CR.12.LLM]`
+
 - [ ] Investigar cómo habilitar Tailscale SSH en Oracle Linux 9 con SELinux activo.
 - [ ] Resolver DT-001: Token Exchange OIDC Identity Propagation Trust para GitHub Actions.
 - [ ] Eliminar API key estática del pipeline CI/CD (reemplazar por OIDC).
+
+---
+
+### [TASK-011] Estrategia de autenticación para URLs de gestión vía Funnel
+
+**Covered checks:** `Transversal governance`
+
+> Ref: DT-002. Una vez Hermes esté operativo (TASK-006), definir e implementar autenticación.
+
+- [ ] Definir qué URLs requieren auth (gestión: Infisical, Hindsight CP, Hermes) y cuáles quedan públicas (observabilidad: health, API, MCP).
+- [ ] Implementar auth: Caddy `basicauth` por path o forward auth con Infisical.
+- [ ] Verificar que harnesses (Kilo Code, Claude Code) puedan conectar a MCP sin auth.
 
 ---
 
@@ -164,5 +184,5 @@
 | EPIC-003 | TASK-005 | Pending | 1 | 0 | 0 | 1 |
 | EPIC-004 | TASK-006 | In Progress | 4 | 1 | 0 | 5 |
 | EPIC-005 | TASK-007 | Completed | 8 | 0 | 1 | 9 |
-| EPIC-006 | TASK-008 a TASK-010 | In Progress | 1 | 1 | 0 | 2 |
-| **TOTAL** | | | **18** | **4** | **1** | **23** |
+| EPIC-006 | TASK-008 a TASK-011 | In Progress | 3 | 1 | 0 | 4 |
+| **TOTAL** | | | **20** | **4** | **1** | **25** |
