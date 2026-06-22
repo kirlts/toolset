@@ -110,6 +110,9 @@ jobs:
             --hostname=gh-deploy \
             --accept-routes
 
+      - name: Disable Tailscale SSH interception
+        run: sudo tailscale set --ssh=false
+
       - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
