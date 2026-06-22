@@ -173,7 +173,7 @@ LANDING_HTML=$(cat <<EOF
 <p style="margin-top:1.5em;font-weight:bold;color:#f0c674;">🧠 Memory Banks</p>
 <div class="tree">
 <pre>
-  <span class="pipe">└──</span> <span class="path"><a href="/dashboard">/dashboard</a></span>                  <span class="desc">toolset &mdash; banco actual</span>             <span class="status">✅ 128 facts</span>
+  <span class="pipe">└──</span> <span class="path"><a href="/banks/toolset">/banks/toolset</a></span>              <span class="desc">toolset &mdash; banco actual</span>             <span class="status">✅ 128 facts</span>
 </pre>
 </div>
 <p style="margin:0.5em 0 0 1.5em;color:#888;font-size:0.85em;">

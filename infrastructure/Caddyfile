@@ -23,7 +23,7 @@
         reverse_proxy hindsight:9999
     }
 
-    # SPA fallback: /bank/* no tiene SSR en CP → servir shell de /dashboard
+    # SPA fallback: /bank y /banks no tienen SSR en CP → servir shell de /dashboard
     handle /bank/* {
         handle /bank/api/* {
             uri strip_prefix /bank
@@ -39,6 +39,24 @@
         }
     }
     handle /bank {
+        rewrite * /dashboard
+        reverse_proxy hindsight:9999
+    }
+    handle /banks/* {
+        handle /banks/api/* {
+            uri strip_prefix /banks
+            reverse_proxy hindsight:9999
+        }
+        handle /banks/_next/* {
+            uri strip_prefix /banks
+            reverse_proxy hindsight:9999
+        }
+        handle {
+            rewrite * /dashboard
+            reverse_proxy hindsight:9999
+        }
+    }
+    handle /banks {
         rewrite * /dashboard
         reverse_proxy hindsight:9999
     }
