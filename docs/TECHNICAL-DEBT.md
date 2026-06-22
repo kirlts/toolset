@@ -36,3 +36,14 @@ El pipeline funciona actualmente con API key (`OCI_API_KEY`) como puente tempora
 
 **Remediation plan:** Definir e implementar post-TASK-006 (Hermes operativo).
 **Status:** ☐ Pending
+
+---
+
+## [DT-003] Backup de volúmenes Docker de Hindsight (pg0)
+
+**Severity:** Low
+**Origin:** manual (session closure)
+**Description:** Hindsight self-hosted almacena su banco de memoria en el volumen Docker `hindsight_data` (pg0 embebido en `/home/hindsight/.pg0`). Si la instancia OCI se redeploya o el contenedor se destruye con `docker compose down -v`, todos los datos de memoria se pierden. Actualmente no hay backup ni export programado.
+
+**Remediation plan:** Implementar backup periódico vía API `document-transfer` y subir a OCI Object Storage. Cron diario o pre-deploy en el keepalive script.
+**Status:** ☐ Pending

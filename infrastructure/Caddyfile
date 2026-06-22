@@ -3,37 +3,13 @@
 
 {
     http_port 8080
-    # TLS handled by Tailscale Funnel — Caddy runs HTTP only
     auto_https off
     admin off
 }
 
 :8080 {
-    # Hindsight API + MCP
-    handle_path /api/* {
-        reverse_proxy hindsight:8888
-    }
-    handle /mcp/* {
-        reverse_proxy hindsight:8888
-    }
-    handle /health {
-        reverse_proxy hindsight:8888
-    }
-    handle /openapi.json {
-        reverse_proxy hindsight:8888
-    }
-    handle /version {
-        reverse_proxy hindsight:8888
-    }
-    handle /metrics {
-        reverse_proxy hindsight:8888
-    }
-    handle /docs {
-        reverse_proxy hindsight:8888
-    }
-
     # Hindsight Control Plane UI
-    handle_path /cp/* {
+    handle_path /cpanel/* {
         reverse_proxy hindsight:9999
     }
 
@@ -47,8 +23,8 @@
     #     reverse_proxy hermes:XXXX
     # }
 
-    # Landing page
-    handle {
+    # Root: landing page with service links
+    handle / {
         respond `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -70,12 +46,17 @@
 <h1>Toolset Personal</h1>
 <ul>
   <li><a href="/health">Hindsight API &mdash; Health</a></li>
-  <li><a href="/cp/">Hindsight &mdash; Control Plane</a></li>
+  <li><a href="/cpanel/">Hindsight &mdash; Control Plane</a></li>
   <li><a href="/infisical/">Infisical &mdash; Secrets Manager</a></li>
   <li><a href="/docs">Hindsight API &mdash; Swagger UI</a></li>
 </ul>
 <div class="meta">OCI &bull; sa-valparaiso-1 &bull; VM.Standard.A1.Flex</div>
 </body>
 </html>` 200
+    }
+
+    # Everything else: Hindsight API (health, v1/*, docs, mcp, etc.)
+    handle {
+        reverse_proxy hindsight:8888
     }
 }
