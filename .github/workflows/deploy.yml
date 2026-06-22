@@ -108,8 +108,7 @@ jobs:
           sudo tailscale up \
             --auth-key=${{ secrets.TAILSCALE_AUTH_KEY }} \
             --hostname=gh-deploy \
-            --accept-routes \
-            --ssh
+            --accept-routes
 
       - name: Setup SSH key
         run: |
