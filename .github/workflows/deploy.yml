@@ -49,6 +49,13 @@ jobs:
       - name: Instalar OpenTofu
         uses: opentofu/setup-opentofu@v1
 
+      - name: Derivar SSH public key
+        run: |
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > /tmp/ssh_key
+          chmod 600 /tmp/ssh_key
+          ssh-keygen -y -f /tmp/ssh_key > /tmp/ssh_key.pub
+          echo "SSH_PUBLIC_KEY=$(cat /tmp/ssh_key.pub)" >> "$GITHUB_ENV"
+
       - name: Inicializar OpenTofu
         working-directory: ${{ env.INFRA_DIR }}
         run: tofu init
@@ -60,6 +67,7 @@ jobs:
           TF_VAR_tailscale_auth_key: ${{ secrets.TAILSCALE_AUTH_KEY }}
           TF_VAR_infisical_encryption_key: ${{ secrets.INFISICAL_ENCRYPTION_KEY }}
           TF_VAR_infisical_auth_secret: ${{ secrets.INFISICAL_AUTH_SECRET }}
+          TF_VAR_ssh_public_key: ${{ env.SSH_PUBLIC_KEY }}
         run: tofu plan
 
       - name: Tofu Apply
@@ -69,6 +77,7 @@ jobs:
           TF_VAR_tailscale_auth_key: ${{ secrets.TAILSCALE_AUTH_KEY }}
           TF_VAR_infisical_encryption_key: ${{ secrets.INFISICAL_ENCRYPTION_KEY }}
           TF_VAR_infisical_auth_secret: ${{ secrets.INFISICAL_AUTH_SECRET }}
+          TF_VAR_ssh_public_key: ${{ env.SSH_PUBLIC_KEY }}
         run: tofu apply -auto-approve
 
       - name: Subir State Remoto

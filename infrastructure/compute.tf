@@ -19,7 +19,13 @@ variable "infisical_auth_secret" {
 variable "ssh_public_key_path" {
   description = "Path to SSH public key for instance access"
   type        = string
-  default     = "../.ssh/toolset-oci.pub"
+  default     = ""
+}
+
+variable "ssh_public_key" {
+  description = "SSH public key content (alternative to path, for CI/CD)"
+  type        = string
+  default     = ""
 }
 
 data "oci_identity_availability_domains" "ads" {
@@ -50,7 +56,7 @@ resource "oci_core_instance" "toolset" {
   }
 
   metadata = {
-    ssh_authorized_keys = file(var.ssh_public_key_path)
+    ssh_authorized_keys = var.ssh_public_key != "" ? var.ssh_public_key : file(var.ssh_public_key_path)
     user_data           = base64encode(templatefile("${path.module}/cloud-init.yaml", {
       tailscale_auth_key       = var.tailscale_auth_key
       infisical_encryption_key = var.infisical_encryption_key
