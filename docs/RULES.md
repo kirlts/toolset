@@ -30,3 +30,12 @@ These rules apply to all operations performed by the artificial intelligence ass
 
 - **Single Gateway:** Composio acts as the exclusive channel to authenticate and interact with external APIs and third-party tools. Writing authentication scripts or attempting to implement manual flows for tools supported and actively exposed by Composio is restricted.
 - **Schema Validation:** The agent inspects the input schema of each Composio tool prior to execution to guarantee that the arguments strictly comply with the types and mandatory fields defined in the server.
+
+---
+
+### Infrastructure Provisioning: CI/CD Only
+
+- **[INFRA-01] No local `tofu apply` or `tofu destroy`:** The agent MUST NOT execute OpenTofu plan/apply/destroy/taint locally under any circumstance. All infrastructure mutations flow exclusively through the GitHub Actions CI/CD pipeline defined in `.github/workflows/deploy.yml`.
+- **[INFRA-02] Remote state is authoritative:** The OpenTofu state file stored in OCI Object Storage (`toolset-opentofu-state` bucket) is the single source of truth. The local state file is ephemeral and may be stale. The agent may use `tofu plan` locally for diagnostics only, provided it reads from remote state (the pipeline already syncs it).
+- **[INFRA-03] Service deployment via CI/CD:** The `deploy-services` job handles all Docker Compose changes. The agent may run `./infrastructure/deploy.sh` locally for verification purposes, but production deploys go through CI/CD.
+- **Rationale:** Session 2026-06-22 demonstrated that local `tofu taint` + `tofu apply` caused SSH lockout, boot volume quota exhaustion, and ~2 hours of unrecoverable downtime. Observability and reproducibility require all infrastructure mutations to be traceable through GitHub Actions logs.
