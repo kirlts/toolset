@@ -49,15 +49,13 @@ services:
       retries: 3
       start_period: 40s
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
     environment:
       AUTH_SECRET: ${INFISICAL_AUTH_SECRET}
       ENCRYPTION_KEY: ${INFISICAL_ENCRYPTION_KEY}
       SITE_URL: ${INFISICAL_SITE_URL:-http://toolset-oci:8081}
-      DB_CONNECTION_URI: postgresql://${INFISICAL_DB_USER:-infisical}:${INFISICAL_DB_PASSWORD}@postgres:5432/${INFISICAL_DB_NAME:-infisical}
+      DB_SQLITE_PATH: /data/infisical.db
       REDIS_URL: redis://redis:6379
     volumes:
       - infisical_data:/data
