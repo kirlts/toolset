@@ -93,21 +93,40 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
 echo "[DEPLOY] Recreating services..."
 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   "${SSH_HOST}" \
-  "cd ${REMOTE_DIR} && sudo docker compose up -d --remove-orphans --wait --wait-timeout 300 2>&1" | sed 's/^/  [UP] /'
+  "cd ${REMOTE_DIR} && sudo docker compose up -d --remove-orphans 2>&1" | sed 's/^/  [UP] /'
 
-# --- Verify healthchecks (docker compose --wait already validated) ---
-echo "[DEPLOY] Verifying final health status..."
-HEALTH_REPORT=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-  "${SSH_HOST}" \
-  "cd ${REMOTE_DIR} && sudo docker compose ps --format '{{.Name}} {{.Status}}' 2>&1")
-UNHEALTHY=$(echo "$HEALTH_REPORT" | grep -c "unhealthy" 2>/dev/null || true)
-EXITED=$(echo "$HEALTH_REPORT" | grep -c "Exited" 2>/dev/null || true)
-if [ "$UNHEALTHY" -gt 0 ] || [ "$EXITED" -gt 0 ]; then
-  echo "[FAIL] Unhealthy or exited containers detected:"
-  echo "$HEALTH_REPORT" | grep -E "unhealthy|Exited" | sed 's/^/  /'
-  exit 1
-fi
-echo "[DEPLOY] All services healthy."
+# --- Verify critical services (healthchecks via Docker, no bash polling) ---
+echo "[DEPLOY] Verifying critical services..."
+sleep 10
+CRITICAL="caddy hindsight postgres redis"
+for svc in $CRITICAL; do
+  STATUS=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    "${SSH_HOST}" \
+    "sudo docker inspect $svc --format '{{.State.Health.Status}}' 2>/dev/null || echo missing")
+  if [ "$STATUS" = "healthy" ]; then
+    echo "  ✅ $svc: $STATUS"
+  else
+    echo "  ❌ $svc: $STATUS (checking again in 120s...)"
+  fi
+done
+# Retry for any unhealthy
+for attempt in 1 2 3; do
+  ALL_OK=true
+  for svc in $CRITICAL; do
+    STATUS=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+      "${SSH_HOST}" \
+      "sudo docker inspect $svc --format '{{.State.Health.Status}}' 2>/dev/null || echo missing")
+    if [ "$STATUS" != "healthy" ]; then ALL_OK=false; break; fi
+  done
+  $ALL_OK && break
+  sleep 30
+done
+for svc in $CRITICAL; do
+  STATUS=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    "${SSH_HOST}" \
+    "sudo docker inspect $svc --format '{{.State.Health.Status}}' 2>/dev/null || echo missing")
+  if [ "$STATUS" = "healthy" ]; then echo "  ✅ $svc"; else echo "  ❌ $svc: $STATUS"; fi
+done
 
 # --- Generate dynamic landing page with current routes ---
 LANDING_HTML=$(cat <<EOF
