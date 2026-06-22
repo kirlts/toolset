@@ -47,3 +47,14 @@ El pipeline funciona actualmente con API key (`OCI_API_KEY`) como puente tempora
 
 **Remediation plan:** Implementar backup periódico vía API `document-transfer` y subir a OCI Object Storage. Cron diario o pre-deploy en el keepalive script.
 **Status:** ☐ Pending
+
+---
+
+## [DT-004] Infisical no arranca — migración KMS `Invalid key length`
+
+**Severity:** Medium
+**Origin:** session 2026-06-22 (CI/CD loop)
+**Description:** Infisical (todas las versiones probadas: latest, v0.161.4, v0.160.0, v0.158.0) falla durante migración `20250210101840_webhook-to-kms.mjs` con `ERR_CRYPTO_INVALID_KEYLEN`. Probados múltiples formatos de ENCRYPTION_KEY (hex 256-bit, hex 128-bit, base64 32-byte). Persiste con DB limpia (PostgreSQL y SQLite). KMS genera root key que no matchea el cipher esperado.
+
+**Remediation plan:** Investigar Infisical v0.162+ o build custom. Mientras, Caddy no depende de Infisical healthy (solo started).
+**Status:** ☐ Pending
