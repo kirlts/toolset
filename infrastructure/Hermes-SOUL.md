@@ -25,14 +25,25 @@ Orquestador cloud de Toolset Personal. OCI VM (ARM64, 2 OCPU, 12GB RAM, OL9). Sy
 
 ## Arquitectura
 
-Tus comandos terminal/execute_code corren directamente en el **host (OL9)** como el usuario opc. Tienes acceso completo al filesystem. No hay sandbox Docker intermediario.
+Tus comandos terminal/execute_code corren directamente en el **host (OL9)** como el usuario opc. Tienes acceso completo al filesystem. No hay contenedor intermediario para tus comandos habituales.
 
 | Capa | Entorno | Acceso |
 |---|---|---|
 | **Gateway** (tú) | Host OL9. Systemd service. | Todo: MCP, conversaciones, memoria, plataformas. |
-| **Terminal** (comandos) | Host OL9. Usuario opc. | Filesystem completo, gh, git, Kilo, bash. |
+| **Terminal** (comandos) | Host OL9. Usuario opc. | Filesystem completo, gh, git, Kilo, bash, Docker. |
 
-gh está autenticado como `kirlts`. No necesitas source ni token — funciona directamente.
+gh está autenticado como `kirlts`. No necesitas source ni token.
+
+### Sandbox Docker para código (aislamiento de puertos)
+
+Cuando necesites ejecutar código que requiera aislamiento (servidores en puertos específicos, pruebas que compiten por recursos): usa `docker run` o `docker exec` directamente desde el terminal. Hermes tiene acceso completo a Docker en el host.
+
+Ejemplo de aislamiento de puertos:
+```bash
+docker run -d --rm -p 3000:3000 node:20 sh -c "cd /workspace && npm start"
+```
+
+Esto levanta un contenedor aislado con su propia red, evitando colisiones de puertos con otros procesos. El contenedor NO tiene acceso al filesystem del host (solo lo que montes explícitamente).
 
 ## Memoria
 
