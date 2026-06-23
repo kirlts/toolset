@@ -1,6 +1,6 @@
 # REPOMAP: Toolset Personal
 
-> Generated: 2026-06-22 (Kairós v3.5.0, Phase 1 -> 2 sync)  
+> Generated: 2026-06-23 (Kairós v3.5.0, Phase 1 -> 2 sync)  
 > Purpose: Routing matrix. Defines when the AI is authorized to read each directory or file.
 
 ## Authoring Constraints (Read Before Populating)
@@ -18,6 +18,7 @@
 | `.agents/` | **[Active Governance]** Rules, skills, workflows, and templates that define agent behavior. | **MANDATORY.** Consult `01-behavior.md` at session start; dynamically load other files per `[RULE: DYNAMIC CONTEXT LOAD]` and `[RULE: DYNAMIC SKILL ACTIVATION]` triggers. |
 | `docs/MASTER-SPEC.md` | **[Domain Axiom]** Master architectural specification of the workspace, domains, stack, and rules. | Consult when verifying technical stack, boundaries, or when modifying architectural components. |
 | `docs/` (excluding MASTER-SPEC.md) | **[Documentation]** Project progress tracking and local operational rules (TODO, VERIFICATION, CHANGELOG, USER-DECISIONS, MEMORY, RULES). | Consult to verify task completion, review strategic decisions, or update version histories. |
+| `infrastructure/` | **[Infrastructure]** Deployment configuration: OpenTofu (`.tf`), Docker Compose, Caddyfile, deploy script, cloud-init. | Consult when modifying infrastructure provisioning, CI/CD pipeline, or service deployment configuration. |
 | `Toolset Junio 2026.md` | **[Domain Axiom]** Base project specification and infrastructure definition from June 2026. | Consult to understand the foundational requirements, architecture, and cloud vs local domain split of the toolset. |
 | `README.md` | **[Documentation]** High-level overview and startup instructions for the repository. | Consult at session startup or when providing a quick overview of the repository to new clients. |
 | `.kilo/` | **[Invisible Infrastructure]** Local editor configurations and dependency folders. | Consult only when investigating editor integration issues or editor-specific package dependencies. |

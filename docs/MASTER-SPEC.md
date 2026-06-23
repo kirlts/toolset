@@ -62,7 +62,7 @@
 | Local Engine | Antigravity 2.0 | Motor principal de deliberacion y planificacion local. |
 | Local Editor | Kilo Code (VS Code Extension) + OpenCode Go | Entorno por defecto conectado a OpenCode Go bajo suscripcion fija, integrado con Composio y Hindsight en modo Cloud (Fase 1). |
 | Provisioning | OpenTofu | Aprovisionamiento declarativo e inmutable de la infraestructura. Activo. |
-| Network | Tailscale (Funnel Planned) | Red privada entre local y nube sin exposicion de puertos publicos. Activo. |
+| Network | Tailscale (Funnel Active) | Red privada entre local y nube sin exposicion de puertos publicos. Funnel multi-puerto (:443 Caddy, :8443 Infisical). Activo. |
 | Container Runtime | Docker 29 + Compose Plugin | Orquestacion de servicios en el servidor OCI. Activo. |
 | Secrets | Infisical (Self-hosted en OCI) | Gestion de variables de entorno inyectadas directamente en memoria. Desplegado, pendiente integracion con servicios. |
 | Infisical Dependencies | PostgreSQL 16, Redis 7 | Base de datos y cache/cola requeridos por Infisical self-hosted. Activos. |

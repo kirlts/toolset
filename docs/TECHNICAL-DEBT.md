@@ -56,5 +56,5 @@ El pipeline funciona actualmente con API key (`OCI_API_KEY`) como puente tempora
 **Origin:** session 2026-06-22 (CI/CD loop)
 **Description:** Infisical (todas las versiones probadas: latest, v0.161.4, v0.160.0, v0.158.0) falla durante migración `20250210101840_webhook-to-kms.mjs` con `ERR_CRYPTO_INVALID_KEYLEN`. Probados múltiples formatos de ENCRYPTION_KEY (hex 256-bit, hex 128-bit, base64 32-byte). Persiste con DB limpia (PostgreSQL y SQLite). KMS genera root key que no matchea el cipher esperado.
 
-**Remediation plan:** Investigar Infisical v0.162+ o build custom. Mientras, Caddy no depende de Infisical healthy (solo started).
-**Status:** ☐ Pending
+**Remediation plan:** Corregir ENCRYPTION_KEY: usar `openssl rand -hex 16` (32 hex chars = 32 UTF-8 bytes) en lugar de base64. La función `$getBasicEncryptionKey()` en Infisical lee ENCRYPTION_KEY como UTF-8 buffer. Base64 produce 44+ bytes → ERR_CRYPTO_INVALID_KEYLEN. Hex 32 chars = 32 bytes = AES-256-GCM válido. También se corrigió DB_CONNECTION_URI para compatibilidad con Docker Compose v5.1.4 (usar variable simple en .env en lugar de multi-sustitución inline).
+**Status:** ✅ Resolved (2026-06-22)

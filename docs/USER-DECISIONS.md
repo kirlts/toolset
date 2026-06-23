@@ -247,3 +247,29 @@
 - La URL es pública (cualquiera puede intentar acceder), mitigado por oscuridad de la URL y formato MCP.
 
 **Reversion conditions:** Si se requiere autenticación en el MCP, habilitar `HINDSIGHT_CP_ACCESS_KEY` en Hindsight y agregar header de Authorization en el MCP config.
+
+---
+
+## [UD-013] Bootstrap recovery + service token para Infisical CI/CD
+
+**Date:** 2026-06-22
+
+**Context:** Tras resolver DT-004 (ENCRYPTION_KEY corregida), la cuenta admin de Infisical requería registro manual desde la Web UI. Esto no es recuperable si la instancia OCI se redeploya en un volumen PostgreSQL fresco. Además, el pipeline CI/CD necesitaba una forma permanente de sincronizar secrets sin depender del JWT de sesión del admin (expira en 10 días).
+
+**Decision:** Implementar dos mecanismos de resiliencia:
+1. **Bootstrap automático**: deploy.sh llama `POST /api/v1/admin/bootstrap` en cada deploy con las credenciales de admin almacenadas en GitHub Secrets. Si ya existe admin → 400 "already set up" (seguro). Si no existe → crea admin + org automáticamente.
+2. **Service token permanente**: Creado via `POST /api/v2/service-token` con JWT de admin, scoped al proyecto Toolset (dev + prod, read+write). Token de formato `st.*` almacenado como GitHub Secret `INFISICAL_SERVICE_TOKEN`.
+3. **CI/CD sync automático**: deploy.sh usa el service token en cada deploy para sincronizar secrets de GitHub Secrets a Infisical (idempotente via POST upsert).
+
+**Discarded alternatives:**
+- SRP login via CLI (descartado: Infisical usa SRP para passwords, la CLI no puede loguearse sin resolver SRP, y el endpoint login1 falla con 500).
+- Crear service token via DB directamente (descartado: el hash del token requiere formato específico no documentado).
+- Identidad machine-to-machine con universal auth (descartado: requiere crear una identity primero, creando dependencia cíclica).
+
+**Consequences:**
+- Admin account recuperable en cualquier redeploy (bootstrap).
+- Service token permanente permite CI/CD autónomo sin JWT de admin.
+- Secrets en GitHub Secrets como fuente de verdad, Infisical como runtime.
+- Para un volumen completamente fresco, el primer deploy crea admin + org; el service token falla hasta que se cree el proyecto manualmente.
+
+**Reversion conditions:** Cambiar a OIDC para auth de CI/CD o a machine identities cuando Infisical madure el soporte.

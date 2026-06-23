@@ -81,7 +81,7 @@
 
 - [x] Investigar métodos de instalación self-hosted de Infisical en OCI ARM64. Desplegado con PostgreSQL 16 + Redis 7 como dependencias. 2026-06-22 [🤖 Verified by tool]
 - [x] Desplegar Infisical self-hosted en Docker Compose. Admin `martin.gil.o@gmail.com` creado via web UI. 2026-06-22 [🤖 Verified by tool]
-- [ ] Configurar Infisical con proyectos, entornos y secrets para uso de Hermes.
+- [x] Configurar Infisical con proyectos, entornos y secrets para uso de Hermes. 2026-06-22 [🤖 Verified by tool]
 - [ ] Integrar Infisical Agent con Hermes para inyección de secrets en runtime.
 
 ---
@@ -92,7 +92,7 @@
 
 ### [TASK-006] Despliegue de Hermes Agent
 
-**Covered checks:** `[DEV.CR.07.LLM]`, `[USER.FN.04.HUM]`
+**Covered checks:** `[DEV.CR.06.LLM]`, `[DEV.CR.07.LLM]`, `[USER.FN.04.HUM]`
 
 - [x] Investigar Hermes Agent (Nous Research) — framework OSS real con sandbox Docker nativo, subagentes asíncronos, v0.15.0 (May 2026). 2026-06-22 [🤖 Verified by tool]
 - [x] Investigar sandbox backend: comunidad usa Docker nativo (`terminal.backend: docker`) con hardening automático. Daytona/Modal/Vercel como backends alternativos configurables. 2026-06-22 [🤖 Verified by tool]
@@ -143,7 +143,10 @@
 - [x] Habilitar Funnel en Tailscale admin console. 2026-06-22 [🧑 Habilitado por usuario]
 - [x] Configurar Funnel en OCI: apunta a Caddy (`http://localhost:8080`) que enruta por path a cada servicio. 2026-06-22 [🤖 Verified by tool]
 - [x] Implementar Caddy reverse proxy multi-servicio (Hindsight API/MCP/CP, Infisical, landing page). 2026-06-22 [🤖 Verified by tool]
+- [x] Reestructurar Caddyfile: catch-all a landing page, Infisical en /api/*, rutas CP específicas. 2026-06-22 [🤖 Verified by tool]
+- [x] Segundo Funnel en :8443 para Infisical UI (evita conflicto _next/* con CP). 2026-06-22 [🤖 Verified by tool]
 - [x] `deploy.sh` imprime tabla de URLs completa post-deploy. 2026-06-22 [🤖 Verified by tool]
+- [x] Arreglar CI/CD pipeline: Caddy healthy independiente de Infisical, deploy-services pasa. 2026-06-22 [🤖 Verified by tool]
 - [ ] Configurar webhooks de GitHub hacia Hindsight/Infisical usando el Funnel como endpoint.
 
 ### [TASK-009] Integración Infisical con Servicios
@@ -181,8 +184,8 @@
 | --- | --- | --- | --- | --- | --- | --- |
 | EPIC-001 | TASK-001 a TASK-003 | Completed | 4 | 1 | 0 | 5 |
 | EPIC-002 | TASK-004 | Completed | 2 | 1 | 0 | 3 |
-| EPIC-003 | TASK-005 | Pending | 1 | 0 | 0 | 1 |
-| EPIC-004 | TASK-006 | In Progress | 4 | 1 | 0 | 5 |
+| EPIC-003 | TASK-005 | In Progress | 1 | 0 | 0 | 1 |
+| EPIC-004 | TASK-006 | In Progress | 5 | 1 | 0 | 6 |
 | EPIC-005 | TASK-007 | Completed | 8 | 0 | 1 | 9 |
-| EPIC-006 | TASK-008 a TASK-011 | In Progress | 3 | 1 | 0 | 4 |
-| **TOTAL** | | | **20** | **4** | **1** | **25** |
+| EPIC-006 | TASK-008 a TASK-011 | In Progress | 5 | 1 | 0 | 6 |
+| **TOTAL** | | | **22** | **4** | **1** | **27** |
