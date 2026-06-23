@@ -116,6 +116,8 @@ services:
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - /opt/toolset/landing:/usr/share/caddy/landing
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - toolset-net
 
