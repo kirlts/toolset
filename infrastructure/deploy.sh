@@ -506,17 +506,51 @@ else
     "${SSH_HOST}" "sudo tailscale funnel --bg --https=${INFISICAL_PORT} http://localhost:8081 2>&1" | sed 's/^/  /'
 fi
 
-# --- Ensure Hermes WebUI Funnel on :8787 ---
+# --- Ensure Hermes WebUI systemd service ---
+echo "[DEPLOY] Ensuring Hermes WebUI systemd service..."
+ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  "${SSH_HOST}" \
+  "if ! systemctl is-enabled hermes-webui &>/dev/null 2>&1; then
+     cd /opt/hermes-webui 2>/dev/null || (sudo git clone https://github.com/nesquena/hermes-webui.git /opt/hermes-webui && sudo chown -R opc:opc /opt/hermes-webui)
+     sudo tee /etc/systemd/system/hermes-webui.service > /dev/null << SERVEOF
+[Unit]
+Description=Hermes WebUI
+After=network.target hermes-gateway.service
+Wants=hermes-gateway.service
+
+[Service]
+Type=simple
+User=opc
+WorkingDirectory=/opt/hermes-webui
+Environment=HERMES_WEBUI_PORT=8888
+Environment=HERMES_WEBUI_HOST=0.0.0.0
+ExecStart=/usr/local/lib/hermes-agent/venv/bin/python /opt/hermes-webui/server.py
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+SERVEOF
+     sudo systemctl daemon-reload
+     sudo systemctl enable --now hermes-webui 2>&1
+     echo '[hermes-webui] Service installed and started'
+   else
+     sudo systemctl restart hermes-webui 2>/dev/null || true
+     echo '[hermes-webui] Service restarted'
+   fi"
+
+# --- Ensure Hermes WebUI Funnel on :8787 -> localhost:8888 ---
 HERMES_PORT="8787"
-echo "[DEPLOY] Ensuring Hermes WebUI Funnel on :${HERMES_PORT} -> localhost:${HERMES_PORT}..."
+HERMES_BACKEND="8888"
+echo "[DEPLOY] Ensuring Hermes WebUI Funnel on :${HERMES_PORT} -> localhost:${HERMES_BACKEND}..."
 HAS_HERMES=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   "${SSH_HOST}" "sudo tailscale funnel status 2>&1" | grep -c ":${HERMES_PORT}" || true)
 if [ "$HAS_HERMES" -gt 0 ]; then
   echo "[DEPLOY] Hermes WebUI Funnel already configured on :${HERMES_PORT}"
 else
   ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    "${SSH_HOST}" "sudo tailscale funnel --bg --https=${HERMES_PORT} http://localhost:${HERMES_PORT} 2>&1" | sed 's/^/  /'
-  echo "[DEPLOY] Hermes WebUI Funnel configured on :${HERMES_PORT}"
+    "${SSH_HOST}" "sudo tailscale funnel --bg --https=${HERMES_PORT} http://localhost:${HERMES_BACKEND} 2>&1" | sed 's/^/  /'
+  echo "[DEPLOY] Hermes WebUI Funnel configured on :${HERMES_PORT} -> :${HERMES_BACKEND}"
 fi
 
 # --- Post-deploy summary ---
