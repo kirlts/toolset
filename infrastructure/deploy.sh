@@ -50,6 +50,7 @@ REQUIRED_VARS=(
   HERMES_WHATSAPP_MODE
   WHATSAPP_ALLOWED_USERS
   COMPOSIO_API_KEY
+  COMPOSIO_MCP_KEY
 )
 
 MISSING=0
@@ -246,9 +247,16 @@ if [ -n "$INFISICAL_TOKEN" ] && [ -n "$INFISICAL_PID" ]; then
   sync_secret "dev" "HERMES_LLM_MODEL" "${HERMES_LLM_MODEL:-}"
   sync_secret "dev" "HERMES_WEBUI_PASSWORD" "${HERMES_WEBUI_PASSWORD:-}"
   sync_secret "dev" "HERMES_WHATSAPP_MODE" "${HERMES_WHATSAPP_MODE:-}"
-  sync_secret "dev" "WHATSAPP_ALLOWED_USERS" "${WHATSAPP_ALLOWED_USERS:-}"
-  sync_secret "dev" "COMPOSIO_API_KEY" "${COMPOSIO_API_KEY:-}"
+  sync_secret "dev" "COMPOSIO_MCP_KEY" "${COMPOSIO_MCP_KEY:-}"
   sync_secret "prod" "OPENCODE_GO_API_KEY" "${OPENCODE_GO_API_KEY:-}"
+  sync_secret "prod" "FUNNEL_DOMAIN" "${FUNNEL_DOMAIN:-}"
+  sync_secret "prod" "HERMES_LLM_PROVIDER" "${HERMES_LLM_PROVIDER:-}"
+  sync_secret "prod" "HERMES_LLM_MODEL" "${HERMES_LLM_MODEL:-}"
+  sync_secret "prod" "HERMES_WEBUI_PASSWORD" "${HERMES_WEBUI_PASSWORD:-}"
+  sync_secret "prod" "HERMES_WHATSAPP_MODE" "${HERMES_WHATSAPP_MODE:-}"
+  sync_secret "prod" "WHATSAPP_ALLOWED_USERS" "${WHATSAPP_ALLOWED_USERS:-}"
+  sync_secret "prod" "COMPOSIO_API_KEY" "${COMPOSIO_API_KEY:-}"
+  sync_secret "prod" "COMPOSIO_MCP_KEY" "${COMPOSIO_MCP_KEY:-}"
   sync_secret "prod" "FUNNEL_DOMAIN" "${FUNNEL_DOMAIN:-}"
   sync_secret "prod" "HERMES_LLM_PROVIDER" "${HERMES_LLM_PROVIDER:-}"
   sync_secret "prod" "HERMES_LLM_MODEL" "${HERMES_LLM_MODEL:-}"
@@ -411,6 +419,7 @@ WHATSAPP_MODE=${HERMES_WHATSAPP_MODE:-bot}
 WHATSAPP_ALLOWED_USERS=${WHATSAPP_ALLOWED_USERS:-}
 WHATSAPP_ENABLED=true
 COMPOSIO_API_KEY=${COMPOSIO_API_KEY:-}
+COMPOSIO_MCP_KEY=${COMPOSIO_MCP_KEY:-}
 HERMESENV
 echo "[DEPLOY] Hermes .env written."
 
@@ -536,10 +545,16 @@ import yaml
 cfg_path = '/home/opc/.hermes/config.yaml'
 with open(cfg_path) as f:
     cfg = yaml.safe_load(f) or {}
-# Remove stale config sections
-cfg.pop('memory_provider', None)  # old format, conflicts with memory.provider
+cfg.pop('memory_provider', None)
 cfg.setdefault('mcp_servers', {})
-cfg['mcp_servers'].pop('composio', None)  # static endpoint no longer supported
+composio_key = os.environ.get('COMPOSIO_MCP_KEY', '${COMPOSIO_MCP_KEY:-}')
+if composio_key:
+    cfg['mcp_servers']['composio'] = {
+        'url': 'https://connect.composio.dev/mcp',
+        'headers': {'x-consumer-api-key': composio_key},
+        'connect_timeout': 60,
+        'timeout': 180
+    }
 cfg['mcp_servers']['hindsight-selfhosted'] = {
     'url': 'https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/mcp/'
 }

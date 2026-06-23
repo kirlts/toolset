@@ -47,7 +47,7 @@
       "type": "remote",
       "url": "https://connect.composio.dev/mcp",
       "headers": {
-        "Authorization": "Bearer {env:COMPOSIO_API_KEY}"
+        "x-consumer-api-key": "{env:COMPOSIO_MCP_KEY}"
       }
     },
     "hindsight-selfhosted": {
