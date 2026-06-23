@@ -519,7 +519,30 @@ echo "[DEPLOY] Killing stale Docker sandbox container..."
 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   "${SSH_HOST}" \
   "docker rm -f \$(docker ps -q --filter label=hermes-agent=1) 2>/dev/null; \
-   echo '[hermes] Sandbox container killed (will recreate on next use)'"
+   echo '[hermes] Sandbox container killed'"
+
+# --- Pre-create Hermes sandbox with all tools pre-installed ---
+echo "[DEPLOY] Building Hermes sandbox image with tools..."
+DOCKERFILE_SRC="$(dirname "${COMPOSE_FILE}")/hermes-sandbox.Dockerfile"
+scp -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  "$DOCKERFILE_SRC" "${SSH_HOST}:/tmp/hermes-sandbox.Dockerfile"
+ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  "${SSH_HOST}" \
+  "docker rm -f \$(docker ps -q --filter label=hermes-agent=1) 2>/dev/null; \
+   echo '[hermes] Building toolset/hermes-sandbox:latest...'; \
+   docker build -t toolset/hermes-sandbox:latest -f /tmp/hermes-sandbox.Dockerfile /tmp/ 2>&1 | tail -3; \
+   echo '[hermes] Creating sandbox container with gh auth...'; \
+   docker run -d --label hermes-agent=1 \
+     --name hermes-sandbox \
+     -v /usr/bin/gh:/usr/bin/gh:ro \
+     -v /home/opc/.hermes/gh_token.env:/etc/gh_token.env:ro \
+     -v /etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt:ro \
+     toolset/hermes-sandbox:latest sleep 2h 2>&1 | tail -1; \
+   CID=\$(docker ps -q --filter label=hermes-agent=1); \
+   if [ -n \"\$CID\" ]; then \
+     docker exec \$CID bash -c 'source /etc/gh_token.env && gh auth status 2>&1' | head -3; \
+     echo \"[hermes] ✅ Sandbox container ready with tools\"; \
+   fi"
 
 # --- Hindsight bank backup/restore (resilience: bank data survives volume wipe) ---
 BACKUP_DIR="${REMOTE_DIR}/backups/hindsight"
@@ -603,7 +626,7 @@ for vol in [
     '/home/opc/.hermes/SOUL.md:/workspace/SOUL.md:ro',
     '/usr/bin/gh:/usr/bin/gh:ro',
     '/home/opc/.hermes/gh_token.env:/etc/gh_token.env:ro',
-    '/etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt:ro',
+    '/etc/pki/tls/certs/ca-bundle.crt:/etc/ssl/certs/ca-certificates.crt:ro',
 ]:
     if vol not in cfg['terminal']['docker_volumes']:
         cfg['terminal']['docker_volumes'].append(vol)
