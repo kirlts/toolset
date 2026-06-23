@@ -39,3 +39,19 @@ These rules apply to all operations performed by the artificial intelligence ass
 - **[INFRA-02] Remote state is authoritative:** The OpenTofu state file stored in OCI Object Storage (`toolset-opentofu-state` bucket) is the single source of truth. The local state file is ephemeral and may be stale. The agent may use `tofu plan` locally for diagnostics only, provided it reads from remote state (the pipeline already syncs it).
 - **[INFRA-03] Service deployment via CI/CD:** The `deploy-services` job handles all Docker Compose changes. The agent may run `./infrastructure/deploy.sh` locally for verification purposes, but production deploys go through CI/CD.
 - **Rationale:** Session 2026-06-22 demonstrated that local `tofu taint` + `tofu apply` caused SSH lockout, boot volume quota exhaustion, and ~2 hours of unrecoverable downtime. Observability and reproducibility require all infrastructure mutations to be traceable through GitHub Actions logs.
+
+### CLI Interaction with Hermes Agent
+
+When an AI agent (this assistant) needs to interact with Hermes Agent programmatically from the VPS shell (e.g., to test capabilities, send queries, verify tool access), the correct invocation is:
+
+```
+ssh opc@toolset-oci-1-1 'export PATH=/usr/local/bin:/home/opc/.local/bin:$PATH && hermes -z "PROMPT"'
+```
+
+**Rules:**
+- `-z` (one-shot mode): outputs ONLY the plain-text response. No TUI output, no escape sequences. Works when stdout is a pipe or non-TTY.
+- Do NOT use `hermes chat` (interactive TUI), `hermes chat --cli`, or pipe input to stdin — these produce ANSI-escaped TUI output that corrupts when piped through SSH commands.
+- Do NOT pipe queries via `echo "..." | hermes chat` — the TUI output will be unparseable.
+- The `-z` flag is documented in Hermes agent v0.17.0 as `hermes -z <prompt>` one-shot mode.
+- If `-z` outputs nothing, the model provider may be unconfigured or the sandbox container may need to be created (first terminal command triggers creation; subsequent commands use the persistent container).
+- For verifying gh/git access from within the Hermes sandbox: `hermes -z "Usa gh para listar mis repos"` or `hermes -z "Clona github.com/kirlts/toolset y dime que contiene"`.
