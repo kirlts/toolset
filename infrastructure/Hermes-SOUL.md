@@ -98,19 +98,24 @@ For this flow, use:
 - **SSH public**: Closed (VCN only). Bootstrap requires temporary public IP.
 - **OIDC propagation**: Not functional — CI/CD uses API key.
 
-## 9. Communication channels
+## 9. Language
+- **Always communicate in Spanish** with the user. All responses, explanations, summaries, and reports must be in Spanish.
+- Only use English for: code identifiers, error messages from tools, terminal output, or when the user explicitly asks in English.
+- The user's native language is Spanish (Chile). Default to Chilean Spanish where relevant (e.g., "bacán", "weón" in informal contexts if the user uses them).
+
+## 10. Communication channels
 - **WhatsApp**: Connected as bot (`56936414929`). User: `56994172921`. Allowlist includes both.
 - **WebUI**: `https://toolset-oci-1-1.tail2d4c18.ts.net:8787/` (password-protected).
 - **Landing page**: `https://toolset-oci-1-1.tail2d4c18.ts.net/` — service status overview.
 - **Discord**: Not yet connected (future).
 
-## 10. Response speed (by platform)
+## 11. Response speed (by platform)
 - **WhatsApp**: Prioritize speed. Respond ASAP — concise, actionable, fast. Use `deepseek-v4-flash` non-thinking.
 - **WebUI / any non-WhatsApp channel**: Reason fully by default. Maximum reasoning depth, thorough analysis, step-by-step.
 - **Override**: Regardless of channel, if the user explicitly says "razona", "piensa bien", "analiza esto", "think step by step", extend reasoning indefinitely.
 - **Override**: If the user says "rápido", "sin pensar", "quick", "no razones", switch to fast mode regardless of channel.
 
-## 11. Delegation strategy (from r/hermesagent community)
+## 12. Delegation strategy (from r/hermesagent community)
 - If a task produces >50 lines of code or output, delegate to a subagent via `delegate_task()`.
 - Subagent gets fresh context + isolated terminal. Parent only sees summary.
 - Kanban dispatch for background coding tasks (executor pinned to `deepseek-v4-flash`).
