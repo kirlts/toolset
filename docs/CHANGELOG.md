@@ -38,8 +38,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Descubrimiento de Kilo Code CLI (`@kilocode/cli`): `kilo run --auto` para modo autónomo, ACP server, MCP server.
 - MASTER-SPEC.md §2/§3 actualizado: Daytona eliminado, Hindsight self-hosted reflectado, sandbox Docker nativo documentado.
 - REPOMAP.md actualizado con entrada para Hermes-integration.md.
-- `cloud-init.yaml`: añadido extend de LVM al bootstrap (growpart + lvextend + resize2fs) para fresh instances.
-- `deploy.sh`: añadido extend de LVM idempotente para existing instances.
+- `cloud-init.yaml`: añadido extend de LVM al bootstrap (growpart + lvextend + `xfs_growfs` — OL9 usa XFS, no ext4) para fresh instances.
+- `deploy.sh`: añadido extend de LVM idempotente para existing instances. ✅ Verificado: root 30GB→83GB, 96%→35%.
+- `docs/TODO.md`: TASK-006 actualizado con Kilo CLI discovery, subtareas de implementación agregadas.
 - Infisical UI expuesta via Tailscale Funnel en puerto `:8443` (evita conflicto `/_next/*` entre Next.js de CP e Infisical).
 - Rutas de API del CP de Hindsight: `/api/profile/*`, `/api/stats/*`, `/api/list`, `/api/recall`, `/api/reflect`, `/api/documents/*` agregadas al Caddyfile.
 - Landing page dinámica con listing de banks, enlace a RULES.md y URLs de Infisical UI.

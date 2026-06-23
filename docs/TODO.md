@@ -99,15 +99,18 @@
 - [x] Daytona eliminado del stack — Hermes usa sandbox Docker nativo. 2026-06-22 [🧑 UD-011]
 - [x] Investigar métodos de integración con plataformas de mensajería (WhatsApp/Discord). Confirmado: Baileys bridge para WhatsApp, adapter nativo para Discord. 2026-06-23 [🤖 Verified by tool]
 - [x] Definir la arquitectura técnica interna de Hermes (subagentes, delegación, estado). Documentado en Hermes-integration.md. 2026-06-23 [🤖 Verified by tool]
-- [x] Investigar conexión Kilo Code → Hermes. Resultado: delegación nativa via `delegate_task()` + Claude Code/Codex como subagentes. Kilo no es invocable como CLI. 2026-06-23 [🤖 Verified by web + Reddit via Composio]
+- [x] Investigar conexión Kilo Code → Hermes. Resultado: **Kilo Code CLI existe** (`@kilocode/cli` npm package) — `kilo run --auto`, autonomous mode, ACP server, MCP server, mismo config que Kilo local. 2026-06-23 [🤖 Verified by official docs + Reddit via Composio]
 - [x] Investigar Hindsight como memory provider externo de Hermes. Confirmado: plugin nativo `hermes memory setup → hindsight`. 2026-06-23 [🤖 Verified by official docs]
-- [ ] Implementar Hermes Agent como servicio persistente en Docker Compose.
+- [x] LVM disk extend: cloud-init.yaml (growpart + lvextend + xfs_growfs) + deploy.sh (idempotent check). ✅ Verificado: root 30GB→83GB, 96%→35%. 2026-06-23 [🤖 Verified by deploy]
+- [ ] Implementar Hermes Agent como servicio persistente (systemd, no Docker).
 - [ ] Integrar Hermes con Infisical para inyección de secrets en tiempo de ejecución.
 - [ ] Configurar Hindsight como memory provider en Hermes (`hermes memory setup`).
-- [ ] Configurar WhatsApp (Baileys bridge) y Discord bot.
-- [ ] Configurar Tailscale Funnel para Hermes WebUI (:8787 o similar).
+- [ ] Configurar WhatsApp (Baileys bridge) bot number.
+- [ ] Configurar Tailscale Funnel para Hermes WebUI (:8787).
 - [ ] Integrar Composio MCP como servidor MCP en Hermes config.
 - [ ] Verificar integración Hermes → Hindsight (MCP), Hermes → Composio (MCP).
+- [ ] Instalar Kilo CLI (`npm install -g @kilocode/cli`) en VPS.
+- [ ] Sync `~/.config/kilo/kilo.jsonc` al VPS (mismos providers, MCPs, permissions).
 
 ---
 
