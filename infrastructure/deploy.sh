@@ -317,8 +317,8 @@ else
   echo "[DEPLOY] WARNING: kilo.jsonc not found at $KILO_CONFIG"
 fi
 
-# --- Write ~/.hermes/.env on remote (idempotent, only if missing) ---
-HERMES_DIR="${HOME}/.hermes"
+# --- Write /root/.hermes/.env on remote (idempotent, only if missing) ---
+HERMES_DIR="/root/.hermes"
 echo "[DEPLOY] Checking Hermes .env status..."
 HERMES_ENV_EXISTS=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   "${SSH_HOST}" \
@@ -353,7 +353,13 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
      sudo dnf module enable -y nodejs:20 2>/dev/null
      sudo dnf install -y nodejs 2>&1 | tail -1
    fi
-   \
+
+   # ---- Install Git if missing (Hermes installer requires it) ----
+   if ! command -v git &>/dev/null; then
+     echo '[hermes] Installing Git...' | sudo tee -a ${HERMES_LOG}
+     sudo dnf install -y git 2>&1 | tail -1
+   fi
+
    # ---- Install Kilo CLI if missing ----
    if ! command -v kilo &>/dev/null; then
      echo '[hermes] Installing Kilo CLI...' | sudo tee -a ${HERMES_LOG}
