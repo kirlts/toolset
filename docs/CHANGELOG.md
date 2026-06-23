@@ -33,18 +33,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Hermes-integration.md: plan de integración completo con casos de uso, arquitectura CI/CD, deep dives técnicos verificados contra documentación oficial y comunidad (r/hermesagent).
-- Investigación de integración: WhatsApp (Baileys bridge), Discord (bot nativo), Hindsight como memory provider externo, MCP nativo (stdio + HTTP), Docker sandbox backend.
-- Verificación de comunidad: delegación via `delegate_task()`, Kanban dispatch, delegate-first tool access pattern, Claude Code como subagente via `autonomous-ai-agents` skill.
-- Descubrimiento de Kilo Code CLI (`@kilocode/cli`): `kilo run --auto` para modo autónomo, ACP server, MCP server.
-- MASTER-SPEC.md §2/§3 actualizado: Daytona eliminado, Hindsight self-hosted reflectado, sandbox Docker nativo documentado.
-- REPOMAP.md actualizado con entrada para Hermes-integration.md.
-- `cloud-init.yaml`: añadido extend de LVM al bootstrap (growpart + lvextend + `xfs_growfs` — OL9 usa XFS, no ext4) para fresh instances.
-- `deploy.sh`: añadido extend de LVM idempotente para existing instances. ✅ Verificado: root 30GB→83GB, 96%→35%.
-- `docs/TODO.md`: TASK-006 actualizado con Kilo CLI discovery, subtareas de implementación agregadas.
-- Infisical UI expuesta via Tailscale Funnel en puerto `:8443` (evita conflicto `/_next/*` entre Next.js de CP e Infisical).
-- Rutas de API del CP de Hindsight: `/api/profile/*`, `/api/stats/*`, `/api/list`, `/api/recall`, `/api/reflect`, `/api/documents/*` agregadas al Caddyfile.
-- Landing page dinámica con listing de banks, enlace a RULES.md y URLs de Infisical UI.
-- Atajo `/status` → `/status/` via redirect 308.
+- Implementación completa de Hermes Agent en OCI: instalación vía one-liner, systemd service, Docker backend, configuración runtime.
+- WhatsApp integration: bot number dedicado, allowlist bidireccional, Baileys bridge vía Hermes nativo.
+- WebUI: systemd service + SKIP_ONBOARDING + Funnel público :8787.
+- Composio MCP conectado con `ck_` key via `x-consumer-api-key` header (7 tools registrados).
+- Bank "hermes" en Hindsight con 30 facts de identidad seedeados.
+- SOUL.md personalizada con contexto completo: identidad, memoria, herramientas, reglas INFRA, workflow mobile.
+- Kilo Code CLI (`@kilocode/cli`) y gh CLI instalados y autenticados en VPS.
+- Bidirectional secret sync GitHub ↔ Infisical con reverse sync automático.
+- Bash syntax validation step en pipeline CI/CD.
+- gh CLI install + GH_CLI_TOKEN auth en deploy.sh.
 
 ### Fixed
 - **DT-004**: `ENCRYPTION_KEY` de Infisical corregida de base64 a `openssl rand -hex 16` (32 hex chars = 32 UTF-8 bytes). `$getBasicEncryptionKey()` lee la key como UTF-8 buffer; base64 producía 44+ bytes → `ERR_CRYPTO_INVALID_KEYLEN` en KMS migration.

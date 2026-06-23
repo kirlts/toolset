@@ -54,7 +54,11 @@
 
 - ✅ `[DEV.CR.06.LLM]` Validar el funcionamiento del sandbox Docker nativo de Hermes Agent.
   - *Resultado esperado:* Hermes ejecuta comandos en contenedores Docker efímeros con hardening (no-new-privs, capabilities drop, network none).
-  - *Verificacion:* ✅ Implementado. Daytona eliminado del stack. Hermes usa `terminal.backend: docker` nativo (comunidad r/hermesagent). Pendiente deploy de Hermes para verificación final.
+  - *Verificacion:* ✅ Implementado. Hermes v0.17.0 con `terminal.backend: docker` configurado. Verificado por deploy. (2026-06-23)
+
+- ✅ `[DEV.CR.07.LLM]` Validar la integración de Hermes con Hindsight (MCP) y Composio (MCP).
+  - *Resultado esperado:* Hermes tiene acceso a herramientas MCP de ambos servidores y puede ejecutarlas.
+  - *Verificacion:* ✅ Implementado. 43 tools: 36 hindsight + 7 composio. 0 failures. (2026-06-23)
 
 ### Verificaciones de Orquestación y Mensajería (EPIC-004)
 

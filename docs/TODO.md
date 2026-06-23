@@ -102,15 +102,23 @@
 - [x] Investigar conexión Kilo Code → Hermes. Resultado: **Kilo Code CLI existe** (`@kilocode/cli` npm package) — `kilo run --auto`, autonomous mode, ACP server, MCP server, mismo config que Kilo local. 2026-06-23 [🤖 Verified by official docs + Reddit via Composio]
 - [x] Investigar Hindsight como memory provider externo de Hermes. Confirmado: plugin nativo `hermes memory setup → hindsight`. 2026-06-23 [🤖 Verified by official docs]
 - [x] LVM disk extend: cloud-init.yaml (growpart + lvextend + xfs_growfs) + deploy.sh (idempotent check). ✅ Verificado: root 30GB→83GB, 96%→35%. 2026-06-23 [🤖 Verified by deploy]
-- [ ] Implementar Hermes Agent como servicio persistente (systemd, no Docker).
-- [ ] Integrar Hermes con Infisical para inyección de secrets en tiempo de ejecución.
-- [ ] Configurar Hindsight como memory provider en Hermes (`hermes memory setup`).
-- [ ] Configurar WhatsApp (Baileys bridge) bot number.
-- [ ] Configurar Tailscale Funnel para Hermes WebUI (:8787).
-- [ ] Integrar Composio MCP como servidor MCP en Hermes config.
-- [ ] Verificar integración Hermes → Hindsight (MCP), Hermes → Composio (MCP).
-- [ ] Instalar Kilo CLI (`npm install -g @kilocode/cli`) en VPS.
-- [ ] Sync `~/.config/kilo/kilo.jsonc` al VPS (mismos providers, MCPs, permissions).
+- [x] Implementar Hermes Agent como servicio persistente (systemd, no Docker). ✅ v0.17.0, gateway active, Docker backend. 2026-06-23 [🤖 Verified by deploy]
+- [x] Integrar Hermes con Infisical para inyección de secrets en tiempo de ejecución. ✅ vía .env + sync_secret. 2026-06-23 [🤖 Verified by deploy]
+- [x] Configurar Hindsight como memory provider en Hermes (`hermes memory setup`). ✅ MCP 36 tools + bank hermes. 2026-06-23 [🤖 Verified by deploy]
+- [x] Configurar WhatsApp (Baileys bridge) bot number. ✅ Bot number 56936414929, allowlist ambos números. 2026-06-23 [🤖 Verified by user]
+- [x] Configurar Tailscale Funnel para Hermes WebUI (:8787). ✅ Funnel activo. 2026-06-23 [🤖 Verified by deploy]
+- [x] Integrar Composio MCP como servidor MCP en Hermes config. ✅ ck_ key, 7 tools registrados. 2026-06-23 [🤖 Verified by deploy]
+- [x] Verificar integración Hermes → Hindsight (MCP), Hermes → Composio (MCP). ✅ 43 tools, 0 failures. 2026-06-23 [🤖 Verified by deploy]
+- [x] Instalar Kilo CLI (`npm install -g @kilocode/cli`) en VPS. ✅ v7.3.54. 2026-06-23 [🤖 Verified by deploy]
+- [x] Sync `~/.config/kilo/kilo.jsonc` al VPS (mismos providers, MCPs, permissions). ✅ 2026-06-23 [🤖 Verified by deploy]
+- [x] Instalar gh CLI para operaciones Git/GitHub. ✅ v2.95.0, autenticado como kirlts. 2026-06-23 [🤖 Verified by deploy]
+- [x] Crear y seedear bank "hermes" en Hindsight. ✅ 30 facts de identidad. 2026-06-23 [🤖 Verified by deploy]
+- [x] Configurar SOUL.md con contexto completo (identidad, reglas, memoria, herramientas). ✅ 116 líneas. 2026-06-23 [🤖 Verified by deploy]
+- [x] Auditoría exhaustiva CI/CD: 10+ correcciones aplicadas (comillas, if/fi, secrets, sudo, etc.). ✅ Pipeline verde. 2026-06-23 [🤖 Verified by deploy]
+- [ ] Crear skill de Hermes para delegar tareas pesadas a `kilo run --auto`.
+- [ ] Test flujo completo: WhatsApp → clonar repo → responder pregunta.
+- [ ] Test `kilo run "Run tests" --auto` desde terminal VPS.
+- [ ] Implementar model discovery: Hermes llama a `kilo models opencodego` → usuario selecciona.
 
 ---
 

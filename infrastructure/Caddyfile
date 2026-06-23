@@ -92,6 +92,11 @@
         reverse_proxy hindsight:8888
     }
 
+    # Hermes WebUI (port 443 path — accessible from mobile where 8787 is blocked)
+    handle_path /hermes/* {
+        reverse_proxy localhost:8888
+    }
+
     # Infisical API (CP-specific routes matched first above)
     handle /api/status {
         reverse_proxy infisical:8080

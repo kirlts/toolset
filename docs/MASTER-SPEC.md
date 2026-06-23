@@ -62,10 +62,12 @@
 | Local Engine | Antigravity 2.0 | Motor principal de deliberacion y planificacion local. |
 | Local Editor | Kilo Code (VS Code Extension) + OpenCode Go | Entorno por defecto conectado a OpenCode Go bajo suscripcion fija, integrado con Composio y Hindsight en modo Cloud (Fase 1). |
 | Provisioning | OpenTofu | Aprovisionamiento declarativo e inmutable de la infraestructura. Activo. |
-| Network | Tailscale (Funnel Active) | Red privada entre local y nube sin exposicion de puertos publicos. Funnel multi-puerto (:443 Caddy, :8443 Infisical). Activo. |
+| Network | Tailscale (Funnel Active) | Red privada entre local y nube sin exposicion de puertos publicos. Funnel multi-puerto (:443 Caddy, :8443 Infisical, :8787 Hermes WebUI). Activo. |
 | Container Runtime | Docker 29 + Compose Plugin | Orquestacion de servicios en el servidor OCI. Activo. |
-| Secrets | Infisical (Self-hosted en OCI) | Gestion de variables de entorno inyectadas directamente en memoria. Desplegado, pendiente integracion con servicios. |
+| Secrets | Infisical (Self-hosted en OCI) | Gestion de variables de entorno inyectadas directamente en memoria. GitHub Secrets → Infisical → Hermes (.env). Activo. |
 | Infisical Dependencies | PostgreSQL 16, Redis 7 | Base de datos y cache/cola requeridos por Infisical self-hosted. Activos. |
+| Orquestador | Hermes Agent v0.17.0 | Agente autonomo 24/7. Gateway systemd, WhatsApp bot, WebUI, Docker sandbox. Activo. |
+| Subagente | Kilo Code CLI v7.3.54 (`@kilocode/cli`) | CLI autonomo para tareas de codificacion pesadas (`kilo run --auto`). Mismo provider/config que Kilo local. |
 | Sandbox | Docker nativo de Hermes (`terminal.backend: docker`) | Sandbox aislado con hardening (no-new-privs, cap-drop ALL, pids-limit 256). Daytona/Modal como backends alternativos configurables. |
 | Memory | Hindsight (self-hosted en OCI) | Base de conocimiento centralizada. `ghcr.io/vectorize-io/hindsight:latest` con pg0 embebido + DeepSeek V4 Flash via OpenCode Go. |
 | Integration | Composio | Pasarela de autenticacion OAuth para integraciones externas. Activo. |
@@ -116,6 +118,8 @@
 
 ### 7.1. Orquestador Hermes
 
+**Status:** ✅ Implementado y operativo
+
 **Purpose:** Actuar como punto de entrada conversacional persistente para procesar ordenes y coordinar subagentes asincronos.
 
 **Interface:**
@@ -123,7 +127,13 @@
  HermesInputReceiver -> parseCommand() -> delegateToSubagent() -> sendResponse()
 ```
 
-**Dependencies:** Tailscale, Infisical, Docker (sandbox), Hindsight, Composio.
+**Platforms activas:** WhatsApp (bot number 56936414929), WebUI (https://toolset-oci-1-1.tail2d4c18.ts.net:8787/).
+**MCP servers:** hindsight-selfhosted (36 tools), composio (7 tools).
+**Memory bank:** hermes (Hindsight, 30 facts seedeados).
+**Modelo default:** deepseek-v4-flash via OpenCode Go.
+**SOUL.md:** Identidad completa + meta-reglas en ~/.hermes/SOUL.md.
+
+**Dependencies:** Tailscale, Infisical, Docker (sandbox), Hindsight, Composio, OpenCode Go.
 
 ---
 
