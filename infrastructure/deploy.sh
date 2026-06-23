@@ -582,6 +582,11 @@ cfg.setdefault('mcp_servers', {})
 # Model config: nested format for WebUI + CLI compatibility
 cfg['model'] = {'default': 'opencodego/deepseek-v4-flash', 'provider': 'opencode-go'}
 cfg['context_file_max_chars'] = 25000
+# Mount SOUL.md into Docker sandbox at /workspace/SOUL.md
+cfg.setdefault('terminal', {}).setdefault('docker_volumes', [])
+soul_vol = '/home/opc/.hermes/SOUL.md:/workspace/SOUL.md:ro'
+if soul_vol not in cfg['terminal']['docker_volumes']:
+    cfg['terminal']['docker_volumes'].append(soul_vol)
 composio_key = os.environ.get('COMPOSIO_MCP_KEY', '${COMPOSIO_MCP_KEY:-}')
 if composio_key:
     cfg['mcp_servers']['composio'] = {
