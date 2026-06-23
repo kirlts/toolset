@@ -364,27 +364,22 @@ else
   echo "[DEPLOY] WARNING: kilo.jsonc not found at $KILO_CONFIG"
 fi
 
-# --- Write /root/.hermes/.env on remote (idempotent, only if missing) ---
+# --- Write /root/.hermes/.env on remote (always overwrite — Hermes creates a default template) ---
 HERMES_DIR="/root/.hermes"
-echo "[DEPLOY] Checking Hermes .env status..."
-HERMES_ENV_EXISTS=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+echo "[DEPLOY] Writing Hermes .env with CI/CD secrets..."
+ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   "${SSH_HOST}" \
-  "[ -f ${HERMES_DIR}/.env ] && echo yes || echo no" 2>&1)
-if [ "$HERMES_ENV_EXISTS" = "no" ]; then
-  echo "[DEPLOY] Writing Hermes .env..."
-  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    "${SSH_HOST}" \
-    "sudo mkdir -p ${HERMES_DIR} && sudo tee ${HERMES_DIR}/.env > /dev/null" <<HERMESENV
+  "sudo mkdir -p ${HERMES_DIR} && sudo tee ${HERMES_DIR}/.env > /dev/null" <<HERMESENV
+# Hermes .env — managed by deploy.sh (CI/CD). DO NOT EDIT MANUALLY.
+OPENCODE_GO_API_KEY=${OPENCODE_GO_API_KEY}
+OPENCODE_GO_BASE_URL=https://opencode.ai/zen/go/v1
 HERMES_LLM_PROVIDER=${HERMES_LLM_PROVIDER:-opencodego}
 HERMES_LLM_MODEL=${HERMES_LLM_MODEL:-deepseek-v4-flash}
-HERMES_LLM_BASE_URL=https://opencode.ai/zen/go/v1
 HERMES_WEBUI_PASSWORD=${HERMES_WEBUI_PASSWORD:-}
 HERMES_WHATSAPP_MODE=${HERMES_WHATSAPP_MODE:-bot}
 WHATSAPP_ALLOWED_USERS=${WHATSAPP_ALLOWED_USERS:-}
 HERMESENV
-else
-  echo "[DEPLOY] Hermes .env exists. Skipping rewrite."
-fi
+echo "[DEPLOY] Hermes .env written."
 
 # --- Hermes Agent + Kilo CLI install (idempotent) ---
 HERMES_LOG="/var/log/hermes-bootstrap.log"
@@ -407,6 +402,9 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
      sudo dnf install -y git 2>&1 | tail -1
    fi
 
+   # ---- Ensure Hermes is in PATH for subsequent commands ----
+   export PATH="/usr/local/bin:$PATH"
+
    # ---- Install Kilo CLI if missing ----
    if ! command -v kilo &>/dev/null; then
      echo '[hermes] Installing Kilo CLI...' | sudo tee -a ${HERMES_LOG}
@@ -419,13 +417,18 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
      curl -fsSL https://hermes-agent.nousresearch.com/install.sh | sudo bash 2>&1 | sudo tee -a ${HERMES_LOG}
    fi
    \
-   # ---- Setup systemd for Hermes gateway ----
-   if ! systemctl is-enabled hermes &>/dev/null 2>&1; then
-     echo '[hermes] Enabling Hermes systemd service...' | sudo tee -a ${HERMES_LOG}
-     hermes gateway install --system 2>&1 | sudo tee -a ${HERMES_LOG}
-   fi
-   sudo systemctl enable hermes 2>/dev/null
-   sudo systemctl restart hermes 2>/dev/null || true"
+   # ---- Setup systemd for Hermes gateway (idempotent) ----
+   export PATH="/usr/local/bin:/usr/local/lib/hermes-agent:\$PATH"
+   if command -v hermes &>/dev/null; then
+     if ! systemctl is-enabled hermes &>/dev/null 2>&1; then
+       echo '[hermes] Enabling Hermes systemd service...' | sudo tee -a ${HERMES_LOG}
+       sudo -E hermes gateway install --system 2>&1 | sudo tee -a ${HERMES_LOG}
+     fi
+     sudo systemctl enable hermes 2>/dev/null
+     sudo systemctl restart hermes 2>/dev/null || true
+   else
+     echo '[hermes] WARNING: hermes command not found, skipping systemd setup' | sudo tee -a ${HERMES_LOG}
+   fi"
 
 echo "[DEPLOY] Hermes + Kilo setup complete."
 FUNNEL_TARGET="http://localhost:8080"
