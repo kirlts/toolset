@@ -56,8 +56,7 @@ Hermes bridges Fase 1 → Fase 2 with four distinct capabilities:
 
 ### 2.3 Why Hermes Specifically (vs Alternatives)
 
-- **Kilo Code CLI** (`@kilocode/cli`) is the preferred coding subagent — `kilo run --auto` on the VPS, sharing the same config as local Kilo. Autonomous mode, ACP server, session continuation.
-- **Claude Code / Codex** are alternatives if Kilo CLI is not the right fit for a specific task.
+- **Kilo Code CLI** (`@kilocode/cli`) is the **only** coding subagent — open source, `kilo run --auto` on the VPS, sharing the same config as local Kilo. Autonomous mode, ACP server, session continuation.
 - **Daytona/e2b rejected** for complexity — Hermes wraps them as backend options, not primary orchestration targets. You interact with Hermes; Hermes decides which backend to use.
 - **OpenClaw** is the closest competitor but has documented stability regressions (Telegram broken across 2026 releases), skill marketplace security incidents (~20% of ClawHub flagged malicious), and is Node.js-based. Hermes is Python-native, writes skills automatically from experience, and has higher update stability.
 
@@ -291,15 +290,15 @@ User → WhatsApp/Discord → Hermes (OpenCode Go LLM)
 **Standard workflow for devs**:
 - User: "Crea una feature branch `fix/auth-bug` y arregla el login"
 - Hermes:
-  1. `git checkout -b fix/auth-bug`
+  1. `git checkout -b hermes-fix/auth-bug`
   2. `kilo run "Fix the auth bug in /workspace/repo" --auto` (Kilo CLI subagent)
   3. Runs tests via terminal
-  4. `git add -A && git commit -m "fix: auth bug"` && `git push origin fix/auth-bug`
+  4. `git add -A && git commit -m "fix: auth bug"` && `git push origin hermes-fix/auth-bug`
   5. `gh pr create --base main --title "Fix auth bug" --body "..."`
 
 **Credential persistence**: `gh` CLI authentication token stored as GitHub Secret `GITHUB_CLI_TOKEN` → injected into sandbox → `gh auth login --with-token` at sandbox init.
 
-**Merge criteria**: Configurable per-repo in `.agents/` rules. Hermes checks tests pass, lint clean, and merge rules before creating PR or requesting human review.
+**Merge criteria**: Configurable per-repo in `docs/RULES.md`. Hermes checks tests pass, lint clean, and merge rules before creating PR or requesting human review.
 
 ### 4.6 Infisical + GitHub Secrets Pipeline
 
