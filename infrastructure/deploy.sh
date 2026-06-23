@@ -478,27 +478,16 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
       if ! systemctl is-enabled hermes-gateway &>/dev/null 2>&1; then
         echo '[hermes] Enabling Hermes systemd service...' | sudo tee -a ${HERMES_LOG}
         printf 'Y\nY\n' | sudo /usr/local/bin/hermes gateway install --system 2>&1 | sudo tee -a ${HERMES_LOG}
-  else
-    echo '[hermes-webui] Service already installed'
-    sudo systemctl restart hermes-webui 2>/dev/null || true
-  fi
-  # Set default model in WebUI settings
-  python3 -c \"
-import json
-import os
-settings_path = '/home/opc/.hermes/webui/settings.json'
-defaults = {}
-if os.path.exists(settings_path):
-    try:
-        with open(settings_path) as f:
-            defaults = json.load(f)
-    except: pass
-defaults['default_model'] = 'opencodego/deepseek-v4-flash'
-defaults['default_provider'] = 'opencode-go'
-with open(settings_path, 'w') as f:
-    json.dump(defaults, f, indent=2)
-print('WebUI default model set')
-\" 2>/dev/null || true"
+      else
+        echo '[hermes] Gateway service already enabled' | sudo tee -a ${HERMES_LOG}
+        sudo systemctl kill -s KILL hermes-gateway 2>/dev/null || true
+        sleep 1
+        sudo systemctl reset-failed hermes-gateway 2>/dev/null || true
+        sudo systemctl start hermes-gateway --no-block 2>/dev/null || true
+      fi
+    else
+      echo '[hermes] WARNING: hermes command not found, skipping systemd setup' | sudo tee -a ${HERMES_LOG}
+    fi"
 
 echo "[DEPLOY] Hermes + Kilo setup complete."
 
