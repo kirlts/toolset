@@ -37,20 +37,20 @@
 
 ### Fase 2: Estado Objetivo (Toolset Junio 2026)
 ```
-[Local Workstation: Antigravity/Kilo] <== (Tailscale) ==> [OCI Server 24/7]
-                                                                    |
-                                                                    +---> [Hermes Agent]
-                                                                    +---> [Daytona Sandboxes]
-                                                                    +---> [Infisical Secrets]
-                                                                    +---> [Hindsight Memory]
+[Local Workstation: Kilo Code] <== (Tailscale) ==> [OCI Server 24/7]
+                                                           |
+                                                           +---> [Hermes Agent (gateway + Docker sandbox)]
+                                                           +---> [Infisical Secrets]
+                                                           +---> [Hindsight Memory (self-hosted)]
+                                                           +---> [Caddy + Tailscale Funnel (:443/:8443)]
 ```
 
 **Main Data Flow (Fase 2):**
 
-1. El usuario envia comandos mediante mensajes de texto o audio a Hermes Agent (WhatsApp/Discord).
-2. Hermes Agent delega la tarea a un subagente asincrono para evitar bloquear el canal de comunicacion.
-3. El subagente solicita los secretos necesarios a Infisical y provisiona un entorno de pruebas aislado en Daytona.
-4. El subagente clona el repositorio, ejecuta validaciones o cambios de codigo, y toma capturas de pantalla con Playwright.
+1. El usuario envia comandos mediante mensajes de texto o audio a Hermes Agent (WhatsApp/Discord/WebUI).
+2. Hermes Agent delega la tarea a un subagente asincrono via `delegate_task()` para evitar bloquear el canal de comunicacion.
+3. El subagente ejecuta en el sandbox Docker nativo de Hermes (`terminal.backend: docker`), con acceso a secrets via Infisical.
+4. El subagente clona el repositorio, ejecuta validaciones o cambios de codigo, y toma capturas de pantalla con las herramientas nativas de Hermes (`browser_snapshot`, `vision_analyze`).
 5. El subagente publica los cambios mediante Composio/GitHub CLI y envia el reporte final al usuario a traves de Hermes Agent.
 
 ---
@@ -66,8 +66,8 @@
 | Container Runtime | Docker 29 + Compose Plugin | Orquestacion de servicios en el servidor OCI. Activo. |
 | Secrets | Infisical (Self-hosted en OCI) | Gestion de variables de entorno inyectadas directamente en memoria. Desplegado, pendiente integracion con servicios. |
 | Infisical Dependencies | PostgreSQL 16, Redis 7 | Base de datos y cache/cola requeridos por Infisical self-hosted. Activos. |
-| Sandbox | Daytona (Planned) | Creacion de micro-contenedores aislados para pruebas de codigo. Pendiente. |
-| Memory | Hindsight (self-hosted pendiente en OCI) | Base de conocimiento centralizada. Cloud actual; self-hosted en OCI con `ghcr.io/vectorize-io/hindsight:latest` vía Docker. Requiere pgvector + LLM API key. |
+| Sandbox | Docker nativo de Hermes (`terminal.backend: docker`) | Sandbox aislado con hardening (no-new-privs, cap-drop ALL, pids-limit 256). Daytona/Modal como backends alternativos configurables. |
+| Memory | Hindsight (self-hosted en OCI) | Base de conocimiento centralizada. `ghcr.io/vectorize-io/hindsight:latest` con pg0 embebido + DeepSeek V4 Flash via OpenCode Go. |
 | Integration | Composio | Pasarela de autenticacion OAuth para integraciones externas. Activo. |
 
 ---
@@ -123,7 +123,7 @@
  HermesInputReceiver -> parseCommand() -> delegateToSubagent() -> sendResponse()
 ```
 
-**Dependencies:** Tailscale, Infisical, Daytona.
+**Dependencies:** Tailscale, Infisical, Docker (sandbox), Hindsight, Composio.
 
 ---
 

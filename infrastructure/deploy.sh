@@ -42,6 +42,18 @@ for var in "${REQUIRED_VARS[@]}"; do
 done
 [ "$MISSING" -eq 1 ] && exit 1
 
+# --- Extend root LVM to fill boot volume (idempotent, fresh + existing) ---
+# OpenTofu provisions boot_volume_size_in_gbs=100 but OL9 LVM uses ~44.5GB.
+# This handles existing instances where cloud-init already ran.
+echo "[DEPLOY] Checking disk layout..."
+ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  "${SSH_HOST}" \
+  "sudo dnf install -y cloud-utils-growpart 2>/dev/null || true; \
+   sudo growpart /dev/sda 3 2>/dev/null && echo '  partition extended' || echo '  partition OK'; \
+   sudo pvresize /dev/sda3 2>/dev/null; \
+   sudo lvextend -l +100%FREE /dev/ocivolume/root 2>/dev/null && echo '  LV extended' || echo '  LV OK'; \
+   sudo resize2fs /dev/ocivolume/root 2>/dev/null && echo '  FS resized' || echo '  FS OK'"
+
 # --- Write .env on remote (only if missing — never recreate on health) ---
 echo "[DEPLOY] Checking .env status..."
 ENV_NEEDS_WRITE=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \

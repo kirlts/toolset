@@ -97,10 +97,16 @@
 - [x] Investigar Hermes Agent (Nous Research) — framework OSS real con sandbox Docker nativo, subagentes asíncronos, v0.15.0 (May 2026). 2026-06-22 [🤖 Verified by tool]
 - [x] Investigar sandbox backend: comunidad usa Docker nativo (`terminal.backend: docker`) con hardening automático. Daytona/Modal/Vercel como backends alternativos configurables. 2026-06-22 [🤖 Verified by tool]
 - [x] Daytona eliminado del stack — Hermes usa sandbox Docker nativo. 2026-06-22 [🧑 UD-011]
-- [ ] Investigar métodos de integración con plataformas de mensajería (WhatsApp/Discord) para recepción y envío de comandos.
-- [ ] Definir la arquitectura técnica interna de Hermes (subagentes, delegación, estado).
-- [ ] Implementar el agente y configurarlo como servicio persistente en Docker Compose.
+- [x] Investigar métodos de integración con plataformas de mensajería (WhatsApp/Discord). Confirmado: Baileys bridge para WhatsApp, adapter nativo para Discord. 2026-06-23 [🤖 Verified by tool]
+- [x] Definir la arquitectura técnica interna de Hermes (subagentes, delegación, estado). Documentado en Hermes-integration.md. 2026-06-23 [🤖 Verified by tool]
+- [x] Investigar conexión Kilo Code → Hermes. Resultado: delegación nativa via `delegate_task()` + Claude Code/Codex como subagentes. Kilo no es invocable como CLI. 2026-06-23 [🤖 Verified by web + Reddit via Composio]
+- [x] Investigar Hindsight como memory provider externo de Hermes. Confirmado: plugin nativo `hermes memory setup → hindsight`. 2026-06-23 [🤖 Verified by official docs]
+- [ ] Implementar Hermes Agent como servicio persistente en Docker Compose.
 - [ ] Integrar Hermes con Infisical para inyección de secrets en tiempo de ejecución.
+- [ ] Configurar Hindsight como memory provider en Hermes (`hermes memory setup`).
+- [ ] Configurar WhatsApp (Baileys bridge) y Discord bot.
+- [ ] Configurar Tailscale Funnel para Hermes WebUI (:8787 o similar).
+- [ ] Integrar Composio MCP como servidor MCP en Hermes config.
 - [ ] Verificar integración Hermes → Hindsight (MCP), Hermes → Composio (MCP).
 
 ---
@@ -185,7 +191,7 @@
 | EPIC-001 | TASK-001 a TASK-003 | Completed | 4 | 1 | 0 | 5 |
 | EPIC-002 | TASK-004 | Completed | 2 | 1 | 0 | 3 |
 | EPIC-003 | TASK-005 | In Progress | 1 | 0 | 0 | 1 |
-| EPIC-004 | TASK-006 | In Progress | 5 | 1 | 0 | 6 |
+| EPIC-004 | TASK-006 | In Progress | 8 | 1 | 0 | 9 |
 | EPIC-005 | TASK-007 | Completed | 8 | 0 | 1 | 9 |
 | EPIC-006 | TASK-008 a TASK-011 | In Progress | 5 | 1 | 0 | 6 |
 | **TOTAL** | | | **22** | **4** | **1** | **27** |

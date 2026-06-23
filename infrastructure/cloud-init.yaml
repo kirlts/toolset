@@ -117,6 +117,16 @@ write_files:
       exec > /var/log/toolset-bootstrap.log 2>&1
       echo "[bootstrap] Started at $(date -Iseconds)"
 
+      # ---- Extend root LVM to fill boot volume (idempotent) ----
+      # OpenTofu provisions boot_volume_size_in_gbs=100 but Oracle Linux 9
+      # allocates only ~44.5GB. This extends partition/LV/FS to use all space.
+      echo "[bootstrap] Extending root partition to fill boot volume..."
+      dnf -y install cloud-utils-growpart 2>/dev/null || true
+      growpart /dev/sda 3 2>/dev/null && echo "  partition extended" || echo "  partition already at max (or no free space)"
+      pvresize /dev/sda3 2>/dev/null && echo "  PV resized" || true
+      lvextend -l +100%FREE /dev/ocivolume/root 2>/dev/null && echo "  LV extended" || echo "  LV already at max"
+      resize2fs /dev/ocivolume/root 2>/dev/null && echo "  FS resized" || echo "  FS already at max"
+
       # ---- Wait for any running dnf process ----
       while pgrep -x dnf > /dev/null 2>&1; do
         echo "[bootstrap] Waiting for another dnf process..."
