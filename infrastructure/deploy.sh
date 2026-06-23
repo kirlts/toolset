@@ -64,6 +64,8 @@ HINDSIGHT_API_LLM_PROVIDER=openai
 HINDSIGHT_API_LLM_MODEL=deepseek-v4-flash
 HINDSIGHT_API_LLM_BASE_URL=https://opencode.ai/zen/go/v1
 FUNNEL_DOMAIN=${FUNNEL_DOMAIN:-toolset-oci-1-1.tail2d4c18.ts.net}
+INFISICAL_PID=${INFISICAL_PID:-}
+INFISICAL_SERVICE_TOKEN=${INFISICAL_SERVICE_TOKEN:-}
 ENVEOF
 else
   echo "[DEPLOY] .env exists. Skipping rewrite."
@@ -137,6 +139,11 @@ INFISICAL_SERVICE_TOKEN="${INFISICAL_SERVICE_TOKEN:-}"
 INFISICAL_PID=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   "${SSH_HOST}" "grep '^INFISICAL_PID=' ${REMOTE_DIR}/.env | cut -d= -f2-" 2>/dev/null || echo "")
 INFISICAL_TOKEN=""  # Active token for API calls (identity or service token)
+
+# Also read service token from .env (overrides GitHib Secrets if present)
+ENV_SVC_TOKEN=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  "${SSH_HOST}" "grep '^INFISICAL_SERVICE_TOKEN=' ${REMOTE_DIR}/.env | cut -d= -f2-" 2>/dev/null || echo "")
+[ -n "$ENV_SVC_TOKEN" ] && INFISICAL_SERVICE_TOKEN="$ENV_SVC_TOKEN"
 
 # Step 1: Bootstrap admin (returns identity token on fresh setup, 400 if exists)
 if [ -n "$INFISICAL_ADMIN_EMAIL" ] && [ -n "$INFISICAL_ADMIN_PASSWORD" ]; then
