@@ -180,7 +180,7 @@ LANDING_HTML=$(cat <<EOF
 </p>
 <div class="meta">
   <p>MCP: <code>opencodego://${CADDY_DOMAIN}/hindsight/mcp/</code></p>
-  <p>Infisical UI: <a href="http://100.77.183.125:8081" style="color:#7ec8e3;">http://100.77.183.125:8081</a> <span class="status">(Tailscale direct)</span></p>
+  <p>Infisical UI: <a href="https://${CADDY_DOMAIN}:8443/" style="color:#7ec8e3;">https://${CADDY_DOMAIN}:8443/</a> <span class="status">(Funnel)</span></p>
   <p>Gobernanza: <a href="https://github.com/kirlts/toolset/blob/main/docs/RULES.md" style="color:#7ec8e3;">docs/RULES.md</a></p>
   <p>Deploy: $(date -u +"%Y-%m-%d %H:%M UTC") &bull; OCI &bull; VM.Standard.A1.Flex &bull; ARM64</p>
 </div>
@@ -205,14 +205,22 @@ else
     "${SSH_HOST}" "sudo tailscale funnel --bg ${FUNNEL_TARGET} 2>&1" | sed 's/^/  /'
 fi
 
-# --- Remove legacy Funnel on :8443 if present ---
-echo "[DEPLOY] Checking for legacy Funnel :8443..."
-HAS_8443=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-  "${SSH_HOST}" "sudo tailscale funnel status 2>&1" | grep -c "8443" || true)
-if [ "$HAS_8443" -gt 0 ]; then
-  echo "[DEPLOY] Removing legacy Funnel :8443..."
+# --- Ensure Infisical Funnel on :8443 (Infisical Web UI, separate from CP _next/*) ---
+INFISICAL_PORT="8443"
+echo "[DEPLOY] Ensuring Infisical Funnel on :${INFISICAL_PORT} -> localhost:8081..."
+HAS_INFISICAL=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  "${SSH_HOST}" "sudo tailscale funnel status 2>&1" | grep -c ":${INFISICAL_PORT}" || true)
+if echo "$HAS_INFISICAL" | grep -q "8081"; then
+  echo "[DEPLOY] Infisical Funnel already configured"
+elif [ "$HAS_INFISICAL" -gt 0 ]; then
+  echo "[DEPLOY] Replacing existing Funnel on :${INFISICAL_PORT}..."
   ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    "${SSH_HOST}" "sudo tailscale funnel --https=8443 off 2>&1" | sed 's/^/  /'
+    "${SSH_HOST}" "sudo tailscale funnel --https=${INFISICAL_PORT} off 2>&1" | sed 's/^/  /'
+  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    "${SSH_HOST}" "sudo tailscale funnel --bg --https=${INFISICAL_PORT} http://localhost:8081 2>&1" | sed 's/^/  /'
+else
+  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    "${SSH_HOST}" "sudo tailscale funnel --bg --https=${INFISICAL_PORT} http://localhost:8081 2>&1" | sed 's/^/  /'
 fi
 
 # --- Post-deploy summary ---
@@ -225,6 +233,7 @@ echo "  Funnel URL:  https://${CADDY_DOMAIN}/"
 echo ""
 echo "  ── Services ──────────────────────────────"
   echo "  Services         https://${CADDY_DOMAIN}/"
+  echo "  Infisical UI     https://${CADDY_DOMAIN}:8443/"
   echo "  Infisical API    https://${CADDY_DOMAIN}/api/v1/"
   echo "  Hindsight API    https://${CADDY_DOMAIN}/hindsight/health"
   echo "  Hindsight CP     https://${CADDY_DOMAIN}/dashboard"
