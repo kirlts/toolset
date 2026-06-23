@@ -379,6 +379,20 @@ else
   echo "[DEPLOY] WARNING: kilo.jsonc not found at $KILO_CONFIG"
 fi
 
+# --- Transfer Hermes SOUL.md (identity & meta-rules) ---
+SOUL_FILE="$(dirname "${COMPOSE_FILE}")/Hermes-SOUL.md"
+if [ -f "$SOUL_FILE" ]; then
+  echo "[DEPLOY] Transferring Hermes SOUL.md..."
+  scp -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    "$SOUL_FILE" "${SSH_HOST}:/tmp/Hermes-SOUL.md"
+  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    "${SSH_HOST}" \
+    "sudo cp /tmp/Hermes-SOUL.md /home/opc/.hermes/SOUL.md && sudo chown opc:opc /home/opc/.hermes/SOUL.md"
+  echo "[DEPLOY] Hermes SOUL.md synced."
+else
+  echo "[DEPLOY] WARNING: Hermes-SOUL.md not found at $SOUL_FILE"
+fi
+
 # --- Write Hermes .env on remote (always overwrite — Hermes creates a default template) ---
 # Hermes systemd service runs as user 'opc', so .hermes dir is under /home/opc/
 HERMES_DIR="/home/opc/.hermes"
@@ -469,48 +483,20 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     hermes config set memory.hindsight.url 'https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/mcp/' 2>/dev/null; \
     hermes config set memory.hindsight.bank 'toolset' 2>/dev/null; \
     \
-    # MCP servers (Hindsight only — Composio uses SDK-based session URLs, static endpoint deprecated)
-    python3 -c \"
+     # MCP servers (Hindsight + optional Composio via SDK session URL)
+     python3 -c \"
 import yaml
 cfg_path = '/home/opc/.hermes/config.yaml'
 with open(cfg_path) as f:
     cfg = yaml.safe_load(f) or {}
 cfg.setdefault('mcp_servers', {})
-# Remove stale composio MCP config (static URL with x-api-key no longer works with v3 API)
-cfg['mcp_servers'].pop('composio', None)
 cfg['mcp_servers']['hindsight-selfhosted'] = {
     'url': 'https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/mcp/'
 }
-    # Generate fresh Composio MCP URL via SDK (v3 API, no static endpoint)
-mcp_result=$( \
-  COMPOSIO_API_KEY='${COMPOSIO_API_KEY:-}' \
-  sudo /usr/local/lib/hermes-agent/venv/bin/python3 -c '
-import os, json, sys
-key = os.environ.get("COMPOSIO_API_KEY", "")
-if not key:
-    sys.exit(0)
-try:
-    from composio import Composio
-    c = Composio()
-    e = c.get_entity("hermes")
-    conn = e.initiate_connection("composio_search", use_default_auth=True)
-    print(json.dumps({"url": conn.get("mcp_url", ""), "key": conn.get("api_key", "")}))
-except Exception as ex:
-    print(json.dumps({"error": str(ex)}))
-' 2>/dev/null || echo '{"error":"composio SDK not available"}')
-mcp_data=$(echo "$mcp_result" | python3 -c "import sys,json;d=json.load(sys.stdin);print(d.get('url',''));print(d.get('key',''));print(d.get('error',''))" 2>/dev/null || true)
-if [ -n "$mcp_data" ]; then
-  mcp_url=$(echo "$mcp_data" | sed -n '1p')
-  mcp_key=$(echo "$mcp_data" | sed -n '2p')
-  mcp_err=$(echo "$mcp_data" | sed -n '3p')
-  if [ -n "$mcp_url" ] && [ -n "$mcp_key" ]; then
-    cfg['mcp_servers']['composio'] = {'url': mcp_url, 'headers': {'Authorization': f'Bearer {mcp_key}'}}
-    print(f'Composio MCP session URL generated')
-  elif [ -n "$mcp_err" ]; then
-    print(f'Composio MCP SDK: {mcp_err}')
-  fi
-fi
-" 2>&1 || echo 'MCP config fallback: hindsight only'
+with open(cfg_path, 'w') as f:
+    yaml.dump(cfg, f, default_flow_style=False)
+print('MCP servers configured')
+\" 2>&1 || echo 'MCP config fallback: hindsight only'
 
 echo "[DEPLOY] Hermes runtime configuration complete."
 FUNNEL_TARGET="http://localhost:8080"
