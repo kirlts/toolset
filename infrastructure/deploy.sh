@@ -549,6 +549,7 @@ User=opc
 WorkingDirectory=/opt/hermes-webui
 Environment=HERMES_WEBUI_PORT=8888
 Environment=HERMES_WEBUI_HOST=0.0.0.0
+Environment=HERMES_WEBUI_SKIP_ONBOARDING=1
 ExecStart=/usr/local/lib/hermes-agent/venv/bin/python /opt/hermes-webui/server.py
 Restart=on-failure
 RestartSec=10
