@@ -460,10 +460,11 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
      echo '[hermes] gh CLI authenticated' | sudo tee -a ${HERMES_LOG}
    fi
 
-   # ---- Install Kilo CLI if missing ----
-     echo '[hermes] Installing Kilo CLI...' | sudo tee -a ${HERMES_LOG}
-     sudo npm install -g @kilocode/cli 2>&1 | tail -3
-   fi
+    # ---- Install Kilo CLI if missing ----
+    if ! command -v kilo &>/dev/null; then
+      echo '[hermes] Installing Kilo CLI...' | sudo tee -a ${HERMES_LOG}
+      sudo npm install -g @kilocode/cli 2>&1 | tail -3
+    fi
    \
    # ---- Install Hermes if missing ----
    if ! command -v hermes &>/dev/null; then
