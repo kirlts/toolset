@@ -506,6 +506,21 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
 
 echo "[DEPLOY] Hermes + Kilo setup complete."
 
+# --- Create gh token file for Docker sandbox (idempotent) ---
+echo "[DEPLOY] Creating gh token file for Docker sandbox..."
+ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  "${SSH_HOST}" \
+  "echo 'export GH_TOKEN=${GH_CLI_TOKEN}' | sudo tee /home/opc/.hermes/gh_token.env > /dev/null && \
+   sudo chmod 600 /home/opc/.hermes/gh_token.env && \
+   echo '[hermes] gh token file created'"
+
+# --- Kill stale Docker sandbox container to force recreation with new mounts ---
+echo "[DEPLOY] Killing stale Docker sandbox container..."
+ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  "${SSH_HOST}" \
+  "docker rm -f \$(docker ps -q --filter label=hermes-agent=1) 2>/dev/null; \
+   echo '[hermes] Sandbox container killed (will recreate on next use)'"
+
 # --- Hindsight bank backup/restore (resilience: bank data survives volume wipe) ---
 BACKUP_DIR="${REMOTE_DIR}/backups/hindsight"
 echo "[DEPLOY] Checking Hindsight bank backup..."
@@ -582,11 +597,15 @@ cfg.setdefault('mcp_servers', {})
 # Model config: nested format for WebUI + CLI compatibility
 cfg['model'] = {'default': 'opencodego/deepseek-v4-flash', 'provider': 'opencode-go'}
 cfg['context_file_max_chars'] = 25000
-# Mount SOUL.md into Docker sandbox at /workspace/SOUL.md
+# Mount SOUL.md + gh CLI + token into Docker sandbox
 cfg.setdefault('terminal', {}).setdefault('docker_volumes', [])
-soul_vol = '/home/opc/.hermes/SOUL.md:/workspace/SOUL.md:ro'
-if soul_vol not in cfg['terminal']['docker_volumes']:
-    cfg['terminal']['docker_volumes'].append(soul_vol)
+for vol in [
+    '/home/opc/.hermes/SOUL.md:/workspace/SOUL.md:ro',
+    '/usr/bin/gh:/usr/bin/gh:ro',
+    '/home/opc/.hermes/gh_token.env:/etc/gh_token.env:ro',
+]:
+    if vol not in cfg['terminal']['docker_volumes']:
+        cfg['terminal']['docker_volumes'].append(vol)
 composio_key = os.environ.get('COMPOSIO_MCP_KEY', '${COMPOSIO_MCP_KEY:-}')
 if composio_key:
     cfg['mcp_servers']['composio'] = {
