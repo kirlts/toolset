@@ -31,7 +31,6 @@ REQUIRED_VARS=(
   INFISICAL_AUTH_SECRET
   INFISICAL_DB_PASSWORD
   OPENCODE_GO_API_KEY
-  INFISICAL_SERVICE_TOKEN
 )
 
 MISSING=0
@@ -130,41 +129,93 @@ for svc in $CRITICAL; do
   if [ "$STATUS" = "healthy" ]; then echo "  ✅ $svc"; else echo "  ❌ $svc: $STATUS"; fi
 done
 
-# --- Bootstrap Infisical admin (safe, idempotent: fails 400 if exists) ---
+# --- Bootstrap Infisical & setup project (idempotent) ---
 INFISICAL_ADMIN_EMAIL="${INFISICAL_ADMIN_EMAIL:-}"
 INFISICAL_ADMIN_PASSWORD="${INFISICAL_ADMIN_PASSWORD:-}"
+INFISICAL_SERVICE_TOKEN="${INFISICAL_SERVICE_TOKEN:-}"
+# Read persistent state from server .env
+INFISICAL_PID=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  "${SSH_HOST}" "grep '^INFISICAL_PID=' ${REMOTE_DIR}/.env | cut -d= -f2-" 2>/dev/null || echo "")
+INFISICAL_TOKEN=""  # Active token for API calls (identity or service token)
+
+# Step 1: Bootstrap admin (returns identity token on fresh setup, 400 if exists)
 if [ -n "$INFISICAL_ADMIN_EMAIL" ] && [ -n "$INFISICAL_ADMIN_PASSWORD" ]; then
   echo "[DEPLOY] Bootstrapping Infisical admin..."
   BOOTSTRAP_RESP=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     "${SSH_HOST}" \
     "sudo docker exec -i infisical sh -c 'curl -s -X POST \"http://localhost:8080/api/v1/admin/bootstrap\" -H \"Content-Type: application/json\" -d \"{\\\"email\\\":\\\"${INFISICAL_ADMIN_EMAIL}\\\",\\\"password\\\":\\\"${INFISICAL_ADMIN_PASSWORD}\\\",\\\"organization\\\":\\\"Admin Org\\\"}\"'" 2>&1)
-  if echo "$BOOTSTRAP_RESP" | grep -q "already been set up"; then
+
+  # Extract identity token if bootstrap was successful (fresh setup)
+  FRESH_TOKEN=$(echo "$BOOTSTRAP_RESP" | python3 -c "
+import sys,json
+try:
+    d=json.load(sys.stdin)
+    t=d.get('identity',{}).get('credentials',{}).get('token','')
+    print(t)
+except:
+    print('')
+" 2>/dev/null)
+
+  if [ -n "$FRESH_TOKEN" ]; then
+    INFISICAL_TOKEN="$FRESH_TOKEN"
+    echo "  [Infisical] Admin created (identity token acquired)"
+
+    # Fresh bootstrap: create project
+    echo "  [Infisical] Creating Toolset project..."
+    PROJECT_RESP=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+      "${SSH_HOST}" \
+      "sudo docker exec -i infisical sh -c 'curl -s -X POST \"http://localhost:8080/api/v1/projects\" -H \"Authorization: Bearer ${INFISICAL_TOKEN}\" -H \"Content-Type: application/json\" -d \"{\\\"projectName\\\":\\\"Toolset\\\",\\\"type\\\":\\\"secret-manager\\\",\\\"shouldCreateDefaultEnvs\\\":true}\"'" 2>&1)
+    INFISICAL_PID=$(echo "$PROJECT_RESP" | python3 -c "import sys,json;print(json.load(sys.stdin).get('project',{}).get('id',''))" 2>/dev/null)
+
+    if [ -n "$INFISICAL_PID" ]; then
+      echo "  [Infisical] Toolset project created (ID: $INFISICAL_PID)"
+      # Persist project ID in .env
+      ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+        "${SSH_HOST}" \
+        "grep -q '^INFISICAL_PID=' ${REMOTE_DIR}/.env && sudo sed -i 's|^INFISICAL_PID=.*|INFISICAL_PID=${INFISICAL_PID}|' ${REMOTE_DIR}/.env || echo 'INFISICAL_PID=${INFISICAL_PID}' | sudo tee -a ${REMOTE_DIR}/.env > /dev/null" 2>&1
+
+      # Create a permanent service token for CI/CD
+      NEW_TOKEN=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+        "${SSH_HOST}" \
+        "sudo docker exec -i infisical sh -c 'curl -s -X POST \"http://localhost:8080/api/v2/service-token\" -H \"Authorization: Bearer ${INFISICAL_TOKEN}\" -H \"Content-Type: application/json\" -d \"{\\\"name\\\":\\\"ci-cd-pipeline\\\",\\\"workspaceId\\\":\\\"${INFISICAL_PID}\\\",\\\"scopes\\\":[{\\\"environment\\\":\\\"dev\\\",\\\"secretPath\\\":\\\"/\\\"},{\\\"environment\\\":\\\"prod\\\",\\\"secretPath\\\":\\\"/\\\"}],\\\"permissions\\\":[\\\"read\\\",\\\"write\\\"],\\\"encryptedKey\\\":\\\"\\\",\\\"iv\\\":\\\"\\\",\\\"tag\\\":\\\"\\\",\\\"expiresIn\\\":0}\"'" 2>&1 | python3 -c "import sys,json;print(json.load(sys.stdin).get('serviceToken',''))" 2>/dev/null)
+      if [ -n "$NEW_TOKEN" ]; then
+        INFISICAL_TOKEN="$NEW_TOKEN"
+        echo "  [Infisical] Service token created"
+        # Persist in .env for future deploys
+        ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+          "${SSH_HOST}" \
+          "grep -q '^INFISICAL_SERVICE_TOKEN=' ${REMOTE_DIR}/.env && sudo sed -i 's|^INFISICAL_SERVICE_TOKEN=.*|INFISICAL_SERVICE_TOKEN=${NEW_TOKEN}|' ${REMOTE_DIR}/.env || echo 'INFISICAL_SERVICE_TOKEN=${NEW_TOKEN}' | sudo tee -a ${REMOTE_DIR}/.env > /dev/null" 2>&1
+      fi
+    else
+      echo "  [Infisical] Project creation fail: $(echo $PROJECT_RESP | head -c 100)"
+    fi
+  elif echo "$BOOTSTRAP_RESP" | grep -q "already been set up"; then
     echo "  [Infisical] Admin already exists"
-  elif echo "$BOOTSTRAP_RESP" | grep -q "user"; then
-    echo "  [Infisical] Admin created successfully"
+    INFISICAL_TOKEN="$INFISICAL_SERVICE_TOKEN"
   else
     echo "  [Infisical] Bootstrap response: $(echo $BOOTSTRAP_RESP | head -c 100)"
+    INFISICAL_TOKEN="$INFISICAL_SERVICE_TOKEN"
   fi
+else
+  INFISICAL_TOKEN="$INFISICAL_SERVICE_TOKEN"
 fi
 
-# --- Sync secrets to Infisical (idempotent) ---
-INFISICAL_SERVICE_TOKEN="${INFISICAL_SERVICE_TOKEN:-}"
-if [ -n "$INFISICAL_SERVICE_TOKEN" ]; then
+# Step 3: Sync secrets to Infisical
+if [ -n "$INFISICAL_TOKEN" ] && [ -n "$INFISICAL_PID" ]; then
   echo "[DEPLOY] Syncing secrets to Infisical..."
-  INFISICAL_PID="08535df4-97d1-42cb-b127-bc2dbfa3cb79"
   sync_secret() {
     local env="$1" name="$2" value="$3"
     [ -z "$value" ] && return
-    RESP=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
       "${SSH_HOST}" \
-      "sudo docker exec -i infisical sh -c 'curl -s -X POST \"http://localhost:8080/api/v3/secrets/raw/${name}\" -H \"Authorization: Bearer ${INFISICAL_SERVICE_TOKEN}\" -H \"Content-Type: application/json\" -d \"{\\\"workspaceId\\\":\\\"${INFISICAL_PID}\\\",\\\"environment\\\":\\\"${env}\\\",\\\"secretValue\\\":\\\"${value}\\\",\\\"type\\\":\\\"shared\\\"}\" 2>/dev/null | python3 -c \"import sys,json;print(dict(secret=json.load(sys.stdin).get(\\\"secret\\\",{})).get(\\\"secretKey\\\",\\\"OK\\\"))\"" 2>&1)
-    echo "  [Infisical] $env/$name -> synced"
+      "sudo docker exec -i infisical sh -c 'curl -s -X POST \"http://localhost:8080/api/v3/secrets/raw/${name}\" -H \"Authorization: Bearer ${INFISICAL_TOKEN}\" -H \"Content-Type: application/json\" -d \"{\\\"workspaceId\\\":\\\"${INFISICAL_PID}\\\",\\\"environment\\\":\\\"${env}\\\",\\\"secretValue\\\":\\\"${value}\\\",\\\"type\\\":\\\"shared\\\"}\" 2>/dev/null'" 2>&1 | python3 -c "import sys,json;d=json.load(sys.stdin);key=d.get('secret',{}).get('secretKey','OK');print(f'  [Infisical] $env/$name -> synced')" 2>/dev/null || echo "  [Infisical] $env/$name -> synced"
   }
-  # Secrets to sync (passed from GitHub Secrets via env vars)
   sync_secret "dev" "OPENCODE_GO_API_KEY" "${OPENCODE_GO_API_KEY:-}"
   sync_secret "dev" "FUNNEL_DOMAIN" "${FUNNEL_DOMAIN:-}"
   sync_secret "prod" "OPENCODE_GO_API_KEY" "${OPENCODE_GO_API_KEY:-}"
   sync_secret "prod" "FUNNEL_DOMAIN" "${FUNNEL_DOMAIN:-}"
+elif [ -n "$INFISICAL_SERVICE_TOKEN" ]; then
+  echo "[DEPLOY] INFISICAL_SERVICE_TOKEN set but could not resolve project"
 else
   echo "[DEPLOY] INFISICAL_SERVICE_TOKEN not set, skipping secret sync"
 fi
