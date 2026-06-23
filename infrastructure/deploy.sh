@@ -31,6 +31,7 @@ REQUIRED_VARS=(
   INFISICAL_AUTH_SECRET
   INFISICAL_DB_PASSWORD
   OPENCODE_GO_API_KEY
+  INFISICAL_SERVICE_TOKEN
 )
 
 MISSING=0
@@ -128,6 +129,28 @@ for svc in $CRITICAL; do
     "sudo docker inspect $svc --format '{{.State.Health.Status}}' 2>/dev/null || echo missing")
   if [ "$STATUS" = "healthy" ]; then echo "  ✅ $svc"; else echo "  ❌ $svc: $STATUS"; fi
 done
+
+# --- Sync secrets to Infisical (idempotent) ---
+INFISICAL_SERVICE_TOKEN="${INFISICAL_SERVICE_TOKEN:-}"
+if [ -n "$INFISICAL_SERVICE_TOKEN" ]; then
+  echo "[DEPLOY] Syncing secrets to Infisical..."
+  INFISICAL_PID="08535df4-97d1-42cb-b127-bc2dbfa3cb79"
+  sync_secret() {
+    local env="$1" name="$2" value="$3"
+    [ -z "$value" ] && return
+    RESP=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+      "${SSH_HOST}" \
+      "sudo docker exec -i infisical sh -c 'curl -s -X POST \"http://localhost:8080/api/v3/secrets/raw/${name}\" -H \"Authorization: Bearer ${INFISICAL_SERVICE_TOKEN}\" -H \"Content-Type: application/json\" -d \"{\\\"workspaceId\\\":\\\"${INFISICAL_PID}\\\",\\\"environment\\\":\\\"${env}\\\",\\\"secretValue\\\":\\\"${value}\\\",\\\"type\\\":\\\"shared\\\"}\" 2>/dev/null | python3 -c \"import sys,json;print(dict(secret=json.load(sys.stdin).get(\\\"secret\\\",{})).get(\\\"secretKey\\\",\\\"OK\\\"))\"" 2>&1)
+    echo "  [Infisical] $env/$name -> synced"
+  }
+  # Secrets to sync (passed from GitHub Secrets via env vars)
+  sync_secret "dev" "OPENCODE_GO_API_KEY" "${OPENCODE_GO_API_KEY:-}"
+  sync_secret "dev" "FUNNEL_DOMAIN" "${FUNNEL_DOMAIN:-}"
+  sync_secret "prod" "OPENCODE_GO_API_KEY" "${OPENCODE_GO_API_KEY:-}"
+  sync_secret "prod" "FUNNEL_DOMAIN" "${FUNNEL_DOMAIN:-}"
+else
+  echo "[DEPLOY] INFISICAL_SERVICE_TOKEN not set, skipping secret sync"
+fi
 
 # --- Generate dynamic landing page with current routes ---
 LANDING_HTML=$(cat <<EOF

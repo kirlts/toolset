@@ -130,7 +130,9 @@ jobs:
           INFISICAL_ENCRYPTION_KEY: ${{ secrets.INFISICAL_ENCRYPTION_KEY }}
           INFISICAL_AUTH_SECRET: ${{ secrets.INFISICAL_AUTH_SECRET }}
           INFISICAL_DB_PASSWORD: infisical
+          INFISICAL_SERVICE_TOKEN: ${{ secrets.INFISICAL_SERVICE_TOKEN }}
           OPENCODE_GO_API_KEY: ${{ secrets.OPENCODE_GO_API_KEY }}
+          FUNNEL_DOMAIN: toolset-oci-1-1.tail2d4c18.ts.net
         working-directory: ${{ env.INFRA_DIR }}
         run: |
           chmod +x deploy.sh
