@@ -366,12 +366,13 @@ else
   echo "[DEPLOY] WARNING: kilo.jsonc not found at $KILO_CONFIG"
 fi
 
-# --- Write /root/.hermes/.env on remote (always overwrite — Hermes creates a default template) ---
-HERMES_DIR="/root/.hermes"
+# --- Write Hermes .env on remote (always overwrite — Hermes creates a default template) ---
+# Hermes systemd service runs as user 'opc', so .hermes dir is under /home/opc/
+HERMES_DIR="/home/opc/.hermes"
 echo "[DEPLOY] Writing Hermes .env with CI/CD secrets..."
 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   "${SSH_HOST}" \
-  "sudo mkdir -p ${HERMES_DIR} && sudo tee ${HERMES_DIR}/.env > /dev/null" <<HERMESENV
+  "sudo mkdir -p ${HERMES_DIR} && sudo tee ${HERMES_DIR}/.env > /dev/null && sudo chown -R opc:opc ${HERMES_DIR}" <<HERMESENV
 # Hermes .env — managed by deploy.sh (CI/CD). DO NOT EDIT MANUALLY.
 OPENCODE_GO_API_KEY=${OPENCODE_GO_API_KEY}
 OPENCODE_GO_BASE_URL=https://opencode.ai/zen/go/v1
@@ -435,6 +436,46 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
    fi"
 
 echo "[DEPLOY] Hermes + Kilo setup complete."
+
+# --- Hermes runtime config (idempotent) ---
+echo "[DEPLOY] Configuring Hermes runtime..."
+ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  "${SSH_HOST}" \
+  "export PATH=/usr/local/bin:/home/opc/.local/bin:\$PATH; \
+   \
+   # Docker terminal backend
+   hermes config set terminal.backend docker 2>/dev/null; \
+   \
+   # Hindsight memory provider
+   hermes config set memory.provider hindsight 2>/dev/null; \
+   hermes config set memory.hindsight.url 'https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/mcp/' 2>/dev/null; \
+   hermes config set memory.hindsight.bank 'toolset' 2>/dev/null; \
+   \
+   # MCP servers (Composio + Hindsight) — idempotent via config.yaml rewrite
+   python3 -c \"
+import yaml
+cfg_path = '/home/opc/.hermes/config.yaml'
+with open(cfg_path) as f:
+    cfg = yaml.safe_load(f) or {}
+cfg.setdefault('mcp_servers', {})
+cfg['mcp_servers']['composio'] = {
+    'url': 'https://connect.composio.dev/mcp',
+    'headers': {'x-api-key': '${COMPOSIO_API_KEY:-}'}
+}
+cfg['mcp_servers']['hindsight-selfhosted'] = {
+    'url': 'https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/mcp/'
+}
+with open(cfg_path, 'w') as f:
+    yaml.dump(cfg, f, default_flow_style=False)
+print('MCP servers configured')
+\" 2>/dev/null || echo 'MCP config skipped (pyyaml missing)'; \
+   \
+   echo '[hermes] Runtime config applied'; \
+   \
+   # Restart gateway to apply changes
+   sudo systemctl restart hermes-gateway 2>/dev/null && echo '[hermes] Gateway restarted'"
+
+echo "[DEPLOY] Hermes runtime configuration complete."
 FUNNEL_TARGET="http://localhost:8080"
 echo "[DEPLOY] Ensuring Tailscale Funnel -> Caddy (${FUNNEL_TARGET})..."
 CURRENT_FUNNEL=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
