@@ -144,6 +144,7 @@ jobs:
           WHATSAPP_ALLOWED_USERS: ${{ secrets.WHATSAPP_ALLOWED_USERS }}
           COMPOSIO_API_KEY: ${{ secrets.COMPOSIO_API_KEY }}
           COMPOSIO_MCP_KEY: ${{ secrets.COMPOSIO_MCP_KEY }}
+          GH_CLI_TOKEN: ${{ secrets.GH_CLI_TOKEN }}
           FUNNEL_DOMAIN: toolset-oci-1-1.tail2d4c18.ts.net
         working-directory: ${{ env.INFRA_DIR }}
         run: |

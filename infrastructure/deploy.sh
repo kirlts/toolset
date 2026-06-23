@@ -446,8 +446,21 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
    # ---- Ensure Hermes is in PATH for subsequent commands ----
    export PATH="/usr/local/bin:$PATH"
 
+   # ---- Install GitHub CLI (gh) if missing ----
+   if ! command -v gh &>/dev/null; then
+     echo '[hermes] Installing GitHub CLI...' | sudo tee -a ${HERMES_LOG}
+     sudo dnf config-manager --add-repo https://cli.github.com/packages/rpm/gh-cli.repo 2>/dev/null
+     sudo dnf install -y gh 2>&1 | tail -1
+   fi
+
+   #    # ---- Authenticate gh CLI (idempotent) ----
+   GH_CLI_TOKEN="${GH_CLI_TOKEN:-}"
+   if [ -n "$GH_CLI_TOKEN" ]; then
+     echo "$GH_CLI_TOKEN" | sudo -u opc gh auth login --with-token 2>/dev/null || true
+     echo '[hermes] gh CLI authenticated' | sudo tee -a ${HERMES_LOG}
+   fi
+
    # ---- Install Kilo CLI if missing ----
-   if ! command -v kilo &>/dev/null; then
      echo '[hermes] Installing Kilo CLI...' | sudo tee -a ${HERMES_LOG}
      sudo npm install -g @kilocode/cli 2>&1 | tail -3
    fi
