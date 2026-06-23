@@ -246,27 +246,40 @@ if [ -n "$INFISICAL_TOKEN" ] && [ -n "$INFISICAL_PID" ]; then
   echo "[DEPLOY] All secrets synced to Infisical (dev + prod)."
 
   # --- Reverse sync: Infisical → GitHub Secrets ---
-  # Hermes may create new secrets in Infisical at runtime. This detects them
-  # and flags them for sync back to GitHub, keeping the repo as source of truth.
-  echo "[DEPLOY] Checking for new Hermes-created secrets in Infisical..."
-  INFISICAL_RAW=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    "${SSH_HOST}" \
-    "sudo docker exec -i infisical sh -c 'curl -s \"http://localhost:8080/api/v3/secrets?workspaceId=${INFISICAL_PID}&environment=dev\" -H \"Authorization: Bearer ${INFISICAL_TOKEN}\"'" 2>/dev/null)
-  echo "$INFISICAL_RAW" | python3 -c "
-import sys, json
+  # Hermes may create new secrets in Infisical at runtime. This syncs them back
+  # to GitHub Secrets using gh CLI (authenticated via GITHUB_TOKEN in CI/CD).
+  # Each deploy pushes any new HERMES_/WHATSAPP_ secrets from Infisical to GitHub.
+  if command -v gh &>/dev/null; then
+    echo "[DEPLOY] Reverse-syncing Infisical secrets to GitHub..."
+    INFISICAL_RAW=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+      "${SSH_HOST}" \
+      "sudo docker exec -i infisical sh -c 'curl -s \"http://localhost:8080/api/v3/secrets?workspaceId=${INFISICAL_PID}&environment=dev\" -H \"Authorization: Bearer ${INFISICAL_TOKEN}\"'" 2>/dev/null)
+    echo "$INFISICAL_RAW" | python3 -c "
+import sys, json, subprocess, os
 try:
     data = json.load(sys.stdin)
     for s in data.get('secrets', []):
         key = s.get('secretKey', '')
         val = s.get('secretValue', '')
-        # Flag secrets that Hermes/Nous created (not from this deploy)
-        if key.startswith('HERMES_') or key.startswith('WHATSAPP_'):
-            gh_key = 'SECRET_' + key
-            print(f'  [{key}] exists in Infisical. If not in GitHub Secrets, run:')
-            print(f'    gh secret set {key} --body \"{val[:16]}...\" --repo kirlts/toolset')
-except Exception as e:
-    print(f'  [Infisical->GitHub] Error: {e}')
-" 2>/dev/null || echo "  [Infisical→GitHub] Could not read secrets"
+        # Only sync secrets with our naming prefixes
+        if not (key.startswith('HERMES_') or key.startswith('WHATSAPP_') or key.startswith('INFISICAL_')):
+            continue
+        if not val:
+            continue
+        # Skip secrets we already pushed from GitHub this run (known env vars)
+        if os.environ.get(key, '') == val:
+            continue
+        # Sync to GitHub Secrets
+        cmd = ['gh', 'secret', 'set', key, '--body', val, '--repo', 'kirlts/toolset']
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode == 0:
+            print(f'  [Infisical→GitHub] {key} synced')
+        else:
+            print(f'  [Infisical→GitHub] {key} failed: {result.stderr.strip()}')
+" 2>/dev/null || echo "  [Infisical→GitHub] Could not process secrets"
+  else
+    echo "[DEPLOY] gh CLI not available, skipping reverse sync"
+  fi
 elif [ -n "$INFISICAL_SERVICE_TOKEN" ]; then
   echo "[DEPLOY] INFISICAL_SERVICE_TOKEN set but could not resolve project"
 else
