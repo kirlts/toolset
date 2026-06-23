@@ -507,7 +507,7 @@ if [ "$HINDSIGHT_DATA_EXISTS" = "true" ]; then
       sudo docker exec hindsight sh -c 'tar czf /tmp/hindsight-backup-${BACKUP_TS}.tar.gz -C /home/hindsight .pg0' && \
       sudo docker cp hindsight:/tmp/hindsight-backup-${BACKUP_TS}.tar.gz ${BACKUP_DIR}/ && \
       sudo docker exec hindsight rm /tmp/hindsight-backup-${BACKUP_TS}.tar.gz && \
-      ls -1t ${BACKUP_DIR}/*.tar.gz 2>/dev/null | tail -n +11 | xargs -r rm -f && \
+      ls -1t ${BACKUP_DIR}/*.tar.gz 2>/dev/null | tail -n +11 | xargs -r sudo rm -f && \
       echo '[DEPLOY][backup] Done'"
 else
   # Try to restore from latest backup (volume was wiped or fresh deploy)
