@@ -480,14 +480,19 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
    if ! command -v hermes &>/dev/null; then
      echo '[hermes] Installing Hermes Agent...' | sudo tee -a ${HERMES_LOG}
      curl -fsSL https://hermes-agent.nousresearch.com/install.sh | sudo bash 2>&1 | sudo tee -a ${HERMES_LOG}
-   fi
-   \
+    fi
+    \
+    # ---- Add opc to docker group for sandbox access ----
+    sudo usermod -aG docker opc 2>/dev/null
+    \
     # ---- Setup systemd for Hermes gateway (idempotent, non-interactive) ----
     export PATH="/usr/local/bin:/usr/local/lib/hermes-agent:\$PATH"
     if command -v hermes &>/dev/null; then
       if ! systemctl is-enabled hermes-gateway &>/dev/null 2>&1; then
         echo '[hermes] Enabling Hermes systemd service...' | sudo tee -a ${HERMES_LOG}
         printf 'Y\nY\n' | sudo /usr/local/bin/hermes gateway install --system 2>&1 | sudo tee -a ${HERMES_LOG}
+        sudo sed -i '/^Group=opc$/a SupplementaryGroups=docker' /etc/systemd/system/hermes-gateway.service 2>/dev/null
+        sudo systemctl daemon-reload 2>/dev/null
       else
         echo '[hermes] Gateway service already enabled' | sudo tee -a ${HERMES_LOG}
         sudo systemctl kill -s KILL hermes-gateway 2>/dev/null || true
@@ -563,14 +568,15 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     hermes config set memory.provider hindsight 2>/dev/null; \
     hermes config set memory.hindsight.url 'https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/mcp/' 2>/dev/null; \
     hermes config set memory.hindsight.bank 'hermes' 2>/dev/null; \
-    hermes config set default.model 'opencodego/deepseek-v4-flash' 2>/dev/null; \
-    hermes config set default.provider 'opencode-go' 2>/dev/null; \
+    hermes config set model.default 'opencodego/deepseek-v4-flash' 2>/dev/null; \
+    hermes config set model.provider 'opencode-go' 2>/dev/null; \
     python3 -c \"
 import yaml
 cfg_path = '/home/opc/.hermes/config.yaml'
 with open(cfg_path) as f:
     cfg = yaml.safe_load(f) or {}
 cfg.pop('memory_provider', None)
+cfg.pop('default', None)  # old format, use model: instead
 cfg.setdefault('mcp_servers', {})
 composio_key = os.environ.get('COMPOSIO_MCP_KEY', '${COMPOSIO_MCP_KEY:-}')
 if composio_key:
