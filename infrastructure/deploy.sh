@@ -568,8 +568,8 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     hermes config set memory.provider hindsight 2>/dev/null; \
     hermes config set memory.hindsight.url 'https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/mcp/' 2>/dev/null; \
     hermes config set memory.hindsight.bank 'hermes' 2>/dev/null; \
-    hermes config set model.default 'opencodego/deepseek-v4-flash' 2>/dev/null; \
-    hermes config set model.provider 'opencode-go' 2>/dev/null; \
+    hermes config set model 'opencodego/deepseek-v4-flash' 2>/dev/null; \
+    hermes config set context_file_max_chars 25000 2>/dev/null; \
     python3 -c \"
 import yaml
 cfg_path = '/home/opc/.hermes/config.yaml'
@@ -578,6 +578,10 @@ with open(cfg_path) as f:
 cfg.pop('memory_provider', None)
 cfg.pop('default', None)  # old format, use model: instead
 cfg.setdefault('mcp_servers', {})
+# Ensure model is a flat string (not nested object from old format)
+if isinstance(cfg.get('model'), dict):
+    cfg['model'] = 'opencodego/deepseek-v4-flash'
+cfg['context_file_max_chars'] = 25000
 composio_key = os.environ.get('COMPOSIO_MCP_KEY', '${COMPOSIO_MCP_KEY:-}')
 if composio_key:
     cfg['mcp_servers']['composio'] = {
