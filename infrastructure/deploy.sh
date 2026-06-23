@@ -423,12 +423,8 @@ if [ -d "$SKILLS_SRC" ]; then
      sudo chown -R opc:opc /home/opc/.hermes/skills/ && \
      sudo rm -rf /tmp/hermes-skills /tmp/hermes-skills.tar.gz && \
      echo '[hermes] Skills synced'" && \
-  rm -f /tmp/hermes-skills.tar.gz
-  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    "${SSH_HOST}" \
-    "sudo cp -r /tmp/hermes-skills/* /home/opc/.hermes/skills/ && \
-     sudo chown -R opc:opc /home/opc/.hermes/skills/ && \
-     echo '[hermes] Skills synced'"
+   rm -f /tmp/hermes-skills.tar.gz
+
 else
   echo "[DEPLOY] WARNING: hermes-skills/ directory not found at $SKILLS_SRC"
 fi
@@ -505,7 +501,7 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
       curl -fsSL https://hermes-agent.nousresearch.com/install.sh | sudo bash 2>&1 | sudo tee -a ${HERMES_LOG}
     fi
     # Ensure Whisper STT is installed (for WhatsApp voice message transcription)
-    /usr/local/lib/hermes-agent/venv/bin/pip install faster-whisper -q 2>/dev/null || true
+    /home/opc/.local/bin/uv pip install faster-whisper -q 2>/dev/null || true
     \
     # ---- Add opc to docker group for sandbox access ----
     sudo usermod -aG docker opc 2>/dev/null
