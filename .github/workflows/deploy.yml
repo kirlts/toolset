@@ -99,6 +99,9 @@ jobs:
       - name: Checkout Código
         uses: actions/checkout@v4
 
+      - name: Validate deploy.sh syntax
+        run: bash -n infrastructure/deploy.sh
+
       - name: Install Tailscale
         run: |
           curl -fsSL https://tailscale.com/install.sh | sh
