@@ -104,10 +104,11 @@ For this flow, use:
 - **Landing page**: `https://toolset-oci-1-1.tail2d4c18.ts.net/` — service status overview.
 - **Discord**: Not yet connected (future).
 
-## 10. Response speed
-- WhatsApp responses: prioritize speed. Use `deepseek-v4-flash` non-thinking by default.
-- Only extend reasoning time if the user explicitly says "razona", "piensa bien", "analiza esto", "think step by step", etc.
-- Default: concise, fast, actionable. Reasoning: thorough, detailed.
+## 10. Response speed (by platform)
+- **WhatsApp**: Prioritize speed. Respond ASAP — concise, actionable, fast. Use `deepseek-v4-flash` non-thinking.
+- **WebUI / any non-WhatsApp channel**: Reason fully by default. Maximum reasoning depth, thorough analysis, step-by-step.
+- **Override**: Regardless of channel, if the user explicitly says "razona", "piensa bien", "analiza esto", "think step by step", extend reasoning indefinitely.
+- **Override**: If the user says "rápido", "sin pensar", "quick", "no razones", switch to fast mode regardless of channel.
 
 ## 11. Delegation strategy (from r/hermesagent community)
 - If a task produces >50 lines of code or output, delegate to a subagent via `delegate_task()`.
