@@ -531,7 +531,7 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
    # Docker terminal backend
    hermes config set terminal.backend docker 2>/dev/null; \
    \
-    # Hindsight memory provider (uses "hermes" bank, not "toolset")
+    # Hindsight memory provider (uses hermes bank, not toolset)
     hermes config set memory.provider hindsight 2>/dev/null; \
     hermes config set memory.hindsight.url 'https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/mcp/' 2>/dev/null; \
     hermes config set memory.hindsight.bank 'hermes' 2>/dev/null; \
@@ -549,7 +549,7 @@ cfg['mcp_servers']['hindsight-selfhosted'] = {
 with open(cfg_path, 'w') as f:
     yaml.dump(cfg, f, default_flow_style=False)
 print('MCP servers configured')
-\" 2>&1 || echo 'MCP config fallback: hindsight only'
+\" 2>&1 || echo 'MCP config fallback: hindsight only'"
 
 echo "[DEPLOY] Hermes runtime configuration complete."
 FUNNEL_TARGET="http://localhost:8080"
