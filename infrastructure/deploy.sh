@@ -511,7 +511,7 @@ echo "[DEPLOY] Creating gh token file for Docker sandbox..."
 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   "${SSH_HOST}" \
   "echo 'export GH_TOKEN=${GH_CLI_TOKEN}' | sudo tee /home/opc/.hermes/gh_token.env > /dev/null && \
-   sudo chmod 600 /home/opc/.hermes/gh_token.env && \
+   sudo chmod 644 /home/opc/.hermes/gh_token.env && \
    echo '[hermes] gh token file created'"
 
 # --- Kill stale Docker sandbox container to force recreation with new mounts ---
@@ -603,6 +603,7 @@ for vol in [
     '/home/opc/.hermes/SOUL.md:/workspace/SOUL.md:ro',
     '/usr/bin/gh:/usr/bin/gh:ro',
     '/home/opc/.hermes/gh_token.env:/etc/gh_token.env:ro',
+    '/etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt:ro',
 ]:
     if vol not in cfg['terminal']['docker_volumes']:
         cfg['terminal']['docker_volumes'].append(vol)

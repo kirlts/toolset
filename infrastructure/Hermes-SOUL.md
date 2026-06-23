@@ -36,6 +36,13 @@ No estás Dockerizado. Solo tu terminal ejecuta en un contenedor. El sandbox tie
 - `/workspace/SOUL.md` → SOUL.md
 - `/usr/bin/gh` → GitHub CLI
 - `/etc/gh_token.env` → token de GitHub (source antes de usar gh)
+- `/etc/ssl/certs/ca-certificates.crt` → CA certs para TLS de gh
+
+git no está preinstalado en el sandbox. Si lo necesitas, ejecutar en el sandbox:
+```
+apt-get update -qq && apt-get install -y -qq git ca-certificates
+```
+Con `container_persistent: true`, git persistirá para toda la vida del contenedor.
 
 ## Memoria
 
