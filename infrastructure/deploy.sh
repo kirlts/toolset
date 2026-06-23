@@ -552,7 +552,7 @@ if [ "$HERMES_FACTS" = "0" ]; then
   echo "[DEPLOY] Seeding hermes bank with identity facts..."
   SSH_SEED=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     "${SSH_HOST}" \
-    "curl -s -X POST 'http://hindsight:8888/v1/default/banks/hermes/memories' \
+    "curl -s -X POST 'http://127.0.0.1:8888/v1/default/banks/hermes/memories' \
       -H 'Content-Type: application/json' \
       -d '{\"items\":[
         {\"content\":\"Hermes Agent identity: orchestrator agent for Toolset Personal, deployed on OCI VM ARM64 12GB RAM 2 OCPU.\",\"context\":\"identity\",\"fact_type\":\"world\"},
