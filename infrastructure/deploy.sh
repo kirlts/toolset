@@ -469,6 +469,55 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
 
 echo "[DEPLOY] Hermes + Kilo setup complete."
 
+# --- Hindsight bank backup/restore (resilience: bank data survives volume wipe) ---
+BACKUP_DIR="${REMOTE_DIR}/backups/hindsight"
+echo "[DEPLOY] Checking Hindsight bank backup..."
+HINDSIGHT_DATA_EXISTS=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  "${SSH_HOST}" \
+  "sudo docker inspect hindsight --format '{{.State.Running}}' 2>/dev/null || echo 'missing'" 2>/dev/null || echo "missing")
+if [ "$HINDSIGHT_DATA_EXISTS" = "true" ]; then
+  # Create timestamped backup
+  BACKUP_TS=$(date -u +"%Y%m%dT%H%M%SZ")
+  echo "[DEPLOY][backup] Creating Hindsight data backup (${BACKUP_TS})..."
+  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    "${SSH_HOST}" \
+    "sudo mkdir -p ${BACKUP_DIR} && \
+     sudo docker exec hindsight sh -c 'tar czf /tmp/hindsight-backup-${BACKUP_TS}.tar.gz -C /home/hindsight .pg0' && \
+     sudo docker cp hindsight:/tmp/hindsight-backup-${BACKUP_TS}.tar.gz ${BACKUP_DIR}/ && \
+     sudo docker exec hindsight rm /tmp/hindsight-backup-${BACKUP_TS}.tar.gz && \
+     # Keep only last 10 backups
+     ls -1t ${BACKUP_DIR}/*.tar.gz 2>/dev/null | tail -n +11 | xargs -r rm -f && \
+     echo '[DEPLOY][backup] Done'"
+else
+  # Try to restore from latest backup (volume was wiped or fresh deploy)
+  LATEST_BACKUP=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    "${SSH_HOST}" "ls -1t ${BACKUP_DIR}/*.tar.gz 2>/dev/null | head -1" 2>/dev/null || echo "")
+  if [ -n "$LATEST_BACKUP" ]; then
+    echo "[DEPLOY][restore] Restoring Hindsight from backup: $(basename ${LATEST_BACKUP})..."
+    ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+      "${SSH_HOST}" \
+      "sudo mkdir -p /tmp/hindsight-restore && \
+       sudo tar xzf ${LATEST_BACKUP} -C /tmp/hindsight-restore && \
+       sudo cp -a /tmp/hindsight-restore/.pg0/* $(sudo docker inspect hindsight --format '{{range .Mounts}}{{if eq .Destination \"/home/hindsight/.pg0\"}}{{.Source}}{{end}}{{end}}' 2>/dev/null)/ && \
+       sudo rm -rf /tmp/hindsight-restore && \
+       echo '[DEPLOY][restore] Done'"
+  else
+    echo "[DEPLOY][backup] No Hindsight data running and no backup found — skipping restore"
+  fi
+fi
+
+# --- Ensure "hermes" bank exists in Hindsight ---
+echo "[DEPLOY] Ensuring 'hermes' bank exists in Hindsight..."
+HAS_HERMES_BANK=$(curl -s "https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/v1/default/banks" 2>/dev/null | python3 -c "import sys,json; print(any(b.get('bank_id')=='hermes' for b in json.load(sys.stdin).get('banks',[])))" 2>/dev/null || echo "False")
+if [ "$HAS_HERMES_BANK" = "False" ]; then
+  echo "[DEPLOY] Creating 'hermes' bank..."
+  curl -s -X PUT "https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/v1/default/banks/hermes" \
+    -H "Content-Type: application/json" \
+    -d '{"name":"hermes","mission":"Hermes Agent memory: identity, repo knowledge, task history, rules"}' 2>/dev/null | python3 -c "import sys,json; print(f'  Bank: {json.load(sys.stdin).get(\"bank_id\",\"error\")}')" 2>/dev/null || echo "  Bank hermes already exists"
+else
+  echo "[DEPLOY] 'hermes' bank already exists"
+fi
+
 # --- Hermes runtime config (idempotent) ---
 echo "[DEPLOY] Configuring Hermes runtime..."
 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
@@ -478,10 +527,10 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
    # Docker terminal backend
    hermes config set terminal.backend docker 2>/dev/null; \
    \
-   # Hindsight memory provider
-   hermes config set memory.provider hindsight 2>/dev/null; \
+    # Hindsight memory provider (uses "hermes" bank, not "toolset")
+    hermes config set memory.provider hindsight 2>/dev/null; \
     hermes config set memory.hindsight.url 'https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/mcp/' 2>/dev/null; \
-    hermes config set memory.hindsight.bank 'toolset' 2>/dev/null; \
+    hermes config set memory.hindsight.bank 'hermes' 2>/dev/null; \
     \
      # MCP servers (Hindsight + optional Composio via SDK session URL)
      python3 -c \"
