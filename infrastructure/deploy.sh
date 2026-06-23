@@ -417,9 +417,11 @@ if [ -d "$SKILLS_SRC" ]; then
     /tmp/hermes-skills.tar.gz "${SSH_HOST}:/tmp/" && \
   ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     "${SSH_HOST}" \
-    "sudo tar xzf /tmp/hermes-skills.tar.gz -C /home/opc/.hermes/skills/ && \
+    "sudo mkdir -p /tmp/hermes-skills && \
+     sudo tar xzf /tmp/hermes-skills.tar.gz -C /tmp/hermes-skills --strip-components=1 && \
+     sudo cp -r /tmp/hermes-skills/* /home/opc/.hermes/skills/ && \
      sudo chown -R opc:opc /home/opc/.hermes/skills/ && \
-     rm -f /tmp/hermes-skills.tar.gz && \
+     sudo rm -rf /tmp/hermes-skills /tmp/hermes-skills.tar.gz && \
      echo '[hermes] Skills synced'" && \
   rm -f /tmp/hermes-skills.tar.gz
   ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
