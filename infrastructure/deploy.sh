@@ -406,8 +406,21 @@ if [ -f "$SOUL_FILE" ]; then
     "${SSH_HOST}" \
     "sudo cp /tmp/Hermes-SOUL.md /home/opc/.hermes/SOUL.md && sudo chown opc:opc /home/opc/.hermes/SOUL.md"
   echo "[DEPLOY] Hermes SOUL.md synced."
+fi
+
+# --- Sync Hermes skills (including kilo-code skill) ---
+SKILLS_SRC="$(dirname "${COMPOSE_FILE}")/hermes-skills"
+if [ -d "$SKILLS_SRC" ]; then
+  echo "[DEPLOY] Syncing Hermes skills..."
+  scp -q -r -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    "$SKILLS_SRC"/. "${SSH_HOST}:/tmp/hermes-skills/"
+  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    "${SSH_HOST}" \
+    "sudo cp -r /tmp/hermes-skills/* /home/opc/.hermes/skills/ && \
+     sudo chown -R opc:opc /home/opc/.hermes/skills/ && \
+     echo '[hermes] Skills synced'"
 else
-  echo "[DEPLOY] WARNING: Hermes-SOUL.md not found at $SOUL_FILE"
+  echo "[DEPLOY] WARNING: hermes-skills/ directory not found at $SKILLS_SRC"
 fi
 
 # --- Write Hermes .env on remote (always overwrite — Hermes creates a default template) ---
@@ -476,11 +489,13 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
       sudo npm install -g @kilocode/cli 2>&1 | tail -3
     fi
    \
-   # ---- Install Hermes if missing ----
-   if ! command -v hermes &>/dev/null; then
-     echo '[hermes] Installing Hermes Agent...' | sudo tee -a ${HERMES_LOG}
-     curl -fsSL https://hermes-agent.nousresearch.com/install.sh | sudo bash 2>&1 | sudo tee -a ${HERMES_LOG}
+    # ---- Install Hermes if missing, then ensure STT dependency ----
+    if ! command -v hermes &>/dev/null; then
+      echo '[hermes] Installing Hermes Agent...' | sudo tee -a ${HERMES_LOG}
+      curl -fsSL https://hermes-agent.nousresearch.com/install.sh | sudo bash 2>&1 | sudo tee -a ${HERMES_LOG}
     fi
+    # Ensure Whisper STT is installed (for WhatsApp voice message transcription)
+    pip install faster-whisper 2>/dev/null || true
     \
     # ---- Add opc to docker group for sandbox access ----
     sudo usermod -aG docker opc 2>/dev/null
