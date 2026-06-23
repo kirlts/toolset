@@ -72,7 +72,7 @@ The pipeline (`deploy.yml`) has two jobs on `push: main`:
 2. **Deploy Services**: Tailscale SSH → deploys Docker Compose services via `deploy.sh`. Current services: PostgreSQL, Infisical, Hindsight, Caddy, Redis
 3. **Tailscale Funnel**: Ya activo en OCI. Dos funnels — `:443` para Caddy (proxy multiplex) y `:8443` directo a Infisical UI (`deploy.sh` líneas 281-334). El Caddyfile escucha plano en `:8080`; Tailscale termina HTTPS por encima. No hay configuración de Funnel en Caddyfile — se gestiona en runtime via `tailscale funnel --bg` desde `deploy.sh`.
 
-⚠️ **Disk space alert**: OpenTofu configura `boot_volume_size_in_gbs = 100` pero Oracle Linux 9 solo asigna ~44.5GB a LVM (29.5GB root + 15GB oled). Root está al 96%. Fix via `cloud-init.yaml`: añadir script de post-arranque que extienda LVM al espacio no particionado (`lvextend -l +100%FREE && resize2fs`). Así se maneja desde infraestructura-como-código, sin intervención manual en OCI.
+⚠️ **Disk space alert**: OpenTofu configura `boot_volume_size_in_gbs = 100` pero Oracle Linux 9 solo asigna ~44.5GB a LVM (29.5GB root + 15GB oled). Root estaba al 96%. Fix via `cloud-init.yaml` + `deploy.sh`: growpart → lvextend → xfs_growfs (OL9 usa XFS, no ext4). Después del fix: 83GB root, 35% uso. Verificado.
 
 ### 3.2 Hermes Deployment Model
 
@@ -139,7 +139,7 @@ Per r/hermesagent VPS Deployment Megathread (June 2026, community-sourced from 2
 | **Docker-in-Docker confusion** | User asked: "can I sandbox non-Dockerized code?" and "dockerized Dockerization?" | **Yes — Hermes' built-in `docker` terminal backend wraps ANY code in a container** automatically, regardless of whether it has a Dockerfile. It `pip/apt install`s dependencies on the fly. Port isolation via single persistent container with `docker exec`. Daytona is a Hermes backend option if independent cloud workspaces are needed, but adds latency (~3-6s spawn time vs instant `docker exec`) and requires an external service. Community uses bare Docker for dev, Daytona/Modal only when full network isolation is required. |
 | **Secret exposure to LLM** | Hermes' LLM could see Infisical secrets during .env construction | Hermes reads secrets from Infisical via service token (server-side); the LLM only sees the secret names, not values, when constructing .env files. Secret values are injected directly into the sandbox environment via `env_passthrough`, not through the prompt |
 | **State corruption on concurrent writes** | Multiple platforms (WhatsApp + Discord + WebUI) hitting same session store | Hermes uses SQLite with FTS5 and atomic writes with contention handling — designed for multi-surface concurrency from day one |
-| **Container resource exhaustion** | Multiple subagents + Hermes gateway + WebUI + existing services | Instance has **12 GB RAM** (VM.Standard.A1.Flex, 2 OCPU). Container limits: `container_cpu: 1`, `container_memory: 5120` (default). Subagent sandboxes have PID limits (256). **⚠️ Disk is the bottleneck**: 30GB boot volume at 96%. Log rotation via `logrotate` for `~/.hermes/sessions/`, `~/.hermes/logs/`, and Docker logs needed before deployment. Consider boot volume resize (OCI allows up to 200GB free tier) |
+| **Container resource exhaustion** | Multiple subagents + Hermes gateway + WebUI + existing services | Instance has **12 GB RAM** (VM.Standard.A1.Flex, 2 OCPU). Container limits: `container_cpu: 1`, `container_memory: 5120` (default). Subagent sandboxes have PID limits (256). **✅ Disk fixed**: 30GB → 83GB root via growpart + lvextend + xfs_growfs. Log rotation via `logrotate` for `~/.hermes/sessions/`, `~/.hermes/logs/`, and Docker logs needed before deployment |
 | **Pipeline rollback without affecting other services** | Hermes crashes or enters bad state post-deploy | Systemd `restart=always` handles crashes. To revert: deploy.sh uninstalls/reinstalls Hermes from fresh. `~/.hermes/` backed up before destructive operations. Docker services (Infisical, Hindsight) are unaffected since Hermes runs on the host, not in a container |
 
 ### 3.5 Required Secrets (New)
@@ -346,8 +346,7 @@ Sandbox containers (get only what they need)
 ## 5. Implementation Plan (High-Level)
 
 ### Phase 1: Infrastructure Preparation
-- [ ] Add LVM disk extension to `cloud-init.yaml` (fresh instance — growpart + lvextend)
-- [ ] Add LVM disk extension to `deploy.sh` (existing instance — idempotent check)
+- [x] Add LVM disk extension to `cloud-init.yaml` + `deploy.sh` (growpart + lvextend + `xfs_growfs`). ✅ Verified: root 30GB→83GB, 96%→35%
 - [ ] Add Hermes install + systemd setup to `deploy.sh` (hermes gateway install --system)
 - [ ] Add Hermes secrets schema to `deploy.sh` (.env template for ~/.hermes/.env)
 - [ ] Add Hermes secrets to GitHub Secrets workflow (`deploy.yml` env block)
@@ -421,7 +420,7 @@ Sandbox containers (get only what they need)
 | Gap | Resolution |
 |---|---|
 | **LLM provider** | **OpenCode Go** (same as local Kilo) — `https://opencode.ai/zen/go/v1` with existing API key |
-| **OCI instance sizing** | **12 GB RAM** (VM.Standard.A1.Flex, 2 OCPU) — verified from OpenTofu. Disk: 100GB boot volume but Oracle Linux LVM allocates only ~44.5GB. Fix in cloud-init.yaml (growpart + lvextend) and deploy.sh (idempotent check for existing instances) |
+| **OCI instance sizing** | **12 GB RAM** (VM.Standard.A1.Flex, 2 OCPU) — verified from OpenTofu. Disk: 100GB boot volume but Oracle Linux LVM allocates only ~44.5GB. Fix in cloud-init.yaml (growpart + lvextend + xfs_growfs) and deploy.sh (idempotent check for existing instances). Result: 83GB root, 35% usage |
 | **Tailscale Funnel status** | **✅ Already active** — `:443` → Caddy (`localhost:8080`), `:8443` → Infisical (`localhost:8081`). Verified via `tailscale funnel status` |
 | **WhatsApp phone number** | **Dedicated bot number** (Google Voice or prepaid SIM) |
 | **Discord server/bot** | **Postponed** — logged as future work |
