@@ -639,9 +639,20 @@ SERVEOF
      sudo systemctl enable --now hermes-webui 2>&1
      echo '[hermes-webui] Service installed and started'
    else
-     sudo systemctl restart hermes-webui 2>/dev/null || true
-     echo '[hermes-webui] Service restarted'
-   fi"
+      sudo systemctl restart hermes-webui 2>/dev/null || true
+      echo '[hermes-webui] Service restarted'
+    fi
+    # Set default model in WebUI settings
+    python3 -c 'import json, os; sp="/home/opc/.hermes/webui/settings.json"; d={}
+if os.path.exists(sp):
+    try:
+        with open(sp) as f: d = json.load(f)
+    except: pass
+d["default_model"] = "opencodego/deepseek-v4-flash"
+d["default_provider"] = "opencode-go"
+with open(sp, "w") as f: json.dump(d, f, indent=2)
+print("WebUI default model set")' 2>/dev/null || true
+    echo '[hermes-webui] Default model configured'"
 
 # --- Ensure Hermes WebUI Funnel on :8787 -> localhost:8888 ---
 HERMES_PORT="8787"
