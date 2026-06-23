@@ -481,26 +481,30 @@ if [ "$HINDSIGHT_DATA_EXISTS" = "true" ]; then
   echo "[DEPLOY][backup] Creating Hindsight data backup (${BACKUP_TS})..."
   ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     "${SSH_HOST}" \
-    "sudo mkdir -p ${BACKUP_DIR} && \
-     sudo docker exec hindsight sh -c 'tar czf /tmp/hindsight-backup-${BACKUP_TS}.tar.gz -C /home/hindsight .pg0' && \
-     sudo docker cp hindsight:/tmp/hindsight-backup-${BACKUP_TS}.tar.gz ${BACKUP_DIR}/ && \
-     sudo docker exec hindsight rm /tmp/hindsight-backup-${BACKUP_TS}.tar.gz && \
-     # Keep only last 10 backups
-     ls -1t ${BACKUP_DIR}/*.tar.gz 2>/dev/null | tail -n +11 | xargs -r rm -f && \
-     echo '[DEPLOY][backup] Done'"
+     "sudo mkdir -p ${BACKUP_DIR} && \
+      sudo docker exec hindsight sh -c 'tar czf /tmp/hindsight-backup-${BACKUP_TS}.tar.gz -C /home/hindsight .pg0' && \
+      sudo docker cp hindsight:/tmp/hindsight-backup-${BACKUP_TS}.tar.gz ${BACKUP_DIR}/ && \
+      sudo docker exec hindsight rm /tmp/hindsight-backup-${BACKUP_TS}.tar.gz && \
+      ls -1t ${BACKUP_DIR}/*.tar.gz 2>/dev/null | tail -n +11 | xargs -r rm -f && \
+      echo '[DEPLOY][backup] Done'"
 else
   # Try to restore from latest backup (volume was wiped or fresh deploy)
   LATEST_BACKUP=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     "${SSH_HOST}" "ls -1t ${BACKUP_DIR}/*.tar.gz 2>/dev/null | head -1" 2>/dev/null || echo "")
   if [ -n "$LATEST_BACKUP" ]; then
     echo "[DEPLOY][restore] Restoring Hindsight from backup: $(basename ${LATEST_BACKUP})..."
-    ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-      "${SSH_HOST}" \
-      "sudo mkdir -p /tmp/hindsight-restore && \
-       sudo tar xzf ${LATEST_BACKUP} -C /tmp/hindsight-restore && \
-       sudo cp -a /tmp/hindsight-restore/.pg0/* $(sudo docker inspect hindsight --format '{{range .Mounts}}{{if eq .Destination \"/home/hindsight/.pg0\"}}{{.Source}}{{end}}{{end}}' 2>/dev/null)/ && \
-       sudo rm -rf /tmp/hindsight-restore && \
-       echo '[DEPLOY][restore] Done'"
+    # Determine Hindsight data volume path on the host
+    HINDSIGHT_VOL=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+      "${SSH_HOST}" "sudo docker inspect hindsight --format '{{range .Mounts}}{{if eq .Destination \"/home/hindsight/.pg0\"}}{{.Source}}{{end}}{{end}}'" 2>/dev/null || echo "")
+    if [ -n "$HINDSIGHT_VOL" ]; then
+      ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+        "${SSH_HOST}" \
+        "sudo tar xzf ${LATEST_BACKUP} -C /tmp/hindsight-restore && \
+         sudo cp -a /tmp/hindsight-restore/.pg0/* ${HINDSIGHT_VOL}/ && \
+         sudo rm -rf /tmp/hindsight-restore && \
+         echo '[DEPLOY][restore] Done'"
+    else
+      echo "[DEPLOY][restore] WARNING: Could not find Hindsight data volume"
   else
     echo "[DEPLOY][backup] No Hindsight data running and no backup found — skipping restore"
   fi
