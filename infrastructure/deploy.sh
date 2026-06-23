@@ -408,6 +408,12 @@ if [ -f "$SOUL_FILE" ]; then
   echo "[DEPLOY] Hermes SOUL.md synced."
 fi
 
+# --- Remove default SOUL.md template (solo debe existir nuestro custom SOUL.md) ---
+ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  "${SSH_HOST}" \
+  "sudo rm -f /usr/local/lib/hermes-agent/docker/SOUL.md && \
+   echo '[hermes] Default SOUL.md template removed'"
+
 # --- Sync Hermes skills (including kilo-code skill) ---
 SKILLS_SRC="$(dirname "${COMPOSE_FILE}")/hermes-skills"
 if [ -d "$SKILLS_SRC" ]; then
