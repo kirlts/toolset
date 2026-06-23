@@ -302,7 +302,79 @@ echo "[DEPLOY] Generating dynamic landing page..."
 echo "$LANDING_HTML" | ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   "${SSH_HOST}" "sudo tee ${REMOTE_DIR}/landing/index.html > /dev/null"
 
-# --- Ensure Tailscale Funnel points to Caddy (multi-service proxy) ---
+# --- Transfer kilo.jsonc for VPS Kilo CLI config ---
+KILO_CONFIG_DIR="$(dirname "${COMPOSE_FILE}")"
+KILO_CONFIG="${KILO_CONFIG_DIR}/kilo.jsonc"
+if [ -f "$KILO_CONFIG" ]; then
+  echo "[DEPLOY] Transferring kilo.jsonc..."
+  scp -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    "$KILO_CONFIG" "${SSH_HOST}:/tmp/kilo.jsonc"
+  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    "${SSH_HOST}" \
+    "mkdir -p /home/opc/.config/kilo && sudo cp /tmp/kilo.jsonc /home/opc/.config/kilo/kilo.jsonc"
+  echo "[DEPLOY] kilo.jsonc transferred."
+else
+  echo "[DEPLOY] WARNING: kilo.jsonc not found at $KILO_CONFIG"
+fi
+
+# --- Write ~/.hermes/.env on remote (idempotent, only if missing) ---
+HERMES_DIR="${HOME}/.hermes"
+echo "[DEPLOY] Checking Hermes .env status..."
+HERMES_ENV_EXISTS=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  "${SSH_HOST}" \
+  "[ -f ${HERMES_DIR}/.env ] && echo yes || echo no" 2>&1)
+if [ "$HERMES_ENV_EXISTS" = "no" ]; then
+  echo "[DEPLOY] Writing Hermes .env..."
+  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    "${SSH_HOST}" \
+    "sudo mkdir -p ${HERMES_DIR} && sudo tee ${HERMES_DIR}/.env > /dev/null" <<HERMESENV
+HERMES_LLM_PROVIDER=${HERMES_LLM_PROVIDER:-opencodego}
+HERMES_LLM_MODEL=${HERMES_LLM_MODEL:-deepseek-v4-flash}
+HERMES_LLM_BASE_URL=https://opencode.ai/zen/go/v1
+HERMES_WEBUI_PASSWORD=${HERMES_WEBUI_PASSWORD:-}
+HERMES_WHATSAPP_MODE=${HERMES_WHATSAPP_MODE:-bot}
+WHATSAPP_ALLOWED_USERS=${WHATSAPP_ALLOWED_USERS:-}
+HERMESENV
+else
+  echo "[DEPLOY] Hermes .env exists. Skipping rewrite."
+fi
+
+# --- Hermes Agent + Kilo CLI install (idempotent) ---
+HERMES_LOG="/var/log/hermes-bootstrap.log"
+echo "[DEPLOY] Setting up Hermes Agent + Kilo CLI..."
+ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  "${SSH_HOST}" \
+  "export OPENCODE_GO_API_KEY=${OPENCODE_GO_API_KEY}; \
+   export COMPOSIO_API_KEY=${COMPOSIO_API_KEY:-}; \
+   \
+   # ---- Install Node.js if missing (needed for npm/Kilo CLI) ----
+   if ! command -v node &>/dev/null; then
+     echo '[hermes] Installing Node.js...' | sudo tee -a ${HERMES_LOG}
+     sudo dnf module enable -y nodejs:20 2>/dev/null
+     sudo dnf install -y nodejs 2>&1 | tail -1
+   fi
+   \
+   # ---- Install Kilo CLI if missing ----
+   if ! command -v kilo &>/dev/null; then
+     echo '[hermes] Installing Kilo CLI...' | sudo tee -a ${HERMES_LOG}
+     sudo npm install -g @kilocode/cli 2>&1 | tail -3
+   fi
+   \
+   # ---- Install Hermes if missing ----
+   if ! command -v hermes &>/dev/null; then
+     echo '[hermes] Installing Hermes Agent...' | sudo tee -a ${HERMES_LOG}
+     curl -fsSL https://hermes-agent.nousresearch.com/install.sh | sudo bash 2>&1 | sudo tee -a ${HERMES_LOG}
+   fi
+   \
+   # ---- Setup systemd for Hermes gateway ----
+   if ! systemctl is-enabled hermes &>/dev/null 2>&1; then
+     echo '[hermes] Enabling Hermes systemd service...' | sudo tee -a ${HERMES_LOG}
+     hermes gateway install --system 2>&1 | sudo tee -a ${HERMES_LOG}
+   fi
+   sudo systemctl enable hermes 2>/dev/null
+   sudo systemctl restart hermes 2>/dev/null || true"
+
+echo "[DEPLOY] Hermes + Kilo setup complete."
 FUNNEL_TARGET="http://localhost:8080"
 echo "[DEPLOY] Ensuring Tailscale Funnel -> Caddy (${FUNNEL_TARGET})..."
 CURRENT_FUNNEL=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
@@ -333,6 +405,19 @@ else
     "${SSH_HOST}" "sudo tailscale funnel --bg --https=${INFISICAL_PORT} http://localhost:8081 2>&1" | sed 's/^/  /'
 fi
 
+# --- Ensure Hermes WebUI Funnel on :8787 ---
+HERMES_PORT="8787"
+echo "[DEPLOY] Ensuring Hermes WebUI Funnel on :${HERMES_PORT} -> localhost:${HERMES_PORT}..."
+HAS_HERMES=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  "${SSH_HOST}" "sudo tailscale funnel status 2>&1" | grep -c ":${HERMES_PORT}" || true)
+if [ "$HAS_HERMES" -gt 0 ]; then
+  echo "[DEPLOY] Hermes WebUI Funnel already configured on :${HERMES_PORT}"
+else
+  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    "${SSH_HOST}" "sudo tailscale funnel --bg --https=${HERMES_PORT} http://localhost:${HERMES_PORT} 2>&1" | sed 's/^/  /'
+  echo "[DEPLOY] Hermes WebUI Funnel configured on :${HERMES_PORT}"
+fi
+
 # --- Post-deploy summary ---
 echo ""
 echo "============================================"
@@ -349,6 +434,11 @@ echo "  ── Services ──────────────────�
   echo "  Hindsight CP     https://${CADDY_DOMAIN}/dashboard"
   echo "  Hindsight MCP    https://${CADDY_DOMAIN}/hindsight/mcp/"
   echo "  API Docs         https://${CADDY_DOMAIN}/hindsight/docs"
+  echo "  Hermes WebUI     https://${CADDY_DOMAIN}:8787/"
+echo ""
+echo "  ── CLI Tools (VPS) ───────────────────────"
+  echo "  Kilo CLI         $(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "${SSH_HOST}" "kilo --version 2>/dev/null || echo 'not installed'" 2>/dev/null || echo 'not installed')"
+  echo "  Hermes Agent     $(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "${SSH_HOST}" "hermes --version 2>/dev/null || echo 'not installed'" 2>/dev/null || echo 'not installed')"
 echo ""
 echo "  ── Internal (via Tailscale) ──────────────"
   echo "  Hindsight API    http://100.77.183.125:8888 (via Funnel: /hindsight/*)"

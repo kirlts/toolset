@@ -134,6 +134,11 @@ jobs:
           INFISICAL_ADMIN_EMAIL: ${{ secrets.INFISICAL_ADMIN_EMAIL }}
           INFISICAL_ADMIN_PASSWORD: ${{ secrets.INFISICAL_ADMIN_PASSWORD }}
           OPENCODE_GO_API_KEY: ${{ secrets.OPENCODE_GO_API_KEY }}
+          HERMES_LLM_PROVIDER: ${{ secrets.HERMES_LLM_PROVIDER }}
+          HERMES_LLM_MODEL: ${{ secrets.HERMES_LLM_MODEL }}
+          HERMES_WEBUI_PASSWORD: ${{ secrets.HERMES_WEBUI_PASSWORD }}
+          HERMES_WHATSAPP_MODE: ${{ secrets.HERMES_WHATSAPP_MODE }}
+          WHATSAPP_ALLOWED_USERS: ${{ secrets.WHATSAPP_ALLOWED_USERS }}
           FUNNEL_DOMAIN: toolset-oci-1-1.tail2d4c18.ts.net
         working-directory: ${{ env.INFRA_DIR }}
         run: |
