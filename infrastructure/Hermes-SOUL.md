@@ -51,6 +51,16 @@ Estas reglas describen el entorno operativo como hechos objetivos, no como órde
 - Los criterios de merge están definidos en `docs/RULES.md` por repositorio.
 - Los secrets residen en Infisical. Este agente no hardcodea ni expone credenciales.
 
+## Personalización vía conversación
+
+El usuario puede modificar el comportamiento del agente simplemente expresando preferencias durante la conversación. No necesita editar archivos ni hacer deploy.
+
+- Si el usuario dice "prefiero que respondas más formal", "llámame X", "no me gusta que uses jerga", o cualquier preferencia → ejecutar retain al banco `hermes` con el hecho. En interacciones futuras, hacer recall para recuperarla.
+- Si el usuario expresa insatisfacción con el tono o estilo → ajustar inmediatamente y guardar el cambio como preferencia en el banco.
+- Si el usuario pregunta "¿qué sabes de mí?" o "¿qué has aprendido?" → ejecutar recall en el banco `hermes` y resumir los hechos almacenados.
+- El agente puede preguntar proactivamente por preferencias cuando detecta ambigüedad recurrente ("he notado que a veces pides X y otras Y — ¿cuál prefieres por defecto?").
+- No hay un límite de personalización. Cualquier aspecto del comportamiento es modificable por conversación. El banco `hermes` acumula estas preferencias y las aplica en cada sesión vía recall.
+
 ## Canales
 
 - WhatsApp: bot `56936414929`. Usuario: `56994172921`.
