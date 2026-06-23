@@ -72,26 +72,31 @@
         reverse_proxy hindsight:8888
     }
 
-    # Service directory/landing page
+    # Health endpoint (always routes to Hindsight API, no Infisical dependency)
+    handle /health {
+        reverse_proxy hindsight:8888
+    }
+
+    # Infisical API (non-blocking — CP /api/banks/* and /api/version matched first)
+    handle /api/* {
+        reverse_proxy infisical:8080
+    }
+
+    # Service directory / status page (alias for landing page at root)
     handle /status/* {
+        uri strip_prefix /status
         root * /usr/share/caddy/landing
         try_files {path} index.html
         file_server
     }
     handle /status {
-        rewrite * /status/
-        uri strip_prefix /status
-        root * /usr/share/caddy/landing
-        file_server
+        redir /status/ 308
     }
 
-    # Health endpoint (always routes to Hindsight API)
-    handle /health {
-        reverse_proxy hindsight:8888
-    }
-
-    # Everything else → Infisical (catch-all: /api/v1/admin/*, /api/v1/auth/*, etc.)
+    # Everything else — landing page (not Infisical catch-all)
     handle {
-        reverse_proxy infisical:8080
+        root * /usr/share/caddy/landing
+        try_files {path} index.html
+        file_server
     }
 }

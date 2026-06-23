@@ -42,11 +42,11 @@ for var in "${REQUIRED_VARS[@]}"; do
 done
 [ "$MISSING" -eq 1 ] && exit 1
 
-# --- Write .env on remote (skip if server healthy, avoid recreating Infisical) ---
+# --- Write .env on remote (only if missing — never recreate on health) ---
 echo "[DEPLOY] Checking .env status..."
 ENV_NEEDS_WRITE=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   "${SSH_HOST}" \
-  "[ ! -f ${REMOTE_DIR}/.env ] && echo yes || sudo docker compose -f ${REMOTE_DIR}/docker-compose.yml ps --format '{{.Health}}' 2>/dev/null | grep -q 'unhealthy' && echo yes || echo no" 2>&1)
+  "[ ! -f ${REMOTE_DIR}/.env ] && echo yes || echo no" 2>&1)
 if [ "$ENV_NEEDS_WRITE" = "yes" ]; then
   echo "[DEPLOY] Writing .env on remote server..."
   ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
@@ -58,6 +58,7 @@ INFISICAL_DB_PASSWORD=${INFISICAL_DB_PASSWORD}
 INFISICAL_DB_USER=infisical
 INFISICAL_DB_NAME=infisical
 INFISICAL_SITE_URL=http://toolset-oci:8081
+DB_CONNECTION_URI=postgresql://${INFISICAL_DB_USER:-infisical}:${INFISICAL_DB_PASSWORD:-infisical}@postgres:5432/${INFISICAL_DB_NAME:-infisical}
 OPENCODE_GO_API_KEY=${OPENCODE_GO_API_KEY}
 HINDSIGHT_API_LLM_PROVIDER=openai
 HINDSIGHT_API_LLM_MODEL=deepseek-v4-flash
@@ -65,7 +66,7 @@ HINDSIGHT_API_LLM_BASE_URL=https://opencode.ai/zen/go/v1
 FUNNEL_DOMAIN=${FUNNEL_DOMAIN:-toolset-oci-1-1.tail2d4c18.ts.net}
 ENVEOF
 else
-  echo "[DEPLOY] Server healthy. Skipping .env rewrite (preserves Infisical keys)."
+  echo "[DEPLOY] .env exists. Skipping rewrite."
 fi
 
 # --- Transfer Caddyfile (must precede compose up) ---
@@ -95,10 +96,10 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   "${SSH_HOST}" \
   "cd ${REMOTE_DIR} && sudo docker compose up -d --remove-orphans 2>&1" | sed 's/^/  [UP] /'
 
-# --- Verify critical services (healthchecks via Docker, no bash polling) ---
+# --- Verify critical services ---
 echo "[DEPLOY] Verifying critical services..."
 sleep 10
-CRITICAL="caddy hindsight postgres redis"
+CRITICAL="caddy hindsight"
 for svc in $CRITICAL; do
   STATUS=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     "${SSH_HOST}" \
@@ -148,6 +149,7 @@ LANDING_HTML=$(cat <<EOF
   .tree .pipe { color: #555; }
   .meta { margin-top: 2em; font-size: 0.85em; color: #888; border-top: 1px solid #333; padding-top: 1em; }
   code { background: #0f3460; padding: 0.1em 0.4em; border-radius: 4px; font-size: 0.9em; }
+  .warning { color: #cc6666; }
 </style>
 </head>
 <body>
@@ -155,26 +157,28 @@ LANDING_HTML=$(cat <<EOF
 <p>Servicios autogestionados en OCI (sa-valparaiso-1).</p>
 <div class="tree">
 <pre>
-  <span class="pipe">├──</span> <span class="path"><a href="/">/</a></span>                        <span class="desc">Infisical &mdash; Gestor de Secretos</span>    <span class="status">✅ 200</span>
+  <span class="pipe">├──</span> <span class="path"><a href="/">/</a></span>                        <span class="desc">Landing page &mdash; Toolset status</span>   <span class="status">✅ 200</span>
   <span class="pipe">├──</span> <span class="path"><a href="/hindsight/health">/hindsight/health</a></span>        <span class="desc">Hindsight &mdash; API Health</span>           <span class="status">✅ 200</span>
   <span class="pipe">├──</span> <span class="path"><a href="/hindsight/mcp/">/hindsight/mcp/</a></span>          <span class="desc">Hindsight &mdash; MCP (harnesses)</span>      <span class="status">✅ 200</span>
   <span class="pipe">├──</span> <span class="path"><a href="/hindsight/docs">/hindsight/docs</a></span>          <span class="desc">Hindsight &mdash; API Docs (Swagger)</span>   <span class="status">✅ 200</span>
-  <span class="pipe">└──</span> <span class="path"><a href="/dashboard">/dashboard</a></span>                <span class="desc">Hindsight &mdash; Control Plane</span>        <span class="status">✅ 200</span>
+  <span class="pipe">├──</span> <span class="path"><a href="/dashboard">/dashboard</a></span>                <span class="desc">Hindsight &mdash; Control Plane</span>        <span class="status">✅ 200</span>
+  <span class="pipe">└──</span> <span class="path"><a href="/api/v1/">/api/v1/</a></span>                  <span class="desc">Infisical &mdash; API (no UI)</span>          <span class="status">⚠️ unhealthy</span>
 </pre>
 </div>
 <p style="margin-top:1.5em;font-weight:bold;color:#f0c674;">🧠 Memory Banks</p>
 <div class="tree">
 <pre>
-  <span class="pipe">└──</span> <span class="path"><a href="/banks/toolset">/banks/toolset</a></span>              <span class="desc">toolset &mdash; banco actual</span>             <span class="status">✅ 128 facts</span>
+  <span class="pipe">└──</span> <span class="path"><a href="/banks/toolset">/banks/toolset</a></span>              <span class="desc">toolset &mdash; banco actual</span>             <span class="status">✅ online</span>
 </pre>
 </div>
 <p style="margin:0.5em 0 0 1.5em;color:#888;font-size:0.85em;">
-  Los banks se nombran segun el repositorio (<code>hindsight-&lt;project&gt;</code>).
-  Cada repositorio nuevo crea un bank automaticamente via MCP.
+  Los banks se nombran segun el repositorio (<code>hindsight-&lt;project&gt;</code>),
+  segun <code>docs/RULES.md</code>. Cada repositorio nuevo crea un bank automaticamente via MCP.
   Abre el <a href="/dashboard" style="color:#7ec8e3;">Control Plane</a> para ver todos los banks disponibles.
 </p>
 <div class="meta">
-  <p>MCP: <code>opencodego://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/mcp/</code></p>
+  <p>MCP: <code>opencodego://${CADDY_DOMAIN}/hindsight/mcp/</code></p>
+  <p>Gobernanza: <a href="https://github.com/kirlts/toolset/blob/main/docs/RULES.md" style="color:#7ec8e3;">docs/RULES.md</a></p>
   <p>Deploy: $(date -u +"%Y-%m-%d %H:%M UTC") &bull; OCI &bull; VM.Standard.A1.Flex &bull; ARM64</p>
 </div>
 </body>
@@ -203,7 +207,7 @@ echo "[DEPLOY] Checking for legacy Funnel :8443..."
 HAS_8443=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   "${SSH_HOST}" "sudo tailscale funnel status 2>&1" | grep -c "8443" || true)
 if [ "$HAS_8443" -gt 0 ]; then
-  echo "[DEPLOY] Removing legacy Funnel :8443... (Infisical ahora va por Caddy)"
+  echo "[DEPLOY] Removing legacy Funnel :8443..."
   ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     "${SSH_HOST}" "sudo tailscale funnel --https=8443 off 2>&1" | sed 's/^/  /'
 fi
@@ -217,8 +221,8 @@ echo ""
 echo "  Funnel URL:  https://${CADDY_DOMAIN}/"
 echo ""
 echo "  ── Services ──────────────────────────────"
-  echo "  Services         https://${CADDY_DOMAIN}/status/"
-  echo "  Infisical        https://${CADDY_DOMAIN}/"
+  echo "  Services         https://${CADDY_DOMAIN}/"
+  echo "  Infisical API    https://${CADDY_DOMAIN}/api/v1/"
   echo "  Hindsight API    https://${CADDY_DOMAIN}/hindsight/health"
   echo "  Hindsight CP     https://${CADDY_DOMAIN}/dashboard"
   echo "  Hindsight MCP    https://${CADDY_DOMAIN}/hindsight/mcp/"
@@ -227,7 +231,7 @@ echo ""
 echo "  ── Internal (via Tailscale) ──────────────"
   echo "  Hindsight API    http://100.77.183.125:8888 (via Funnel: /hindsight/*)"
   echo "  Hindsight CP     http://100.77.183.125:9999 (via Funnel: /dashboard)"
-  echo "  Infisical        http://100.77.183.125:8081 (via Funnel: /)"
+  echo "  Infisical        http://100.77.183.125:8081 (via Funnel: /api/v1/)"
 echo ""
 echo "  ── Docker Status ─────────────────────────"
 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
