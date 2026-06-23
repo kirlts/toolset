@@ -493,7 +493,6 @@ else
     "${SSH_HOST}" "ls -1t ${BACKUP_DIR}/*.tar.gz 2>/dev/null | head -1" 2>/dev/null || echo "")
   if [ -n "$LATEST_BACKUP" ]; then
     echo "[DEPLOY][restore] Restoring Hindsight from backup: $(basename ${LATEST_BACKUP})..."
-    # Determine Hindsight data volume path on the host
     HINDSIGHT_VOL=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
       "${SSH_HOST}" "sudo docker inspect hindsight --format '{{range .Mounts}}{{if eq .Destination \"/home/hindsight/.pg0\"}}{{.Source}}{{end}}{{end}}'" 2>/dev/null || echo "")
     if [ -n "$HINDSIGHT_VOL" ]; then
@@ -505,6 +504,7 @@ else
          echo '[DEPLOY][restore] Done'"
     else
       echo "[DEPLOY][restore] WARNING: Could not find Hindsight data volume"
+    fi
   else
     echo "[DEPLOY][backup] No Hindsight data running and no backup found — skipping restore"
   fi
