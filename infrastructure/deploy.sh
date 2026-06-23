@@ -113,6 +113,15 @@ if [ -f "$CADDYFILE" ]; then
   ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     "${SSH_HOST}" "sudo mv -f /tmp/Caddyfile ${REMOTE_DIR}/Caddyfile"
   echo "[DEPLOY] Caddyfile transferred (domain: ${CADDY_DOMAIN})"
+
+# --- Ensure docker-compose.yml is in sync (needed for extra_hosts, volumes, etc.) ---
+COMPOSE_SRC="$(dirname "${COMPOSE_FILE}")/docker-compose.yml"
+echo "[DEPLOY] Syncing docker-compose.yml..."
+scp -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  "$COMPOSE_SRC" "${SSH_HOST}:/tmp/docker-compose.yml"
+ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  "${SSH_HOST}" "sudo mv -f /tmp/docker-compose.yml ${REMOTE_DIR}/docker-compose.yml"
+echo "[DEPLOY] docker-compose.yml synced."
 else
   echo "[DEPLOY] WARNING: Caddyfile not found at $CADDYFILE"
 fi
