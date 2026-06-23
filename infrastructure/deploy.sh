@@ -420,15 +420,16 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
      curl -fsSL https://hermes-agent.nousresearch.com/install.sh | sudo bash 2>&1 | sudo tee -a ${HERMES_LOG}
    fi
    \
-   # ---- Setup systemd for Hermes gateway (idempotent) ----
+   # ---- Setup systemd for Hermes gateway (idempotent, non-interactive) ----
    export PATH="/usr/local/bin:/usr/local/lib/hermes-agent:\$PATH"
    if command -v hermes &>/dev/null; then
-     if ! systemctl is-enabled hermes &>/dev/null 2>&1; then
+     if ! systemctl is-enabled hermes-gateway &>/dev/null 2>&1; then
        echo '[hermes] Enabling Hermes systemd service...' | sudo tee -a ${HERMES_LOG}
-       sudo -E hermes gateway install --system 2>&1 | sudo tee -a ${HERMES_LOG}
+       printf 'Y\nY\n' | sudo /usr/local/bin/hermes gateway install --system 2>&1 | sudo tee -a ${HERMES_LOG}
+     else
+       echo '[hermes] Hermes systemd service already enabled' | sudo tee -a ${HERMES_LOG}
+       sudo systemctl restart hermes-gateway 2>/dev/null || true
      fi
-     sudo systemctl enable hermes 2>/dev/null
-     sudo systemctl restart hermes 2>/dev/null || true
    else
      echo '[hermes] WARNING: hermes command not found, skipping systemd setup' | sudo tee -a ${HERMES_LOG}
    fi"
