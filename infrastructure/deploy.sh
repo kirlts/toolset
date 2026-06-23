@@ -503,7 +503,7 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
       curl -fsSL https://hermes-agent.nousresearch.com/install.sh | sudo bash 2>&1 | sudo tee -a ${HERMES_LOG}
     fi
     # Ensure Whisper STT is installed (for WhatsApp voice message transcription)
-    pip install faster-whisper 2>/dev/null || true
+    /usr/local/lib/hermes-agent/venv/bin/pip install faster-whisper -q 2>/dev/null || true
     \
     # ---- Add opc to docker group for sandbox access ----
     sudo usermod -aG docker opc 2>/dev/null
