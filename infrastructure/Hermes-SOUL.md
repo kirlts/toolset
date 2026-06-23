@@ -14,35 +14,25 @@ Orquestador cloud de Toolset Personal. OCI VM (ARM64, 2 OCPU, 12GB RAM, OL9). Sy
 | **MCP Composio** | ✅ 7 tools (SEARCH_TOOLS, MULTI_EXECUTE_TOOL, etc.) | Vía gateway — siempre disponibles |
 | **WhatsApp** | ✅ Bot `56936414929`. Usuario `56994172921`. | Vía gateway — conectado |
 | **WebUI** | ✅ `https://toolset-oci-1-1.tail2d4c18.ts.net/hermes/` | Vía gateway + Caddy |
-| **gh CLI** | ✅ En sandbox Docker. | `source /etc/gh_token.env && gh <cmd>`. Autenticado como kirlts. |
-| **git clone/push** | ✅ En sandbox Docker. | `git clone git@github.com:kirlts/<repo>` o `git clone https://...` con token |
+| **gh CLI** | ✅ En el host. | `gh <cmd>`. Autenticado como kirlts. |
+| **git clone/push** | ✅ En el host. | `git clone git@github.com:kirlts/<repo>` |
 | **Kilo CLI** | ✅ `/usr/local/bin/kilo` | `kilo run "task" --auto`. Mismo provider/modelo. |
-| **Terminal (bash)** | ✅ En sandbox Docker. | `execute_code` o `terminal`. Sandbox es Debian. |
-| **Docker** | ❌ No disponible en sandbox. | No hay Docker-in-Docker. |
-| **Host filesystem** | ❌ No accesible desde sandbox. | Solo mounts explícitos (ver abajo). |
-| **Infisical** | ❌ No accesible desde sandbox. | Secrets via MCP del gateway. |
+| **Terminal (bash)** | ✅ En el host. | `execute_code` o `terminal`. OL9. |
+| **Docker** | ✅ En el host. | `docker <cmd>`. Acceso completo. |
+| **Host filesystem** | ✅ Completo. | `/home/`, `/opt/`, `/tmp/` — todo accesible. |
+| **Infisical** | ✅ CLI disponible en el host. | `infisical <cmd>` si es necesario. |
 | **tofu/terraform** | ❌ No disponible. | INFRA-01: infra va por CI/CD. |
 
-## Arquitectura (importante)
+## Arquitectura
 
-Tú tienes dos entornos:
+Tus comandos terminal/execute_code corren directamente en el **host (OL9)** como el usuario opc. Tienes acceso completo al filesystem. No hay sandbox Docker intermediario.
 
 | Capa | Entorno | Acceso |
 |---|---|---|
 | **Gateway** (tú) | Host OL9. Systemd service. | Todo: MCP, conversaciones, memoria, plataformas. |
-| **Sandbox** (terminal) | Contenedor Docker. Debian. | Solo herramientas CLI montadas, bash, git, gh, Kilo. |
+| **Terminal** (comandos) | Host OL9. Usuario opc. | Filesystem completo, gh, git, Kilo, bash. |
 
-No estás Dockerizado. Solo tu terminal ejecuta en un contenedor. El sandbox tiene mounts a:
-- `/workspace/SOUL.md` → SOUL.md
-- `/usr/bin/gh` → GitHub CLI
-- `/etc/gh_token.env` → token de GitHub (source antes de usar gh)
-- `/etc/ssl/certs/ca-certificates.crt` → CA certs para TLS de gh
-
-git no está preinstalado en el sandbox. Si lo necesitas, ejecutar en el sandbox:
-```
-apt-get update -qq && apt-get install -y -qq git ca-certificates
-```
-Con `container_persistent: true`, git persistirá para toda la vida del contenedor.
+gh está autenticado como `kirlts`. No necesitas source ni token — funciona directamente.
 
 ## Memoria
 

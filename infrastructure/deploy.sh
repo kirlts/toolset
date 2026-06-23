@@ -514,27 +514,7 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
    sudo chmod 644 /home/opc/.hermes/gh_token.env && \
    echo '[hermes] gh token file created'"
 
-# --- Build custom Hermes sandbox image (so containers have git, ca-certs) ---
-echo "[DEPLOY] Building Hermes sandbox image (toolset/hermes-sandbox:latest)..."
-DOCKERFILE_SRC="$(dirname "${COMPOSE_FILE}")/hermes-sandbox.Dockerfile"
-scp -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-  "$DOCKERFILE_SRC" "${SSH_HOST}:/tmp/hermes-sandbox.Dockerfile"
-ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-  "${SSH_HOST}" \
-  "docker images -q toolset/hermes-sandbox:latest 2>/dev/null || \
-   docker build -t toolset/hermes-sandbox:latest -f /tmp/hermes-sandbox.Dockerfile /tmp/ 2>&1 | tail -1; \
-   echo '[hermes] Custom sandbox image ready'; \
-   # Configure Hermes to use custom docker_image (first deploy or fresh)
-   grep -q 'toolset/hermes-sandbox' /home/opc/.hermes/config.yaml 2>/dev/null || \
-     hermes config set terminal.docker_image toolset/hermes-sandbox:latest 2>/dev/null || true; \
-   # If a Hermes sandbox container exists, install tools into it too
-   CID=\$(docker ps -q --filter label=hermes-agent=1 2>/dev/null | head -1); \
-   if [ -n \"\$CID\" ]; then \
-     echo \"[hermes] Upgrading existing container \${CID:0:12}...\"; \
-     docker exec \$CID apt-get update -qq 2>/dev/null && \
-     docker exec \$CID apt-get install -y -qq --no-install-recommends git ca-certificates 2>&1 | tail -2 || true; \
-   fi"
-
+ 
 # --- Hindsight bank backup/restore (resilience: bank data survives volume wipe) ---
 BACKUP_DIR="${REMOTE_DIR}/backups/hindsight"
 echo "[DEPLOY] Checking Hindsight bank backup..."
@@ -593,7 +573,7 @@ echo "[DEPLOY] Configuring Hermes runtime..."
 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   "${SSH_HOST}" \
   "export PATH=/usr/local/bin:/home/opc/.local/bin:\$PATH; \
-    hermes config set terminal.backend docker 2>/dev/null; \
+    hermes config set terminal.backend local 2>/dev/null; \
     hermes config set memory.provider hindsight 2>/dev/null; \
     hermes config set memory.hindsight.url 'https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/mcp/' 2>/dev/null; \
     hermes config set memory.hindsight.bank 'hermes' 2>/dev/null; \
@@ -611,16 +591,6 @@ cfg.setdefault('mcp_servers', {})
 # Model config: nested format for WebUI + CLI compatibility
 cfg['model'] = {'default': 'opencodego/deepseek-v4-flash', 'provider': 'opencode-go'}
 cfg['context_file_max_chars'] = 25000
-# Mount SOUL.md + gh CLI + token into Docker sandbox
-cfg.setdefault('terminal', {}).setdefault('docker_volumes', [])
-for vol in [
-    '/home/opc/.hermes/SOUL.md:/workspace/SOUL.md:ro',
-    '/usr/bin/gh:/usr/bin/gh:ro',
-    '/home/opc/.hermes/gh_token.env:/etc/gh_token.env:ro',
-    '/etc/pki/tls/certs/ca-bundle.crt:/etc/ssl/certs/ca-certificates.crt:ro',
-]:
-    if vol not in cfg['terminal']['docker_volumes']:
-        cfg['terminal']['docker_volumes'].append(vol)
 composio_key = os.environ.get('COMPOSIO_MCP_KEY', '${COMPOSIO_MCP_KEY:-}')
 if composio_key:
     cfg['mcp_servers']['composio'] = {
