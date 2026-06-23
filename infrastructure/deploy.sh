@@ -544,28 +544,7 @@ if [ "$HAS_HERMES_BANK" = "False" ]; then
 else
   echo "[DEPLOY] 'hermes' bank already exists"
 fi
-
-# --- Seed hermes bank with identity facts (only if empty — idempotent) ---
-echo "[DEPLOY] Checking if hermes bank needs initial seeding..."
-HERMES_FACTS=$(curl -s "https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/v1/default/banks" 2>/dev/null | python3 -c "import sys,json; print(sum(b.get('fact_count',0) for b in json.load(sys.stdin).get('banks',[]) if b.get('bank_id')=='hermes'))" 2>/dev/null || echo "0")
-if [ "$HERMES_FACTS" = "0" ]; then
-  echo "[DEPLOY] Seeding hermes bank with identity facts..."
-  SSH_SEED=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    "${SSH_HOST}" \
-    "curl -s -X POST 'http://127.0.0.1:8888/v1/default/banks/hermes/memories' \
-      -H 'Content-Type: application/json' \
-      -d '{\"items\":[
-        {\"content\":\"Hermes Agent identity: orchestrator agent for Toolset Personal, deployed on OCI VM ARM64 12GB RAM 2 OCPU.\",\"context\":\"identity\",\"fact_type\":\"world\"},
-        {\"content\":\"Hermes assigned memory bank: hermes in Hindsight. This is his personal bank.\",\"context\":\"memory\",\"fact_type\":\"world\"},
-        {\"content\":\"Hermes tools: Kilo CLI kilo run auto, gh CLI git PRs, git, Docker sandbox.\",\"context\":\"tools\",\"fact_type\":\"world\"},
-        {\"content\":\"Hermes user: Martin Gil 56994172921. WhatsApp bot: 56936414929.\",\"context\":\"user\",\"fact_type\":\"world\"},
-        {\"content\":\"Hermes rules: never tofu apply/destroy locally INFRA-01. Branch prefix hermes. Secrets via Infisical.\",\"context\":\"rules\",\"fact_type\":\"world\"}
-      ]}'" 2>/dev/null)
-  echo "$SSH_SEED" | python3 -c "import sys,json; d=json.load(sys.stdin); print(f'  Seeded {d.get(\"items_count\",0)} facts')" 2>/dev/null || echo "  Seeded hermes bank"
-else
-  echo "[DEPLOY] hermes bank already has $HERMES_FACTS facts — skipping seed"
-fi
-
+ 
 # --- Hermes runtime config (idempotent) ---
 echo "[DEPLOY] Configuring Hermes runtime..."
 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
