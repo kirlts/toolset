@@ -412,8 +412,16 @@ fi
 SKILLS_SRC="$(dirname "${COMPOSE_FILE}")/hermes-skills"
 if [ -d "$SKILLS_SRC" ]; then
   echo "[DEPLOY] Syncing Hermes skills..."
-  scp -q -r -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    "$SKILLS_SRC"/. "${SSH_HOST}:/tmp/hermes-skills/"
+  tar czf /tmp/hermes-skills.tar.gz -C "$(dirname "$SKILLS_SRC")" "$(basename "$SKILLS_SRC")" && \
+  scp -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    /tmp/hermes-skills.tar.gz "${SSH_HOST}:/tmp/" && \
+  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    "${SSH_HOST}" \
+    "sudo tar xzf /tmp/hermes-skills.tar.gz -C /home/opc/.hermes/skills/ && \
+     sudo chown -R opc:opc /home/opc/.hermes/skills/ && \
+     rm -f /tmp/hermes-skills.tar.gz && \
+     echo '[hermes] Skills synced'" && \
+  rm -f /tmp/hermes-skills.tar.gz
   ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     "${SSH_HOST}" \
     "sudo cp -r /tmp/hermes-skills/* /home/opc/.hermes/skills/ && \
