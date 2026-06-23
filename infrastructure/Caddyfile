@@ -7,12 +7,13 @@
 }
 
 :8080 {
-    # Hindsight Control Plane (Next.js SPA)
+    # Hindsight Control Plane (Next.js SPA — /dashboard, /_next/*)
     @cp_native path_regexp cp_native ^/(dashboard|_next)(/.*)?$
     handle @cp_native {
         reverse_proxy hindsight:9999
     }
-    # CP API routes
+
+    # CP API routes (must come before Infisical /api/*)
     handle /api/version {
         reverse_proxy hindsight:9999
     }
@@ -22,8 +23,26 @@
     handle /api/banks {
         reverse_proxy hindsight:9999
     }
+    handle /api/profile/* {
+        reverse_proxy hindsight:9999
+    }
+    handle /api/stats/* {
+        reverse_proxy hindsight:9999
+    }
+    handle /api/list {
+        reverse_proxy hindsight:9999
+    }
+    handle /api/recall {
+        reverse_proxy hindsight:9999
+    }
+    handle /api/reflect {
+        reverse_proxy hindsight:9999
+    }
+    handle /api/documents/* {
+        reverse_proxy hindsight:9999
+    }
 
-    # SPA fallback: /bank y /banks no tienen SSR en CP → servir shell de /dashboard
+    # SPA fallback: /bank y /banks → proxied directly to CP (no rewrite)
     handle /bank/* {
         handle /bank/api/* {
             uri strip_prefix /bank
@@ -34,12 +53,10 @@
             reverse_proxy hindsight:9999
         }
         handle {
-            rewrite * /dashboard
             reverse_proxy hindsight:9999
         }
     }
     handle /bank {
-        rewrite * /dashboard
         reverse_proxy hindsight:9999
     }
     handle /banks/* {
@@ -52,12 +69,10 @@
             reverse_proxy hindsight:9999
         }
         handle {
-            rewrite * /dashboard
             reverse_proxy hindsight:9999
         }
     }
     handle /banks {
-        rewrite * /dashboard
         reverse_proxy hindsight:9999
     }
 
@@ -77,12 +92,19 @@
         reverse_proxy hindsight:8888
     }
 
-    # Infisical API (non-blocking — CP /api/banks/* and /api/version matched first)
-    handle /api/* {
+    # Infisical API (CP-specific routes matched first above)
+    handle /api/status {
         reverse_proxy infisical:8080
     }
+    handle /api/v1/* {
+        reverse_proxy infisical:8080
+    }
+    # Catch-all /api/* — goes to CP (handles 404 gracefully, enables CP extensibility)
+    handle /api/* {
+        reverse_proxy hindsight:9999
+    }
 
-    # Service directory / status page (alias for landing page at root)
+    # Landing page at /status/ (file server, always works)
     handle /status/* {
         uri strip_prefix /status
         root * /usr/share/caddy/landing
@@ -93,7 +115,7 @@
         redir /status/ 308
     }
 
-    # Everything else — landing page (not Infisical catch-all)
+    # Root → landing page (not Infisical — avoids _next/* conflict with CP)
     handle {
         root * /usr/share/caddy/landing
         try_files {path} index.html

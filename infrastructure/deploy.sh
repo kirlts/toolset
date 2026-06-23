@@ -164,7 +164,7 @@ LANDING_HTML=$(cat <<EOF
   <span class="pipe">├──</span> <span class="path"><a href="/hindsight/mcp/">/hindsight/mcp/</a></span>          <span class="desc">Hindsight &mdash; MCP (harnesses)</span>      <span class="status">✅</span>
   <span class="pipe">├──</span> <span class="path"><a href="/hindsight/docs">/hindsight/docs</a></span>          <span class="desc">Hindsight &mdash; API Docs (Swagger)</span>   <span class="status">✅</span>
   <span class="pipe">├──</span> <span class="path"><a href="/dashboard">/dashboard</a></span>                <span class="desc">Hindsight &mdash; Control Plane</span>        <span class="status">✅</span>
-  <span class="pipe">└──</span> <span class="path"><a href="/api/status">/api/status</a></span>               <span class="desc">Infisical &mdash; API Health</span>           <span class="status">✅</span>
+  <span class="pipe">└──</span> <span class="path"><a href="/banks/toolset">/banks/toolset</a></span>              <span class="desc">toolset &mdash; bank details</span>             <span class="status">✅</span>
 </pre>
 </div>
 <p style="margin-top:1.5em;font-weight:bold;color:#f0c674;">🧠 Memory Banks</p>
@@ -180,6 +180,7 @@ LANDING_HTML=$(cat <<EOF
 </p>
 <div class="meta">
   <p>MCP: <code>opencodego://${CADDY_DOMAIN}/hindsight/mcp/</code></p>
+  <p>Infisical UI: <a href="http://100.77.183.125:8081" style="color:#7ec8e3;">http://100.77.183.125:8081</a> <span class="status">(Tailscale direct)</span></p>
   <p>Gobernanza: <a href="https://github.com/kirlts/toolset/blob/main/docs/RULES.md" style="color:#7ec8e3;">docs/RULES.md</a></p>
   <p>Deploy: $(date -u +"%Y-%m-%d %H:%M UTC") &bull; OCI &bull; VM.Standard.A1.Flex &bull; ARM64</p>
 </div>
