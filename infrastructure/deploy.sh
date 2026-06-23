@@ -231,8 +231,42 @@ if [ -n "$INFISICAL_TOKEN" ] && [ -n "$INFISICAL_PID" ]; then
   }
   sync_secret "dev" "OPENCODE_GO_API_KEY" "${OPENCODE_GO_API_KEY:-}"
   sync_secret "dev" "FUNNEL_DOMAIN" "${FUNNEL_DOMAIN:-}"
+  sync_secret "dev" "HERMES_LLM_PROVIDER" "${HERMES_LLM_PROVIDER:-}"
+  sync_secret "dev" "HERMES_LLM_MODEL" "${HERMES_LLM_MODEL:-}"
+  sync_secret "dev" "HERMES_WEBUI_PASSWORD" "${HERMES_WEBUI_PASSWORD:-}"
+  sync_secret "dev" "HERMES_WHATSAPP_MODE" "${HERMES_WHATSAPP_MODE:-}"
+  sync_secret "dev" "WHATSAPP_ALLOWED_USERS" "${WHATSAPP_ALLOWED_USERS:-}"
   sync_secret "prod" "OPENCODE_GO_API_KEY" "${OPENCODE_GO_API_KEY:-}"
   sync_secret "prod" "FUNNEL_DOMAIN" "${FUNNEL_DOMAIN:-}"
+  sync_secret "prod" "HERMES_LLM_PROVIDER" "${HERMES_LLM_PROVIDER:-}"
+  sync_secret "prod" "HERMES_LLM_MODEL" "${HERMES_LLM_MODEL:-}"
+  sync_secret "prod" "HERMES_WEBUI_PASSWORD" "${HERMES_WEBUI_PASSWORD:-}"
+  sync_secret "prod" "HERMES_WHATSAPP_MODE" "${HERMES_WHATSAPP_MODE:-}"
+  sync_secret "prod" "WHATSAPP_ALLOWED_USERS" "${WHATSAPP_ALLOWED_USERS:-}"
+  echo "[DEPLOY] All secrets synced to Infisical (dev + prod)."
+
+  # --- Reverse sync: Infisical → GitHub Secrets ---
+  # Hermes may create new secrets in Infisical at runtime. This detects them
+  # and flags them for sync back to GitHub, keeping the repo as source of truth.
+  echo "[DEPLOY] Checking for new Hermes-created secrets in Infisical..."
+  INFISICAL_RAW=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    "${SSH_HOST}" \
+    "sudo docker exec -i infisical sh -c 'curl -s \"http://localhost:8080/api/v3/secrets?workspaceId=${INFISICAL_PID}&environment=dev\" -H \"Authorization: Bearer ${INFISICAL_TOKEN}\"'" 2>/dev/null)
+  echo "$INFISICAL_RAW" | python3 -c "
+import sys, json
+try:
+    data = json.load(sys.stdin)
+    for s in data.get('secrets', []):
+        key = s.get('secretKey', '')
+        val = s.get('secretValue', '')
+        # Flag secrets that Hermes/Nous created (not from this deploy)
+        if key.startswith('HERMES_') or key.startswith('WHATSAPP_'):
+            gh_key = 'SECRET_' + key
+            print(f'  [{key}] exists in Infisical. If not in GitHub Secrets, run:')
+            print(f'    gh secret set {key} --body \"{val[:16]}...\" --repo kirlts/toolset')
+except Exception as e:
+    print(f'  [Infisical->GitHub] Error: {e}')
+" 2>/dev/null || echo "  [Infisical→GitHub] Could not read secrets"
 elif [ -n "$INFISICAL_SERVICE_TOKEN" ]; then
   echo "[DEPLOY] INFISICAL_SERVICE_TOKEN set but could not resolve project"
 else
