@@ -323,7 +323,8 @@ LANDING_HTML=$(cat <<EOF
   <span class="pipe">├──</span> <span class="path"><a href="/hindsight/mcp/">/hindsight/mcp/</a></span>          <span class="desc">Hindsight &mdash; MCP (harnesses)</span>      <span class="status">✅</span>
   <span class="pipe">├──</span> <span class="path"><a href="/hindsight/docs">/hindsight/docs</a></span>          <span class="desc">Hindsight &mdash; API Docs (Swagger)</span>   <span class="status">✅</span>
   <span class="pipe">├──</span> <span class="path"><a href="/dashboard">/dashboard</a></span>                <span class="desc">Hindsight &mdash; Control Plane</span>        <span class="status">✅</span>
-  <span class="pipe">└──</span> <span class="path"><a href="/banks/toolset">/banks/toolset</a></span>              <span class="desc">toolset &mdash; bank details</span>             <span class="status">✅</span>
+  <span class="pipe">├──</span> <span class="path"><a href="https://${CADDY_DOMAIN}:8443/">:8443/</a></span>                  <span class="desc">Infisical UI &mdash; Funnel</span>            <span class="status">✅</span>
+  <span class="pipe">└──</span> <span class="path"><a href="https://${CADDY_DOMAIN}:8787/">:8787/</a></span>                  <span class="desc">Hermes WebUI &mdash; Interface</span>         <span class="status">✅</span>
 </pre>
 </div>
 <p style="margin-top:1.5em;font-weight:bold;color:#f0c674;">🧠 Memory Banks</p>
@@ -340,6 +341,7 @@ LANDING_HTML=$(cat <<EOF
 <div class="meta">
   <p>MCP: <code>opencodego://${CADDY_DOMAIN}/hindsight/mcp/</code></p>
   <p>Infisical UI: <a href="https://${CADDY_DOMAIN}:8443/" style="color:#7ec8e3;">https://${CADDY_DOMAIN}:8443/</a> <span class="status">(Funnel)</span></p>
+  <p>Hermes WebUI: <a href="https://${CADDY_DOMAIN}:8787/" style="color:#7ec8e3;">https://${CADDY_DOMAIN}:8787/</a> <span class="status">(Funnel)</span></p>
   <p>Gobernanza: <a href="https://github.com/kirlts/toolset/blob/main/docs/RULES.md" style="color:#7ec8e3;">docs/RULES.md</a></p>
   <p>Deploy: $(date -u +"%Y-%m-%d %H:%M UTC") &bull; OCI &bull; VM.Standard.A1.Flex &bull; ARM64</p>
 </div>
