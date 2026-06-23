@@ -131,6 +131,8 @@ jobs:
           INFISICAL_AUTH_SECRET: ${{ secrets.INFISICAL_AUTH_SECRET }}
           INFISICAL_DB_PASSWORD: infisical
           INFISICAL_SERVICE_TOKEN: ${{ secrets.INFISICAL_SERVICE_TOKEN }}
+          INFISICAL_ADMIN_EMAIL: ${{ secrets.INFISICAL_ADMIN_EMAIL }}
+          INFISICAL_ADMIN_PASSWORD: ${{ secrets.INFISICAL_ADMIN_PASSWORD }}
           OPENCODE_GO_API_KEY: ${{ secrets.OPENCODE_GO_API_KEY }}
           FUNNEL_DOMAIN: toolset-oci-1-1.tail2d4c18.ts.net
         working-directory: ${{ env.INFRA_DIR }}

@@ -130,6 +130,23 @@ for svc in $CRITICAL; do
   if [ "$STATUS" = "healthy" ]; then echo "  ✅ $svc"; else echo "  ❌ $svc: $STATUS"; fi
 done
 
+# --- Bootstrap Infisical admin (safe, idempotent: fails 400 if exists) ---
+INFISICAL_ADMIN_EMAIL="${INFISICAL_ADMIN_EMAIL:-}"
+INFISICAL_ADMIN_PASSWORD="${INFISICAL_ADMIN_PASSWORD:-}"
+if [ -n "$INFISICAL_ADMIN_EMAIL" ] && [ -n "$INFISICAL_ADMIN_PASSWORD" ]; then
+  echo "[DEPLOY] Bootstrapping Infisical admin..."
+  BOOTSTRAP_RESP=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    "${SSH_HOST}" \
+    "sudo docker exec -i infisical sh -c 'curl -s -X POST \"http://localhost:8080/api/v1/admin/bootstrap\" -H \"Content-Type: application/json\" -d \"{\\\"email\\\":\\\"${INFISICAL_ADMIN_EMAIL}\\\",\\\"password\\\":\\\"${INFISICAL_ADMIN_PASSWORD}\\\",\\\"organization\\\":\\\"Admin Org\\\"}\"'" 2>&1)
+  if echo "$BOOTSTRAP_RESP" | grep -q "already been set up"; then
+    echo "  [Infisical] Admin already exists"
+  elif echo "$BOOTSTRAP_RESP" | grep -q "user"; then
+    echo "  [Infisical] Admin created successfully"
+  else
+    echo "  [Infisical] Bootstrap response: $(echo $BOOTSTRAP_RESP | head -c 100)"
+  fi
+fi
+
 # --- Sync secrets to Infisical (idempotent) ---
 INFISICAL_SERVICE_TOKEN="${INFISICAL_SERVICE_TOKEN:-}"
 if [ -n "$INFISICAL_SERVICE_TOKEN" ]; then
