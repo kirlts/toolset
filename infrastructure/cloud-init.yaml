@@ -125,7 +125,7 @@ write_files:
       growpart /dev/sda 3 2>/dev/null && echo "  partition extended" || echo "  partition already at max (or no free space)"
       pvresize /dev/sda3 2>/dev/null && echo "  PV resized" || true
       lvextend -l +100%FREE /dev/ocivolume/root 2>/dev/null && echo "  LV extended" || echo "  LV already at max"
-      resize2fs /dev/ocivolume/root 2>/dev/null && echo "  FS resized" || echo "  FS already at max"
+      xfs_growfs / 2>/dev/null && echo "  FS grown" || echo "  FS OK"
 
       # ---- Wait for any running dnf process ----
       while pgrep -x dnf > /dev/null 2>&1; do

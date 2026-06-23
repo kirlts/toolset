@@ -52,7 +52,7 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
    sudo growpart /dev/sda 3 2>/dev/null && echo '  partition extended' || echo '  partition OK'; \
    sudo pvresize /dev/sda3 2>/dev/null; \
    sudo lvextend -l +100%FREE /dev/ocivolume/root 2>/dev/null && echo '  LV extended' || echo '  LV OK'; \
-   sudo resize2fs /dev/ocivolume/root 2>/dev/null && echo '  FS resized' || echo '  FS OK'"
+   sudo xfs_growfs / 2>/dev/null && echo '  FS grown' || echo '  FS OK'"
 
 # --- Write .env on remote (only if missing — never recreate on health) ---
 echo "[DEPLOY] Checking .env status..."
