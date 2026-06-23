@@ -139,6 +139,7 @@ jobs:
           HERMES_WEBUI_PASSWORD: ${{ secrets.HERMES_WEBUI_PASSWORD }}
           HERMES_WHATSAPP_MODE: ${{ secrets.HERMES_WHATSAPP_MODE }}
           WHATSAPP_ALLOWED_USERS: ${{ secrets.WHATSAPP_ALLOWED_USERS }}
+          COMPOSIO_API_KEY: ${{ secrets.COMPOSIO_API_KEY }}
           FUNNEL_DOMAIN: toolset-oci-1-1.tail2d4c18.ts.net
         working-directory: ${{ env.INFRA_DIR }}
         run: |

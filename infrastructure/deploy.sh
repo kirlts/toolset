@@ -236,6 +236,7 @@ if [ -n "$INFISICAL_TOKEN" ] && [ -n "$INFISICAL_PID" ]; then
   sync_secret "dev" "HERMES_WEBUI_PASSWORD" "${HERMES_WEBUI_PASSWORD:-}"
   sync_secret "dev" "HERMES_WHATSAPP_MODE" "${HERMES_WHATSAPP_MODE:-}"
   sync_secret "dev" "WHATSAPP_ALLOWED_USERS" "${WHATSAPP_ALLOWED_USERS:-}"
+  sync_secret "dev" "COMPOSIO_API_KEY" "${COMPOSIO_API_KEY:-}"
   sync_secret "prod" "OPENCODE_GO_API_KEY" "${OPENCODE_GO_API_KEY:-}"
   sync_secret "prod" "FUNNEL_DOMAIN" "${FUNNEL_DOMAIN:-}"
   sync_secret "prod" "HERMES_LLM_PROVIDER" "${HERMES_LLM_PROVIDER:-}"
@@ -243,6 +244,7 @@ if [ -n "$INFISICAL_TOKEN" ] && [ -n "$INFISICAL_PID" ]; then
   sync_secret "prod" "HERMES_WEBUI_PASSWORD" "${HERMES_WEBUI_PASSWORD:-}"
   sync_secret "prod" "HERMES_WHATSAPP_MODE" "${HERMES_WHATSAPP_MODE:-}"
   sync_secret "prod" "WHATSAPP_ALLOWED_USERS" "${WHATSAPP_ALLOWED_USERS:-}"
+  sync_secret "prod" "COMPOSIO_API_KEY" "${COMPOSIO_API_KEY:-}"
   echo "[DEPLOY] All secrets synced to Infisical (dev + prod)."
 
   # --- Reverse sync: Infisical → GitHub Secrets ---
@@ -378,6 +380,7 @@ HERMES_LLM_MODEL=${HERMES_LLM_MODEL:-deepseek-v4-flash}
 HERMES_WEBUI_PASSWORD=${HERMES_WEBUI_PASSWORD:-}
 HERMES_WHATSAPP_MODE=${HERMES_WHATSAPP_MODE:-bot}
 WHATSAPP_ALLOWED_USERS=${WHATSAPP_ALLOWED_USERS:-}
+COMPOSIO_API_KEY=${COMPOSIO_API_KEY:-}
 HERMESENV
 echo "[DEPLOY] Hermes .env written."
 
