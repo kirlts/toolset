@@ -419,7 +419,7 @@ if [ -d "$SKILLS_SRC" ]; then
     "${SSH_HOST}" \
     "sudo mkdir -p /tmp/hermes-skills && \
      sudo tar xzf /tmp/hermes-skills.tar.gz -C /tmp/hermes-skills --strip-components=1 && \
-     sudo cp -r /tmp/hermes-skills/* /home/opc/.hermes/skills/ && \
+     sudo cp -r /tmp/hermes-skills/. /home/opc/.hermes/skills/ && \
      sudo chown -R opc:opc /home/opc/.hermes/skills/ && \
      sudo rm -rf /tmp/hermes-skills /tmp/hermes-skills.tar.gz && \
      echo '[hermes] Skills synced'" && \
