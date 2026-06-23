@@ -19,7 +19,7 @@ I will use Hermes as:
 
 ### 1.2 Boundaries (What Hermes is NOT)
 
-- **Not a replacement for Kilo** — Kilo Code (VS Code extension) runs on my local laptop and is my primary interactive coding harness. Hermes runs on the VPS and has access to the same OpenCode Go subscription, API key, and model set. The idea is to have the same LLM provider/model config available in both environments, not to replicate Kilo's editor integration. Hermes uses native subagents (`delegate_task`, terminal, Claude Code/Codex) for VPS-side work, not a Kilo subprocess.
+- **Not a replacement for Kilo (VS Code extension)** — The VS Code extension stays on my laptop for interactive in-editor work. Kilo Code CLI (`@kilocode/cli`) is installed on the VPS and used by Hermes as a coding subagent via `kilo run --auto`, sharing the same `~/.config/kilo/kilo.jsonc` config (OpenCode Go provider, MCPs, permissions).
 - **Not an infrastructure provisioner** — OpenTofu + CI/CD (`deploy.yml`) remains the sole authority for infrastructure mutations (per `[INFRA-01]`). Hermes doesn't modify its own running environment on the fly — changes go through infrastructure-as-code.
 - **Not a direct shell to production** — Hermes operates through sandboxed backends (Docker/Daytona/SSH), not by mutating the OCI instance directly.
 
@@ -56,8 +56,9 @@ Hermes bridges Fase 1 → Fase 2 with four distinct capabilities:
 
 ### 2.3 Why Hermes Specifically (vs Alternatives)
 
+- **Kilo Code CLI** (`@kilocode/cli`) is the preferred coding subagent — `kilo run --auto` on the VPS, sharing the same config as local Kilo. Autonomous mode, ACP server, session continuation.
+- **Claude Code / Codex** are alternatives if Kilo CLI is not the right fit for a specific task.
 - **Daytona/e2b rejected** for complexity — Hermes wraps them as backend options, not primary orchestration targets. You interact with Hermes; Hermes decides which backend to use.
-- **Claude Code / Codex** are excellent coding subagents but lack: persistent memory across projects, self-hosted cron, multi-platform messaging, and cross-session skill accumulation. Hermes can spawn either (or both) as subagents.
 - **OpenClaw** is the closest competitor but has documented stability regressions (Telegram broken across 2026 releases), skill marketplace security incidents (~20% of ClawHub flagged malicious), and is Node.js-based. Hermes is Python-native, writes skills automatically from experience, and has higher update stability.
 
 ---
@@ -207,7 +208,7 @@ Hermes:
   2. vision_analyze → processes the image
   3. Sends image back via WhatsApp (native image support)
         ↓
-Optional: route through Composio for email, Reddit post, etc.
+Can route through Composio for email, Reddit post, etc.
 ```
 
 **Multi-channel delivery**:
@@ -291,8 +292,8 @@ User → WhatsApp/Discord → Hermes (OpenCode Go LLM)
 - User: "Crea una feature branch `fix/auth-bug` y arregla el login"
 - Hermes:
   1. `git checkout -b fix/auth-bug`
-  2. Delegates implementation to Kilo (terminal subagent)
-  3. Runs tests
+  2. `kilo run "Fix the auth bug in /workspace/repo" --auto` (Kilo CLI subagent)
+  3. Runs tests via terminal
   4. `git add -A && git commit -m "fix: auth bug"` && `git push origin fix/auth-bug`
   5. `gh pr create --base main --title "Fix auth bug" --body "..."`
 
@@ -318,7 +319,7 @@ Sandbox containers (get only what they need)
 - Sandbox containers receive only the secrets required for their specific task
 - When Hermes adds a new secret to Infisical, a post-action hook adds it to GitHub Secrets for disaster recovery
 
-**CI/CD memory replication**: The deploy pipeline exports the `hermes` Hindsight bank + Hermes `~/.hermes/` directory → pushes to repo as a tracked artifact → on fresh instance, deploy.sh restores both before starting services.
+**CI/CD memory replication**: The deploy pipeline exports ALL Hindsight banks + Hermes `~/.hermes/` directory → pushes to repo as tracked artifacts → on fresh instance, deploy.sh restores all before starting services. Design goal: any `retain` call (from Hermes or Kilo) triggers auto-update of bank representations in the toolset repo, achieving "Ultron-style" full resilience.
 
 ### 4.7 Composio MCP Parity
 
