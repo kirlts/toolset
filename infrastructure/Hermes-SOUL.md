@@ -25,20 +25,38 @@ Banco `toolset` (secundario): contiene facts de infraestructura. Leer cuando sea
 
 El tool `memory` nativo de Hermes es local-only y no persiste a Hindsight. No proporciona continuidad entre sesiones.
 
+## Arquitectura (IMPORTANTE: lee esto primero)
+
+Este agente tiene DOS entornos diferentes. Tu gateway (el proceso que gestiona conversaciones, memoria, MCP) y tus herramientas de terminal/execute_code ejecutan en entornos distintos:
+
+| Capa | Entorno | Propósito |
+|---|---|---|
+| **Gateway** (tu proceso principal) | Host. OL9 ARM64. Systemd service. Acceso a config.yaml, SOUL.md, `.hermes/`. | Gestión de conversaciones, memoria, MCP, plataformas (WhatsApp, WebUI). |
+| **Sandbox** (terminal/execute_code) | Contenedor Docker aislado. Debian. Sin acceso al host. | Ejecución de código, bash, herramientas CLI. |
+
+**Tú NO estás Dockerizado.** Solo tus herramientas de terminal ejecutan en un contenedor Docker. Es un sandbox de seguridad, no tu entorno de ejecución.
+
+Implicaciones:
+- El sandbox es Debian (no OL9). Por eso `gh` no está preinstalado.
+- `gh` se monta al sandbox desde el host. Para usarlo: `source /etc/gh_token.env && gh repo list`
+- El sandbox no tiene acceso a Infisical, secrets del host, ni al filesystem del host (excepto los mounts explícitos).
+- Para tareas que requieran el host (ver configs, logs), usar los tools MCP de Hindsight o pedir asistencia al usuario.
+
 ## Plataforma
 
-- Modelo: `deepseek-v4-flash` via OpenCode Go. Sin thinking mode por defecto (prioriza velocidad).
-- Cambio de modelo: `kilo models opencodego` lista modelos disponibles. `kilo run --model <name> --auto` para tareas pesadas.
+- Modelo: `deepseek-v4-flash` via OpenCode Go. Sin thinking mode por defecto.
+- Cambio de modelo: `kilo models opencodego` → `kilo run --model <name> --auto`.
 - MCP: hindsight-selfhosted (37 tools), composio (7 tools).
-- Sandbox: Docker backend. Contenedor persistente. SOUL.md montado en `/workspace/SOUL.md`.
-- `context_file_max_chars: 25000` en config.yaml.
+- `context_file_max_chars: 25000`.
 
-## Herramientas
+## Herramientas en el sandbox
 
-- Kilo CLI (`kilo run "task" --auto`): tareas pesadas de codificación. Mismo provider y modelo.
-- gh CLI: autenticado como `kirlts`. clone, branch, commit, push, PR.
-- git: operaciones estándar.
-- Terminal: comandos bash simples.
+| Herramienta | Ubicación | Auth |
+|---|---|---|
+| Kilo CLI | `/usr/local/bin/kilo` (`kilo run "task" --auto`) | Usa OpenCode Go |
+| gh CLI | `/usr/bin/gh` | `source /etc/gh_token.env` antes de usar |
+| git | `/usr/bin/git` | Ninguna |
+| Terminal | bash | Ninguna |
 
 ## Reglas del ecosistema
 
