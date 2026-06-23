@@ -381,7 +381,8 @@ OPENCODE_GO_BASE_URL=https://opencode.ai/zen/go/v1
 HERMES_LLM_PROVIDER=${HERMES_LLM_PROVIDER:-opencodego}
 HERMES_LLM_MODEL=${HERMES_LLM_MODEL:-deepseek-v4-flash}
 HERMES_WEBUI_PASSWORD=${HERMES_WEBUI_PASSWORD:-}
-HERMES_WHATSAPP_MODE=${HERMES_WHATSAPP_MODE:-bot}
+# Gateway reads WHATSAPP_MODE (not HERMES_WHATSAPP_MODE)
+WHATSAPP_MODE=${HERMES_WHATSAPP_MODE:-bot}
 WHATSAPP_ALLOWED_USERS=${WHATSAPP_ALLOWED_USERS:-}
 WHATSAPP_ENABLED=true
 COMPOSIO_API_KEY=${COMPOSIO_API_KEY:-}
@@ -451,32 +452,53 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
    \
    # Hindsight memory provider
    hermes config set memory.provider hindsight 2>/dev/null; \
-   hermes config set memory.hindsight.url 'https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/mcp/' 2>/dev/null; \
-   hermes config set memory.hindsight.bank 'toolset' 2>/dev/null; \
-   \
-   # MCP servers (Composio + Hindsight) — idempotent via config.yaml rewrite
-   python3 -c \"
+    hermes config set memory.hindsight.url 'https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/mcp/' 2>/dev/null; \
+    hermes config set memory.hindsight.bank 'toolset' 2>/dev/null; \
+    \
+    # MCP servers (Hindsight only — Composio uses SDK-based session URLs, static endpoint deprecated)
+    python3 -c \"
 import yaml
 cfg_path = '/home/opc/.hermes/config.yaml'
 with open(cfg_path) as f:
     cfg = yaml.safe_load(f) or {}
 cfg.setdefault('mcp_servers', {})
-cfg['mcp_servers']['composio'] = {
-    'url': 'https://connect.composio.dev/mcp',
-    'headers': {'x-api-key': '${COMPOSIO_API_KEY:-}'}
-}
+# Remove stale composio MCP config (static URL with x-api-key no longer works with v3 API)
+cfg['mcp_servers'].pop('composio', None)
 cfg['mcp_servers']['hindsight-selfhosted'] = {
     'url': 'https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/mcp/'
 }
-with open(cfg_path, 'w') as f:
-    yaml.dump(cfg, f, default_flow_style=False)
-print('MCP servers configured')
-\" 2>/dev/null || echo 'MCP config skipped (pyyaml missing)'; \
-   \
-   echo '[hermes] Runtime config applied'; \
-   \
-   # Restart gateway to apply changes
-   sudo systemctl restart hermes-gateway 2>/dev/null && echo '[hermes] Gateway restarted'"
+# Generate fresh Composio MCP URL via SDK
+import subprocess, os
+# Only attempt if composio-core is installed
+mcp_result = subprocess.run(
+    ['python3', '-c', '''
+import os; os.environ.setdefault("COMPOSIO_API_KEY", os.environ.get("COMPOSIO_API_KEY", ""))
+try:
+    from composio import Composio
+    c = Composio()
+    e = c.get_entity("hermes")
+    # Get or create a connection for the MCP server
+    conn = e.initiate_connection("composio_search", use_default_auth=True)
+    print("MCP_SESSION_URL=" + conn.get("mcp_url", ""))
+    print("MCP_SESSION_KEY=" + conn.get("api_key", ""))
+except Exception as ex:
+    print("MCP_ERROR=" + str(ex))
+'''],
+    capture_output=True, text=True, timeout=30,
+    env={**os.environ, 'COMPOSIO_API_KEY': '${COMPOSIO_API_KEY:-}'}
+)
+for line in mcp_result.stdout.strip().split(chr(10)):
+    if line.startswith('MCP_SESSION_URL='):
+        url = line.split('=', 1)[1]
+        if url:
+            cfg['mcp_servers']['composio'] = {'url': url}
+    elif line.startswith('MCP_SESSION_KEY='):
+        key = line.split('=', 1)[1]
+        if key and 'composio' in cfg.get('mcp_servers', {}):
+            cfg['mcp_servers']['composio']['headers'] = {'Authorization': f'Bearer {key}'}
+    elif line.startswith('MCP_ERROR='):
+        print(f'Composio MCP SDK: {line.split(\"=\", 1)[1]}')
+" 2>&1 || echo 'MCP config fallback: hindsight only'
 
 echo "[DEPLOY] Hermes runtime configuration complete."
 FUNNEL_TARGET="http://localhost:8080"
