@@ -8,7 +8,7 @@ write_files:
     content: |
       [docker-ce-stable]
       name=Docker CE Stable - $basearch
-      baseurl=https://download.docker.com/linux/centos/9/$basearch/stable
+      baseurl=https://download.docker.com/linux/oracle/9/$basearch/stable
       enabled=1
       gpgcheck=1
       gpgkey=https://download.docker.com/linux/centos/gpg
@@ -51,45 +51,30 @@ write_files:
           volumes:
             - infisical_data:/data
 
-        # --- Daytona sandbox engine ---
-        # daytona:
-        #   image: daytonaio/daytona:latest
-        #   container_name: daytona
-        #   restart: unless-stopped
-        #   privileged: true
-        #   ports:
-        #     - "127.0.0.1:3000:3000"
-        #   environment:
-        #     DAYTONA_SERVER_MODE: "local"
-        #   volumes:
-        #     - daytona_data:/data
-        #     - /var/run/docker.sock:/var/run/docker.sock
-
-        # --- Hindsight self-hosted ---
-        # Investigar imagen oficial ARM64 (vectorizeio/hindsight)
+        # --- Hindsight ---
         # hindsight:
-        #   image: vectorizeio/hindsight:latest
+        #   image: ghcr.io/vectorize-io/hindsight:latest
         #   container_name: hindsight
         #   restart: unless-stopped
         #   ports:
-        #     - "127.0.0.1:8080:8080"
+        #     - "127.0.0.1:8888:8888"
+        #     - "127.0.0.1:9999:9999"
         #   environment:
         #     HINDSIGHT_BANK_DIR: "/data"
         #     HINDSIGHT_MCP_ENABLED: "true"
         #   volumes:
         #     - hindsight_data:/data
 
-        # --- Hermes orchestrator (custom) ---
-        # hermes:
-        #   build: /opt/toolset/hermes
-        #   container_name: hermes
+        # --- Apollo orchestrator (deprecated: replaced by Hermes Agent as systemd service) ---
+        # apollo:
+        #   build: /opt/toolset/apollo
+        #   container_name: apollo
         #   restart: unless-stopped
         #   ports:
         #     - "127.0.0.1:4000:4000"
         #   environment:
         #     INFISICAL_ADDR: "http://infisical:8080"
         #     HINDSIGHT_ADDR: "http://hindsight:8080"
-        #     DAYTONA_ADDR: "http://daytona:3000"
         #   depends_on:
         #     - infisical
 

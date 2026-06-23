@@ -104,17 +104,6 @@
         reverse_proxy hindsight:9999
     }
 
-    # Landing page at /status/ (file server, always works)
-    handle /status/* {
-        uri strip_prefix /status
-        root * /usr/share/caddy/landing
-        try_files {path} index.html
-        file_server
-    }
-    handle /status {
-        redir /status/ 308
-    }
-
     # Root → landing page (not Infisical — avoids _next/* conflict with CP)
     handle {
         root * /usr/share/caddy/landing

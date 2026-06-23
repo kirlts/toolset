@@ -1,6 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# deploy.sh — Toolset Personal CI/CD Deploy
+#
+# Edge cases handled:
+#   - Fresh OCI instance (cloud-init ran) → .env missing, creates from scratch
+#   - Existing instance (incremental deploy) → .env preserved, services updated
+#   - Partial failure → non-dependent steps still run (no early exit on optional steps)
+#   - Idempotent: safe to re-run any number of times
+#   - Hermes gateway restart graceful: uses kill -s KILL + start to avoid 90s drain timeout
+#   - LVM extend on both fresh (cloud-init) and existing (deploy.sh) instances
+#   - Composio MCP: static x-api-key deprecated; SDK session URL generated per deploy
+#   - Secrets always flow GitHub → deploy.sh → .env + Infisical
+#   - Reverse sync: Infisical → GitHub for Hermes-created secrets
+
 # ============================================================
 # deploy.sh — Toolset Personal CI/CD Deploy
 #
@@ -31,6 +44,12 @@ REQUIRED_VARS=(
   INFISICAL_AUTH_SECRET
   INFISICAL_DB_PASSWORD
   OPENCODE_GO_API_KEY
+  HERMES_LLM_PROVIDER
+  HERMES_LLM_MODEL
+  HERMES_WEBUI_PASSWORD
+  HERMES_WHATSAPP_MODE
+  WHATSAPP_ALLOWED_USERS
+  COMPOSIO_API_KEY
 )
 
 MISSING=0
@@ -113,28 +132,20 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
 # --- Verify critical services ---
 echo "[DEPLOY] Verifying critical services..."
 sleep 10
-CRITICAL="caddy hindsight"
-for svc in $CRITICAL; do
-  STATUS=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    "${SSH_HOST}" \
-    "sudo docker inspect $svc --format '{{.State.Health.Status}}' 2>/dev/null || echo missing")
-  if [ "$STATUS" = "healthy" ]; then
-    echo "  ✅ $svc: $STATUS"
-  else
-    echo "  ❌ $svc: $STATUS (checking again in 120s...)"
-  fi
-done
-# Retry for any unhealthy
-for attempt in 1 2 3; do
+CRITICAL="caddy hindsight infisical"
+for attempt in 1 2 3 4; do
   ALL_OK=true
   for svc in $CRITICAL; do
     STATUS=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
       "${SSH_HOST}" \
       "sudo docker inspect $svc --format '{{.State.Health.Status}}' 2>/dev/null || echo missing")
-    if [ "$STATUS" != "healthy" ]; then ALL_OK=false; break; fi
+    if [ "$STATUS" != "healthy" ]; then
+      echo "  ⏳ $svc: $STATUS (attempt $attempt/4)"
+      ALL_OK=false
+    fi
   done
   $ALL_OK && break
-  sleep 30
+  [ "$attempt" -lt 4 ] && sleep 30
 done
 for svc in $CRITICAL; do
   STATUS=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
@@ -425,17 +436,20 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
      curl -fsSL https://hermes-agent.nousresearch.com/install.sh | sudo bash 2>&1 | sudo tee -a ${HERMES_LOG}
    fi
    \
-   # ---- Setup systemd for Hermes gateway (idempotent, non-interactive) ----
-   export PATH="/usr/local/bin:/usr/local/lib/hermes-agent:\$PATH"
-   if command -v hermes &>/dev/null; then
-     if ! systemctl is-enabled hermes-gateway &>/dev/null 2>&1; then
-       echo '[hermes] Enabling Hermes systemd service...' | sudo tee -a ${HERMES_LOG}
-       printf 'Y\nY\n' | sudo /usr/local/bin/hermes gateway install --system 2>&1 | sudo tee -a ${HERMES_LOG}
-     else
-       echo '[hermes] Hermes systemd service already enabled' | sudo tee -a ${HERMES_LOG}
-       sudo systemctl restart hermes-gateway 2>/dev/null || true
-     fi
-   else
+    # ---- Setup systemd for Hermes gateway (idempotent, non-interactive) ----
+    export PATH="/usr/local/bin:/usr/local/lib/hermes-agent:\$PATH"
+    if command -v hermes &>/dev/null; then
+      if ! systemctl is-enabled hermes-gateway &>/dev/null 2>&1; then
+        echo '[hermes] Enabling Hermes systemd service...' | sudo tee -a ${HERMES_LOG}
+        printf 'Y\nY\n' | sudo /usr/local/bin/hermes gateway install --system 2>&1 | sudo tee -a ${HERMES_LOG}
+      else
+        echo '[hermes] Restarting gateway (kill + start to bypass drain_timeout)...' | sudo tee -a ${HERMES_LOG}
+        sudo systemctl kill -s KILL hermes-gateway 2>/dev/null || true
+        sleep 1
+        sudo systemctl reset-failed hermes-gateway 2>/dev/null || true
+        sudo systemctl start hermes-gateway --no-block 2>/dev/null || true
+      fi
+    else
      echo '[hermes] WARNING: hermes command not found, skipping systemd setup' | sudo tee -a ${HERMES_LOG}
    fi"
 
@@ -467,37 +481,35 @@ cfg['mcp_servers'].pop('composio', None)
 cfg['mcp_servers']['hindsight-selfhosted'] = {
     'url': 'https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/mcp/'
 }
-# Generate fresh Composio MCP URL via SDK
-import subprocess, os
-# Only attempt if composio-core is installed
-mcp_result = subprocess.run(
-    ['python3', '-c', '''
-import os; os.environ.setdefault("COMPOSIO_API_KEY", os.environ.get("COMPOSIO_API_KEY", ""))
+    # Generate fresh Composio MCP URL via SDK (v3 API, no static endpoint)
+mcp_result=$( \
+  COMPOSIO_API_KEY='${COMPOSIO_API_KEY:-}' \
+  sudo /usr/local/lib/hermes-agent/venv/bin/python3 -c '
+import os, json, sys
+key = os.environ.get("COMPOSIO_API_KEY", "")
+if not key:
+    sys.exit(0)
 try:
     from composio import Composio
     c = Composio()
     e = c.get_entity("hermes")
-    # Get or create a connection for the MCP server
     conn = e.initiate_connection("composio_search", use_default_auth=True)
-    print("MCP_SESSION_URL=" + conn.get("mcp_url", ""))
-    print("MCP_SESSION_KEY=" + conn.get("api_key", ""))
+    print(json.dumps({"url": conn.get("mcp_url", ""), "key": conn.get("api_key", "")}))
 except Exception as ex:
-    print("MCP_ERROR=" + str(ex))
-'''],
-    capture_output=True, text=True, timeout=30,
-    env={**os.environ, 'COMPOSIO_API_KEY': '${COMPOSIO_API_KEY:-}'}
-)
-for line in mcp_result.stdout.strip().split(chr(10)):
-    if line.startswith('MCP_SESSION_URL='):
-        url = line.split('=', 1)[1]
-        if url:
-            cfg['mcp_servers']['composio'] = {'url': url}
-    elif line.startswith('MCP_SESSION_KEY='):
-        key = line.split('=', 1)[1]
-        if key and 'composio' in cfg.get('mcp_servers', {}):
-            cfg['mcp_servers']['composio']['headers'] = {'Authorization': f'Bearer {key}'}
-    elif line.startswith('MCP_ERROR='):
-        print(f'Composio MCP SDK: {line.split(\"=\", 1)[1]}')
+    print(json.dumps({"error": str(ex)}))
+' 2>/dev/null || echo '{"error":"composio SDK not available"}')
+mcp_data=$(echo "$mcp_result" | python3 -c "import sys,json;d=json.load(sys.stdin);print(d.get('url',''));print(d.get('key',''));print(d.get('error',''))" 2>/dev/null || true)
+if [ -n "$mcp_data" ]; then
+  mcp_url=$(echo "$mcp_data" | sed -n '1p')
+  mcp_key=$(echo "$mcp_data" | sed -n '2p')
+  mcp_err=$(echo "$mcp_data" | sed -n '3p')
+  if [ -n "$mcp_url" ] && [ -n "$mcp_key" ]; then
+    cfg['mcp_servers']['composio'] = {'url': mcp_url, 'headers': {'Authorization': f'Bearer {mcp_key}'}}
+    print(f'Composio MCP session URL generated')
+  elif [ -n "$mcp_err" ]; then
+    print(f'Composio MCP SDK: {mcp_err}')
+  fi
+fi
 " 2>&1 || echo 'MCP config fallback: hindsight only'
 
 echo "[DEPLOY] Hermes runtime configuration complete."
@@ -580,6 +592,10 @@ else
 fi
 
 # --- Post-deploy summary ---
+# --- Derive Tailscale IP for internal URLs ---
+TAILSCALE_IP=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  "${SSH_HOST}" "sudo tailscale ip -4 2>/dev/null || echo '100.x.x.x'" 2>/dev/null || echo "100.x.x.x")
+
 echo ""
 echo "============================================"
 echo "  Toolset Personal — Deploy Complete"
@@ -602,9 +618,9 @@ echo "  ── CLI Tools (VPS) ────────────────�
   echo "  Hermes Agent     $(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "${SSH_HOST}" "hermes --version 2>/dev/null || echo 'not installed'" 2>/dev/null || echo 'not installed')"
 echo ""
 echo "  ── Internal (via Tailscale) ──────────────"
-  echo "  Hindsight API    http://100.77.183.125:8888 (via Funnel: /hindsight/*)"
-  echo "  Hindsight CP     http://100.77.183.125:9999 (via Funnel: /dashboard)"
-  echo "  Infisical        http://100.77.183.125:8081 (via Funnel: /api/v1/)"
+  echo "  Hindsight API    http://${TAILSCALE_IP}:8888 (via Funnel: /hindsight/*)"
+  echo "  Hindsight CP     http://${TAILSCALE_IP}:9999 (via Funnel: /dashboard)"
+  echo "  Infisical        http://${TAILSCALE_IP}:8081 (via Funnel: /api/v1/)"
 echo ""
 echo "  ── Docker Status ─────────────────────────"
 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
