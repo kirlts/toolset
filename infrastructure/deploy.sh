@@ -157,12 +157,14 @@ LANDING_HTML=$(cat <<EOF
 <p>Servicios autogestionados en OCI (sa-valparaiso-1).</p>
 <div class="tree">
 <pre>
-  <span class="pipe">├──</span> <span class="path"><a href="/">/</a></span>                        <span class="desc">Landing page &mdash; Toolset status</span>   <span class="status">✅ 200</span>
-  <span class="pipe">├──</span> <span class="path"><a href="/hindsight/health">/hindsight/health</a></span>        <span class="desc">Hindsight &mdash; API Health</span>           <span class="status">✅ 200</span>
-  <span class="pipe">├──</span> <span class="path"><a href="/hindsight/mcp/">/hindsight/mcp/</a></span>          <span class="desc">Hindsight &mdash; MCP (harnesses)</span>      <span class="status">✅ 200</span>
-  <span class="pipe">├──</span> <span class="path"><a href="/hindsight/docs">/hindsight/docs</a></span>          <span class="desc">Hindsight &mdash; API Docs (Swagger)</span>   <span class="status">✅ 200</span>
-  <span class="pipe">├──</span> <span class="path"><a href="/dashboard">/dashboard</a></span>                <span class="desc">Hindsight &mdash; Control Plane</span>        <span class="status">✅ 200</span>
-  <span class="pipe">└──</span> <span class="path"><a href="/api/v1/">/api/v1/</a></span>                  <span class="desc">Infisical &mdash; API (no UI)</span>          <span class="status">⚠️ unhealthy</span>
+  <span class="pipe">├──</span> <span class="path"><a href="/">/</a></span>                        <span class="desc">Landing page &mdash; Toolset status</span>   <span class="status">✅</span>
+  <span class="pipe">├──</span> <span class="path"><a href="/health">/health</a></span>                   <span class="desc">Hindsight &mdash; Health check</span>        <span class="status">✅</span>
+  <span class="pipe">├──</span> <span class="path"><a href="/api/status">/api/status</a></span>               <span class="desc">Infisical &mdash; API Health</span>           <span class="status">✅</span>
+  <span class="pipe">├──</span> <span class="path"><a href="/hindsight/health">/hindsight/health</a></span>        <span class="desc">Hindsight &mdash; API Health</span>           <span class="status">✅</span>
+  <span class="pipe">├──</span> <span class="path"><a href="/hindsight/mcp/">/hindsight/mcp/</a></span>          <span class="desc">Hindsight &mdash; MCP (harnesses)</span>      <span class="status">✅</span>
+  <span class="pipe">├──</span> <span class="path"><a href="/hindsight/docs">/hindsight/docs</a></span>          <span class="desc">Hindsight &mdash; API Docs (Swagger)</span>   <span class="status">✅</span>
+  <span class="pipe">├──</span> <span class="path"><a href="/dashboard">/dashboard</a></span>                <span class="desc">Hindsight &mdash; Control Plane</span>        <span class="status">✅</span>
+  <span class="pipe">└──</span> <span class="path"><a href="/api/status">/api/status</a></span>               <span class="desc">Infisical &mdash; API Health</span>           <span class="status">✅</span>
 </pre>
 </div>
 <p style="margin-top:1.5em;font-weight:bold;color:#f0c674;">🧠 Memory Banks</p>
