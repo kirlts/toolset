@@ -527,22 +527,19 @@ echo "[DEPLOY] Configuring Hermes runtime..."
 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   "${SSH_HOST}" \
   "export PATH=/usr/local/bin:/home/opc/.local/bin:\$PATH; \
-   \
-   # Docker terminal backend
-   hermes config set terminal.backend docker 2>/dev/null; \
-   \
-    # Hindsight memory provider (uses hermes bank, not toolset)
+    hermes config set terminal.backend docker 2>/dev/null; \
     hermes config set memory.provider hindsight 2>/dev/null; \
     hermes config set memory.hindsight.url 'https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/mcp/' 2>/dev/null; \
     hermes config set memory.hindsight.bank 'hermes' 2>/dev/null; \
-    \
-     # MCP servers (Hindsight + optional Composio via SDK session URL)
-     python3 -c \"
+    python3 -c \"
 import yaml
 cfg_path = '/home/opc/.hermes/config.yaml'
 with open(cfg_path) as f:
     cfg = yaml.safe_load(f) or {}
+# Remove stale config sections
+cfg.pop('memory_provider', None)  # old format, conflicts with memory.provider
 cfg.setdefault('mcp_servers', {})
+cfg['mcp_servers'].pop('composio', None)  # static endpoint no longer supported
 cfg['mcp_servers']['hindsight-selfhosted'] = {
     'url': 'https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/mcp/'
 }
