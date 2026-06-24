@@ -1,131 +1,155 @@
-# Toolset
+# ⚙️ Toolset Personal
 
-Infraestructura técnica para un solo developer autónomo. Deliberación en local (workstation), ejecución asíncrona en la nube (OCI Free Tier).
+> Infraestructura cloud autogestionada para un solo developer — orquestación remota, memoria persistente, CI/CD automatizado.
 
-## Stack
+[![OCI](https://img.shields.io/badge/OCI-Free_Tier-red?logo=oracle)](https://cloud.oracle.com)
+[![ARM64](https://img.shields.io/badge/arch-ARM64-blue?logo=arm)](https://www.arm.com)
+[![OpenTofu](https://img.shields.io/badge/IaC-OpenTofu-9cf?logo=opentofu)](https://opentofu.org)
+[![Tailscale](https://img.shields.io/badge/net-Tailscale-555?logo=tailscale)](https://tailscale.com)
+[![Hermes](https://img.shields.io/badge/agent-Hermes-8B5CF6?logo=codeium)](https://hermes-agent.nousresearch.com)
+[![DeepSeek](https://img.shields.io/badge/llm-DeepSeek_V4_Flash-FFD43B)](https://deepseek.com)
 
-| Servicio | Propósito | Acceso |
+---
+
+## 📡 Arquitectura
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│                        OCI · sa-valparaiso-1                         │
+│                 VM.Standard.A1.Flex · ARM64 · 4 Cores                 │
+│                                                                       │
+│  ┌─────────┐   ┌──────────┐   ┌───────────┐   ┌──────────────────┐  │
+│  │ Hermes  │   │ Hindsight│   │ Infisical │   │  Hermes WebUI    │  │
+│  │ Gateway │──▶│  Memory  │──▶│ Secrets   │   │  (Caddy /hermes) │  │
+│  │ (Agent) │   │  (MCP)   │   │ Manager   │   │  :8888           │  │
+│  └────┬────┘   └──────────┘   └─────┬─────┘   └──────────────────┘  │
+│       │                             │                                │
+│       │     ┌───────────────────────┘                                │
+│       │     ▼                                                       │
+│       │  ┌──────────┐                                               │
+│       └──│  Caddy   │──▶ / → Landing · /health · /dashboard          │
+│          │ :8080    │──▶ /hindsight/* · /api/v1/* · /hermes/         │
+│          └──────────┘                                                │
+│                                                                      │
+│  ┌──────────────────────────────────────────────────────────────┐   │
+│  │  Volumes: postgres (Infisical) · redis · hindsight · landing │   │
+│  └──────────────────────────────────────────────────────────────┘   │
+└──────────────────────────────────────────────────────────────────────┘
+                          ▲
+                          │ Tailscale
+                          ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│  Laptop · Kilo Code · VS Code · `gh` CLI · WhatsApp                │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+## 🚀 Stack
+
+| Servicio | Rol | Acceso |
 |---|---|---|
-| **Hindsight** | Memoria vectorial centralizada (MCP) | `https://funnel/hindsight/mcp/` |
-| **Hindsight CP** | Control Plane para banks | `https://funnel/dashboard` |
-| **Infisical** | Gestión de secrets (API) | `https://funnel/api/status` |
-| **Infisical UI** | Web UI para secrets | `https://funnel:8443/` |
-| **Caddy** | Reverse proxy multi-servicio | `https://funnel/` |
-| **Landing page** | Status de todos los servicios | `https://funnel/` |
+| **Hermes Agent** | Orquestador conversacional + gateway multi-platform | WhatsApp · WebUI |
+| **Hindsight** | Memoria vectorial MCP — recall, retain, reflect | `{funnel}/hindsight/mcp/` |
+| **Hindsight CP** | Control Plane para memory banks | `{funnel}/dashboard` |
+| **Infisical** | Secretos cifrados + sync a GitHub Actions | `{funnel}:8443` |
+| **Caddy** | Reverse proxy + landing page + TLS | `{funnel}/` |
+| **PostgreSQL** | DB de Infisical | Interno Docker |
+| **Redis** | Cache de Infisical | Interno Docker |
 
 > `funnel` = `toolset-oci-1-1.tail2d4c18.ts.net`
 
-## Arquitectura
+## 🧠 Memory Banks (Hindsight)
 
+Cada repositorio activo tiene su propio banco aislado de memoria persistente:
+
+| Bank | Proyecto | Facts |
+|---|---|---|
+| `toolset` | Infraestructura, CI/CD, decisiones técnicas | ~194 |
+| `hermes` | Perfil usuario, preferencias, estado agente | ~34 |
+| `kairos` | Gobernanza, reglas, skills | nuevo |
+| `cl-concerts-db` | Catálogo música docta UAH | ~9 |
+| `yacv` | Resume builder | nuevo |
+| `witral` | Routing datos messaging→storage | nuevo |
+| `evidencia-zero` | Sanitización datos, Ley Karin | nuevo |
+
+Los banks se sincronizan diario a `infrastructure/hermes/banks/` como JSON.
+
+## 🔄 CI/CD Pipeline
+
+Un **push a `main`** dispara:
+
+### 1️⃣ OpenTofu — Infraestructura OCI
 ```
-[Workstation: Kilo Code / Antigravity] <== Tailscale ==> [OCI: VM.Standard.A1.Flex]
-                                                               |
-                                                    ┌──────────┴──────────┐
-                                                    │    Caddy (:8080)     │
-                                                    ├──────────────────────┤
-                                                    │ / → landing page    │
-                                                    │ /health → Hindsight │
-                                                    │ /api/status → Infi. │
-                                                    │ /api/v1/* → Infi.   │
-                                                    │ /dashboard → CP     │
-                                                    │ /hindsight/* → API  │
-                                                    │ /banks/* → CP       │
-                                                    └──────────────────────┘
-                                                    ┌──────────────────────┐
-                                                    │ Infisical (:8443)   │
-                                                    │ (via Funnel direct) │
-                                                    └──────────────────────┘
+Plan/Aplica: VCN · Instancia · Seguridad · Volumen
+State remoto en OCI Object Storage (toolset-opentofu-state)
 ```
 
-## CI/CD Pipeline
+### 2️⃣ Deploy Services — Docker Compose + Hermes
+```
+Tailscale → SSH → deploy.sh:
+  • Extiende LVM a 100GB
+  • Transfiere .env, Caddyfile, docker-compose.yml
+  • rsync: SOUL.md, config.yaml, skills, scripts, memory
+  • docker compose pull + up -d
+  • Verifica health de caddy, hindsight, infisical
+  • Bootstrap admin + proyecto + service token en Infisical
+  • Sync secrets a Infisical (dev + prod)
+  • Reverse sync: Infisical → GitHub Secrets
+  • Genera landing page dinámica
+```
 
-Un push a `main` dispara dos jobs:
+### ⏰ Sync Diario Automático
 
-1. **OpenTofu**: Plan/Aplica infraestructura OCI (VCN, instancia, seguridad).
-2. **Deploy Services**: Conecta via Tailscale + SSH, deploya Docker Compose.
+| Hora (UTC) | Job | Qué sincroniza |
+|---|---|---|
+| **01:00** | `hermes-sync-files` | SOUL.md, config.yaml, skills, scripts, memory |
+| **02:00** | `hermes-sync-banks` | Exporta TODOS los banks Hindsight → JSON + git commit |
 
-El pipeline es 100% automático para todos los estados:
-- **Instancia nueva**: OpenTofu crea todo → cloud-init bootstrap → deploy.sh configura servicios.
-- **Mismo stack**: OpenTofu "No changes" → deploy.sh actualiza servicios.
-- **Volumen wipeado**: Bootstrap recrea admin → proyecto → service token.
+## 🔐 Secrets
 
-## GitHub Secrets
+Gestionados vía **GitHub Secrets** + **Infisical** (sync bidireccional):
 
-### Esenciales (bootstrap — el pipeline falla sin estos)
-
-| Secret | Propósito |
+| Categoría | Secrets |
 |---|---|
-| `OCI_API_KEY` | Clave API de OCI para OpenTofu (formato RSA PEM, `openssl rsa -in key.pem -out key_rsa.pem`) |
-| `OCI_USER_OCID` | OCID del usuario API de OCI |
-| `OCI_FINGERPRINT` | Fingerprint de la clave API en OCI Console |
-| `OCI_TENANCY_OCID` | OCID del tenancy OCI |
-| `TAILSCALE_AUTH_KEY` | Pre-auth key reusable de Tailscale (que no expire) |
-| `SSH_PRIVATE_KEY` | Llave privada ED25519 para SSH al servidor OCI |
-| `INFISICAL_ENCRYPTION_KEY` | `openssl rand -hex 16` — 32 hex chars para cifrado de Infisical |
-| `INFISICAL_AUTH_SECRET` | `openssl rand -hex 32` — 64 hex chars para auth tokens de Infisical |
-| `INFISICAL_DB_PASSWORD` | Password de PostgreSQL para Infisical (`infisical`) |
+| **Esenciales** | `OCI_API_KEY` · `OCI_USER_OCID` · `OCI_FINGERPRINT` · `OCI_TENANCY_OCID` · `TAILSCALE_AUTH_KEY` · `SSH_PRIVATE_KEY` · `INFISICAL_ENCRYPTION_KEY` · `INFISICAL_AUTH_SECRET` · `INFISICAL_DB_PASSWORD` |
+| **Runtime** | `OPENCODE_GO_API_KEY` · `INFISICAL_SERVICE_TOKEN` · `HERMES_LLM_PROVIDER` · `HERMES_LLM_MODEL` · `HERMES_WEBUI_PASSWORD` · `COMPOSIO_API_KEY` · `WHATSAPP_ALLOWED_USERS` |
 
-### Operacionales (necesarios para servicios runtime)
+## 🌐 URLs Operativas
 
-| Secret | Propósito |
+| URL | Servicio |
 |---|---|
-| `OPENCODE_GO_API_KEY` | API key de OpenCode Go para Hindsight LLM + secretos runtime |
-| `INFISICAL_SERVICE_TOKEN` | Service token `st.*` para CI/CD sync de secrets |
-| `INFISICAL_ADMIN_EMAIL` | Email del admin de Infisical (`martin.gil.o@gmail.com`) |
-| `INFISICAL_ADMIN_PASSWORD` | Password del admin de Infisical |
-| `FUNNEL_DOMAIN` | Dominio del Funnel (`toolset-oci-1-1.tail2d4c18.ts.net`) |
+| `{funnel}/` | Landing page + status |
+| `{funnel}/health` | Health check (Hindsight) |
+| `{funnel}/dashboard` | Hindsight Control Plane |
+| `{funnel}/hindsight/mcp/` | Hindsight MCP endpoint |
+| `{funnel}/hermes/` | Hermes WebUI (mobile-friendly) |
+| `{funnel}/banks/toolset` | Bank toolset en CP |
+| `{funnel}:8443/` | Infisical Web UI |
+| `{funnel}:8787/` | Hermes WebUI (funnel directo) |
 
-### No esenciales (valores fijos/derivables)
+## 🧪 Verificación Rápida
 
-| Secret | Propósito |
-|---|---|
-| `OCI_SSH_KEY_PUBLIC` | Llave pública SSH (derivable de `SSH_PRIVATE_KEY`) |
+```bash
+# Health checks
+curl https://{funnel}/health
+curl https://{funnel}/api/status
+curl https://{funnel}/hindsight/health
 
-## Deploy Local (verificación)
+# Estado servicios (dentro del servidor)
+ssh opc@toolset-oci-1-1 "sudo docker compose -f /opt/toolset/docker-compose.yml ps"
+```
+
+## 🛠 Deploy Manual (verificación local)
 
 ```bash
 export SSH_HOST="opc@toolset-oci-1-1"
 export INFISICAL_ENCRYPTION_KEY="..."
 export INFISICAL_AUTH_SECRET="..."
-export INFISICAL_DB_PASSWORD="infisical"
-export INFISICAL_SERVICE_TOKEN="st.xxx..."
-export INFISICAL_ADMIN_EMAIL="..."
-export INFISICAL_ADMIN_PASSWORD="..."
-export OPENCODE_GO_API_KEY="sk-..."
-export FUNNEL_DOMAIN="toolset-oci-1-1.tail2d4c18.ts.net"
-
+# ... + resto de secrets ...
 ./infrastructure/deploy.sh
 ```
 
-## Banks (Hindsight Memory)
+---
 
-Los banks se nombran según `hindsight-<project-name>`. El bank `toolset` es el banco activo de este repositorio.
-
-Ver: `docs/RULES.md` → Dynamic Routing by Project.
-
-## URLs Operativas
-
-| URL | Servicio |
-|---|---|
-| `https://funnel/` | Landing page + status |
-| `https://funnel/health` | Health check (Hindsight) |
-| `https://funnel/api/status` | Infisical API health |
-| `https://funnel/dashboard` | Hindsight Control Plane |
-| `https://funnel/hindsight/mcp/` | Hindsight MCP endpoint |
-| `https://funnel/banks/toolset` | Bank toolset en CP |
-| `https://funnel:8443/` | Infisical Web UI |
-
-## Verificación
-
-```bash
-# Tests rápidos
-curl https://funnel/health
-curl https://funnel/api/status
-curl https://funnel/hindsight/health
-curl https://funnel/dashboard
-
-# Tests detallados (dentro del servidor)
-ssh opc@toolset-oci-1-1 "sudo docker compose -f /opt/toolset/docker-compose.yml ps"
-
-# Todos los servicios deben mostrar "healthy"
-```
+<p align="center">
+  <sub>Toolset Personal · OCI Free Tier · ARM64 · Hecho en 🇨🇱</sub>
+</p>
