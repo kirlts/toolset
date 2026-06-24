@@ -50,6 +50,7 @@ REQUIRED_VARS=(
   HERMES_WHATSAPP_MODE
   WHATSAPP_ALLOWED_USERS
   COMPOSIO_API_KEY
+  COMPOSIO_REDDIT_CONNECTION_ID
 )
 
 MISSING=0
@@ -97,6 +98,7 @@ HINDSIGHT_API_LLM_BASE_URL=https://opencode.ai/zen/go/v1
 FUNNEL_DOMAIN=${FUNNEL_DOMAIN:-toolset-oci-1-1.tail2d4c18.ts.net}
 INFISICAL_PID=${INFISICAL_PID:-}
 INFISICAL_SERVICE_TOKEN=${INFISICAL_SERVICE_TOKEN:-}
+COMPOSIO_REDDIT_CONNECTION_ID=${COMPOSIO_REDDIT_CONNECTION_ID:-}
 ENVEOF
 else
   echo "[DEPLOY] .env exists. Skipping rewrite."
@@ -151,6 +153,25 @@ else
   echo "[DEPLOY] No hermes artifacts dir at $HERMES_REPO_DIR — skipping."
   HERMES_ARTIFACTS_DEPLOYED=false
 fi
+
+# --- Clone / pull ResearchIt repo ---
+echo "[DEPLOY] Syncing ResearchIt..."
+ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  "${SSH_HOST}" \
+  "sudo mkdir -p /opt/researchit && sudo chown opc:opc /opt/researchit && \
+   cd /opt/researchit && \
+   if [ -d .git ]; then \
+     git pull origin main 2>&1 || echo '  pull failed (non-fatal)'; \
+   else \
+     gh repo clone kirlts/researchit /tmp/researchit-tmp 2>/dev/null && \
+     cp -a /tmp/researchit-tmp/. /opt/researchit/ && \
+     rm -rf /tmp/researchit-tmp; \
+   fi && \
+   set -a && source /home/opc/.hermes/.env && set +a && \
+   export COMPOSIO_REDDIT_CONNECTION_ID=*** printenv COMPOSIO_REDDIT_CONNECTION_ID) && \
+   env | grep -E '^(OPENCODE_GO_API_KEY|COMPOSIO_API_KEY|COMPOSIO_REDDIT)' | \
+   while IFS='=' read -r k v; do echo \"\$k=\$v\" >> /opt/researchit/.env; done" 2>&1 | sed 's/^/  [RESEARCHIT] /'
+echo "[DEPLOY] ResearchIt synced."
 
 # --- Pull images ---
 echo "[DEPLOY] Pulling container images..."
