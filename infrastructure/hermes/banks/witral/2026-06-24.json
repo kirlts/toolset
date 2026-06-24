@@ -1,1 +1,57 @@
-{"items": [{"id": "8c96b5e6-4163-4120-afaf-834ff7f6654a", "text": "Witral is a plugin-based system for routing data from messaging apps to local/cloud storage, with a public repository at github.com/kirlts/witral and motto 'Infrastructure for your mind'.", "context": "", "date": "2026-06-24T05:45:55.962830+00:00", "fact_type": "observation", "document_id": null, "mentioned_at": "2026-06-24T05:45:55.962830+00:00", "occurred_start": null, "occurred_end": null, "entities": "", "chunk_id": null, "proof_count": 1, "tags": ["seed", "witral", "stack"], "consolidated_at": null, "consolidation_failed_at": null, "state": "valid", "invalidation_reason": null, "invalidated_at": null, "edited_at": null}, {"id": "12c9626a-1892-42e4-a745-7141091f1e08", "text": "Witral es un sistema basado en plugins para enrutar datos desde apps de mensajer\u00eda a almacenamiento local/cloud. Repositorio p\u00fablico en github.com/kirlts/witral. Lema: 'Infrastructure for your mind'.", "context": "general", "date": "2026-06-24T05:45:55.962830+00:00", "fact_type": "world", "document_id": "59f3dedc-bb26-4325-9a82-4d5441c09658", "mentioned_at": "2026-06-24T05:45:55.962830+00:00", "occurred_start": null, "occurred_end": null, "entities": "github.com/kirlts/witral, Witral", "chunk_id": "witral_59f3dedc-bb26-4325-9a82-4d5441c09658_0", "proof_count": 1, "tags": ["seed", "witral", "stack"], "consolidated_at": "2026-06-24T05:46:10.302862+00:00", "consolidation_failed_at": null, "state": "valid", "invalidation_reason": null, "invalidated_at": null, "edited_at": null}], "total": 2, "limit": 1000, "offset": 0}
+{
+  "bank_id": "witral",
+  "exported_at": "2026-06-24T00:00:00Z",
+  "export_date": "2026-06-24",
+  "facts": [
+    {
+      "id": "8c96b5e6-4163-4120-afaf-834ff7f6654a",
+      "text": "Witral is a plugin-based system for routing data from messaging apps to local/cloud storage, with a public repository at github.com/kirlts/witral and motto 'Infrastructure for your mind'.",
+      "context": "",
+      "date": "2026-06-24T05:45:55.962830+00:00",
+      "fact_type": "observation",
+      "document_id": null,
+      "mentioned_at": "2026-06-24T05:45:55.962830+00:00",
+      "occurred_start": null,
+      "occurred_end": null,
+      "entities": "",
+      "chunk_id": null,
+      "proof_count": 1,
+      "tags": [
+        "seed",
+        "witral",
+        "stack"
+      ],
+      "consolidated_at": null,
+      "consolidation_failed_at": null,
+      "state": "valid",
+      "invalidation_reason": null,
+      "invalidated_at": null,
+      "edited_at": null
+    },
+    {
+      "id": "12c9626a-1892-42e4-a745-7141091f1e08",
+      "text": "Witral es un sistema basado en plugins para enrutar datos desde apps de mensajería a almacenamiento local/cloud. Repositorio público en github.com/kirlts/witral. Lema: 'Infrastructure for your mind'.",
+      "context": "general",
+      "date": "2026-06-24T05:45:55.962830+00:00",
+      "fact_type": "world",
+      "document_id": "59f3dedc-bb26-4325-9a82-4d5441c09658",
+      "mentioned_at": "2026-06-24T05:45:55.962830+00:00",
+      "occurred_start": null,
+      "occurred_end": null,
+      "entities": "github.com/kirlts/witral, Witral",
+      "chunk_id": "witral_59f3dedc-bb26-4325-9a82-4d5441c09658_0",
+      "proof_count": 1,
+      "tags": [
+        "seed",
+        "witral",
+        "stack"
+      ],
+      "consolidated_at": "2026-06-24T05:46:10.302862+00:00",
+      "consolidation_failed_at": null,
+      "state": "valid",
+      "invalidation_reason": null,
+      "invalidated_at": null,
+      "edited_at": null
+    }
+  ]
+}

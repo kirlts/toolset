@@ -1,1 +1,157 @@
-{"items": [{"id": "ab01cf09-1306-4669-b7bb-d1f9605c4610", "text": "EvidenciaZero tiene repositorio p\u00fablico en github.com/kirlts/evidenciaZero y documento rector EvidenciaZero_MASTER_PLAN.md.", "context": "", "date": "2026-06-24T05:45:54.974901+00:00", "fact_type": "observation", "document_id": null, "mentioned_at": "2026-06-24T05:45:54.974901+00:00", "occurred_start": null, "occurred_end": null, "entities": "", "chunk_id": null, "proof_count": 1, "tags": ["seed", "evidencia-zero", "stack"], "consolidated_at": null, "consolidation_failed_at": null, "state": "valid", "invalidation_reason": null, "invalidated_at": null, "edited_at": null}, {"id": "cf0b7451-3d74-4a79-8967-eb58fcf25125", "text": "Repositorio p\u00fablico en github.com/kirlts/evidenciaZero y documento rector EvidenciaZero_MASTER_PLAN.md.", "context": "general", "date": "2026-06-24T05:45:54.974901+00:00", "fact_type": "experience", "document_id": "ea46aa22-051c-4abb-97cd-c829bb2659cd", "mentioned_at": "2026-06-24T05:45:54.974901+00:00", "occurred_start": null, "occurred_end": null, "entities": "github.com/kirlts/evidenciaZero, EvidenciaZero_MASTER_PLAN.md", "chunk_id": "evidencia-zero_ea46aa22-051c-4abb-97cd-c829bb2659cd_0", "proof_count": 1, "tags": ["seed", "evidencia-zero", "stack"], "consolidated_at": "2026-06-24T05:46:33.270604+00:00", "consolidation_failed_at": null, "state": "valid", "invalidation_reason": null, "invalidated_at": null, "edited_at": null}, {"id": "200c5baf-5fae-421c-98e9-b65931d23c31", "text": "El stack de EvidenciaZero incluye frontend web y wasm-core (Rust/WASM para procesamiento).", "context": "", "date": "2026-06-24T05:45:54.964901+00:00", "fact_type": "observation", "document_id": null, "mentioned_at": "2026-06-24T05:45:54.964901+00:00", "occurred_start": null, "occurred_end": null, "entities": "", "chunk_id": null, "proof_count": 1, "tags": ["seed", "evidencia-zero", "stack"], "consolidated_at": null, "consolidation_failed_at": null, "state": "valid", "invalidation_reason": null, "invalidated_at": null, "edited_at": null}, {"id": "9d49f490-f4ac-4479-b288-e914de6394c7", "text": "El stack incluye frontend web y wasm-core (Rust/WASM para procesamiento).", "context": "general", "date": "2026-06-24T05:45:54.964901+00:00", "fact_type": "experience", "document_id": "ea46aa22-051c-4abb-97cd-c829bb2659cd", "mentioned_at": "2026-06-24T05:45:54.964901+00:00", "occurred_start": null, "occurred_end": null, "entities": "WASM, Rust, wasm-core, frontend web", "chunk_id": "evidencia-zero_ea46aa22-051c-4abb-97cd-c829bb2659cd_0", "proof_count": 1, "tags": ["seed", "evidencia-zero", "stack"], "consolidated_at": "2026-06-24T05:46:33.270604+00:00", "consolidation_failed_at": null, "state": "valid", "invalidation_reason": null, "invalidated_at": null, "edited_at": null}, {"id": "4f3c91d7-04bc-4ffd-997d-c0edc1293b9c", "text": "EvidenciaZero es una herramienta 100% local de limpieza de datos ocultos en archivos digitales, dise\u00f1ada para compartir evidencia en procesos laborales bajo Ley Karin.", "context": "", "date": "2026-06-24T05:45:54.954901+00:00", "fact_type": "observation", "document_id": null, "mentioned_at": "2026-06-24T05:45:54.954901+00:00", "occurred_start": null, "occurred_end": null, "entities": "", "chunk_id": null, "proof_count": 1, "tags": ["seed", "evidencia-zero", "stack"], "consolidated_at": null, "consolidation_failed_at": null, "state": "valid", "invalidation_reason": null, "invalidated_at": null, "edited_at": null}, {"id": "f3a6faf4-bb3b-4664-8bdc-1c61b22d4c3b", "text": "EvidenciaZero es una herramienta 100% local de limpieza de datos ocultos en archivos digitales, dise\u00f1ada para compartir evidencia en procesos laborales bajo Ley Karin.", "context": "general", "date": "2026-06-24T05:45:54.954901+00:00", "fact_type": "experience", "document_id": "ea46aa22-051c-4abb-97cd-c829bb2659cd", "mentioned_at": "2026-06-24T05:45:54.954901+00:00", "occurred_start": null, "occurred_end": null, "entities": "Ley Karin, EvidenciaZero", "chunk_id": "evidencia-zero_ea46aa22-051c-4abb-97cd-c829bb2659cd_0", "proof_count": 1, "tags": ["seed", "evidencia-zero", "stack"], "consolidated_at": "2026-06-24T05:46:33.270604+00:00", "consolidation_failed_at": null, "state": "valid", "invalidation_reason": null, "invalidated_at": null, "edited_at": null}], "total": 6, "limit": 1000, "offset": 0}
+{
+  "bank_id": "evidencia-zero",
+  "exported_at": "2026-06-24T00:00:00Z",
+  "export_date": "2026-06-24",
+  "facts": [
+    {
+      "id": "ab01cf09-1306-4669-b7bb-d1f9605c4610",
+      "text": "EvidenciaZero tiene repositorio público en github.com/kirlts/evidenciaZero y documento rector EvidenciaZero_MASTER_PLAN.md.",
+      "context": "",
+      "date": "2026-06-24T05:45:54.974901+00:00",
+      "fact_type": "observation",
+      "document_id": null,
+      "mentioned_at": "2026-06-24T05:45:54.974901+00:00",
+      "occurred_start": null,
+      "occurred_end": null,
+      "entities": "",
+      "chunk_id": null,
+      "proof_count": 1,
+      "tags": [
+        "seed",
+        "evidencia-zero",
+        "stack"
+      ],
+      "consolidated_at": null,
+      "consolidation_failed_at": null,
+      "state": "valid",
+      "invalidation_reason": null,
+      "invalidated_at": null,
+      "edited_at": null
+    },
+    {
+      "id": "cf0b7451-3d74-4a79-8967-eb58fcf25125",
+      "text": "Repositorio público en github.com/kirlts/evidenciaZero y documento rector EvidenciaZero_MASTER_PLAN.md.",
+      "context": "general",
+      "date": "2026-06-24T05:45:54.974901+00:00",
+      "fact_type": "experience",
+      "document_id": "ea46aa22-051c-4abb-97cd-c829bb2659cd",
+      "mentioned_at": "2026-06-24T05:45:54.974901+00:00",
+      "occurred_start": null,
+      "occurred_end": null,
+      "entities": "github.com/kirlts/evidenciaZero, EvidenciaZero_MASTER_PLAN.md",
+      "chunk_id": "evidencia-zero_ea46aa22-051c-4abb-97cd-c829bb2659cd_0",
+      "proof_count": 1,
+      "tags": [
+        "seed",
+        "evidencia-zero",
+        "stack"
+      ],
+      "consolidated_at": "2026-06-24T05:46:33.270604+00:00",
+      "consolidation_failed_at": null,
+      "state": "valid",
+      "invalidation_reason": null,
+      "invalidated_at": null,
+      "edited_at": null
+    },
+    {
+      "id": "200c5baf-5fae-421c-98e9-b65931d23c31",
+      "text": "El stack de EvidenciaZero incluye frontend web y wasm-core (Rust/WASM para procesamiento).",
+      "context": "",
+      "date": "2026-06-24T05:45:54.964901+00:00",
+      "fact_type": "observation",
+      "document_id": null,
+      "mentioned_at": "2026-06-24T05:45:54.964901+00:00",
+      "occurred_start": null,
+      "occurred_end": null,
+      "entities": "",
+      "chunk_id": null,
+      "proof_count": 1,
+      "tags": [
+        "seed",
+        "evidencia-zero",
+        "stack"
+      ],
+      "consolidated_at": null,
+      "consolidation_failed_at": null,
+      "state": "valid",
+      "invalidation_reason": null,
+      "invalidated_at": null,
+      "edited_at": null
+    },
+    {
+      "id": "9d49f490-f4ac-4479-b288-e914de6394c7",
+      "text": "El stack incluye frontend web y wasm-core (Rust/WASM para procesamiento).",
+      "context": "general",
+      "date": "2026-06-24T05:45:54.964901+00:00",
+      "fact_type": "experience",
+      "document_id": "ea46aa22-051c-4abb-97cd-c829bb2659cd",
+      "mentioned_at": "2026-06-24T05:45:54.964901+00:00",
+      "occurred_start": null,
+      "occurred_end": null,
+      "entities": "WASM, Rust, wasm-core, frontend web",
+      "chunk_id": "evidencia-zero_ea46aa22-051c-4abb-97cd-c829bb2659cd_0",
+      "proof_count": 1,
+      "tags": [
+        "seed",
+        "evidencia-zero",
+        "stack"
+      ],
+      "consolidated_at": "2026-06-24T05:46:33.270604+00:00",
+      "consolidation_failed_at": null,
+      "state": "valid",
+      "invalidation_reason": null,
+      "invalidated_at": null,
+      "edited_at": null
+    },
+    {
+      "id": "4f3c91d7-04bc-4ffd-997d-c0edc1293b9c",
+      "text": "EvidenciaZero es una herramienta 100% local de limpieza de datos ocultos en archivos digitales, diseñada para compartir evidencia en procesos laborales bajo Ley Karin.",
+      "context": "",
+      "date": "2026-06-24T05:45:54.954901+00:00",
+      "fact_type": "observation",
+      "document_id": null,
+      "mentioned_at": "2026-06-24T05:45:54.954901+00:00",
+      "occurred_start": null,
+      "occurred_end": null,
+      "entities": "",
+      "chunk_id": null,
+      "proof_count": 1,
+      "tags": [
+        "seed",
+        "evidencia-zero",
+        "stack"
+      ],
+      "consolidated_at": null,
+      "consolidation_failed_at": null,
+      "state": "valid",
+      "invalidation_reason": null,
+      "invalidated_at": null,
+      "edited_at": null
+    },
+    {
+      "id": "f3a6faf4-bb3b-4664-8bdc-1c61b22d4c3b",
+      "text": "EvidenciaZero es una herramienta 100% local de limpieza de datos ocultos en archivos digitales, diseñada para compartir evidencia en procesos laborales bajo Ley Karin.",
+      "context": "general",
+      "date": "2026-06-24T05:45:54.954901+00:00",
+      "fact_type": "experience",
+      "document_id": "ea46aa22-051c-4abb-97cd-c829bb2659cd",
+      "mentioned_at": "2026-06-24T05:45:54.954901+00:00",
+      "occurred_start": null,
+      "occurred_end": null,
+      "entities": "Ley Karin, EvidenciaZero",
+      "chunk_id": "evidencia-zero_ea46aa22-051c-4abb-97cd-c829bb2659cd_0",
+      "proof_count": 1,
+      "tags": [
+        "seed",
+        "evidencia-zero",
+        "stack"
+      ],
+      "consolidated_at": "2026-06-24T05:46:33.270604+00:00",
+      "consolidation_failed_at": null,
+      "state": "valid",
+      "invalidation_reason": null,
+      "invalidated_at": null,
+      "edited_at": null
+    }
+  ]
+}
