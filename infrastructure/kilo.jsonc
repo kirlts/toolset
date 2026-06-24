@@ -22,22 +22,6 @@
       "models": {
         "deepseek-v4-flash": {
           "name": "deepseek-v4-flash"
-        },
-        "deepseek-v4-pro": {
-          "name": "deepseek-v4-pro",
-          "reasoning": true
-        },
-        "kimi-k2.6": {
-          "name": "kimi-k2.6",
-          "reasoning": true
-        },
-        "mimo-v2.5": {
-          "name": "mimo-v2.5",
-          "reasoning": true
-        },
-        "qwen3.7-max": {
-          "name": "qwen3.7-max",
-          "reasoning": true
         }
       }
     }

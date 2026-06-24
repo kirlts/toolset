@@ -63,7 +63,6 @@ El tool `memory` nativo de Hermes es local-only. No lo uses para nada que deba p
 ## Plataforma
 
 - Modelo: `deepseek-v4-flash` via OpenCode Go. Sin thinking mode por defecto.
-- Cambiar modelo: `kilo models opencodego` → `kilo run --model <name> --auto`.
 - `context_file_max_chars: 25000`.
 
 ## Reglas

@@ -147,7 +147,7 @@ Per r/hermesagent VPS Deployment Megathread (June 2026, community-sourced from 2
 | Secret | Purpose | Value |
 |---|---|---|
 | `HERMES_LLM_PROVIDER` | LLM provider name | `opencodego` (same as local Kilo) |
-| `HERMES_LLM_MODEL` | Default model | `deepseek-v4-flash` (or any from kilo.jsonc) |
+| `HERMES_LLM_MODEL` | Default model | `deepseek-v4-flash` (único modelo en el stack) |
 | `HERMES_LLM_API_KEY` | OpenCode Go API key | `OPENCODE_GO_API_KEY` — already exists in GitHub Secrets! |
 | `HERMES_WEBUI_PASSWORD` | WebUI authentication | Generate random password |
 | `HERMES_WHATSAPP_MODE` | WhatsApp mode | `bot` |

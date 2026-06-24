@@ -46,7 +46,7 @@ terminal(command="kilo run 'Descripción detallada de la tarea' --auto", workdir
 | Flag | Propósito |
 |------|-----------|
 | `--auto` | Modo autónomo — no requiere intervención. Exitoso con código 0, time-out con 124, error con 1. |
-| `--model <name>` | Especificar modelo (ej: `deepseek-v4-pro` para tareas complejas). Default: el del `kilo.jsonc`. |
+| `--model <name>` | Especificar modelo (solo `deepseek-v4-flash` disponible). Default: el del `kilo.jsonc`. |
 | `--continue` | Continuar sesión anterior. |
 | `--file <path>` | Pasar archivo(s) como contexto. |
 
@@ -59,7 +59,7 @@ terminal(command="kilo run 'Descripción detallada de la tarea' --auto", workdir
 terminal(command="kilo models opencodego", timeout=15)
 ```
 
-Usar modelos más potentes (`deepseek-v4-pro`, `kimi-k2.6`, `qwen3.7-max`) para tareas complejas. Mantener `deepseek-v4-flash` para tareas rápidas.
+Usar `deepseek-v4-flash` para todas las tareas. Es el único modelo disponible en el stack.
 
 ## Estrategia de Delegación
 
