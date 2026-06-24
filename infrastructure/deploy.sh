@@ -631,6 +631,27 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
 
 echo "[DEPLOY] Hermes + Kilo setup complete."
 
+# --- Install MarkItDown (Microsoft document-to-markdown converter) ---
+echo "[DEPLOY] Installing MarkItDown (document-to-markdown converter)..."
+ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  "${SSH_HOST}" \
+  "VENV_PY=/usr/local/lib/hermes-agent/venv/bin/python && \
+   SUDO_PIP=\"sudo \\\$VENV_PY -m pip install\" && \
+   if \\\$VENV_PY -c 'import markitdown' 2>/dev/null; then \
+     echo '[hermes] MarkItDown already installed, upgrading...'; \
+     eval \\\$SUDO_PIP -q 'markitdown[all]' --upgrade 2>&1 | tail -2; \
+   else \
+     echo '[hermes] Installing MarkItDown...'; \
+     eval \\\$SUDO_PIP -q 'markitdown[all]' 2>&1 | tail -3; \
+   fi && \
+   if ! command -v markitdown &>/dev/null; then \
+     echo '#!/usr/bin/env bash' | sudo tee /usr/local/bin/markitdown > /dev/null && \
+     echo 'exec /usr/local/lib/hermes-agent/venv/bin/python -m markitdown \"\$@\"' | sudo tee -a /usr/local/bin/markitdown > /dev/null && \
+     sudo chmod +x /usr/local/bin/markitdown && \
+     echo '[hermes] markitdown CLI wrapper installed at /usr/local/bin/markitdown'; \
+   fi" 2>&1 | sed 's/^/  [markitdown] /'
+echo "[DEPLOY] MarkItDown installation complete."
+
 # --- Create gh token file for Docker sandbox (idempotent) ---
 echo "[DEPLOY] Creating gh token file for Docker sandbox..."
 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \

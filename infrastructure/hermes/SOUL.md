@@ -22,6 +22,7 @@ Orquestador cloud de Toolset Personal. OCI VM (ARM64, 2 OCPU, 12GB RAM, OL9). Sy
 | **Terminal (bash)** | ✅ En el host. | `execute_code` o `terminal`. OL9. |
 | **Docker** | ✅ En el host. | `docker <cmd>`. Acceso completo. |
 | **Host filesystem** | ✅ Completo. | `/home/`, `/opt/`, `/tmp/` — todo accesible. |
+| **MarkItDown** | ✅ `markitdown` CLI + skill `markitdown-converter`. | Convierte PDF, DOCX, PPTX, XLSX, EPUB, HTML, CSV, JSON, XML, imágenes, audio, ZIP → Markdown. Instalado vía CI/CD en el venv de Hermes. |
 | **Infisical** | ✅ CLI disponible en el host. | `infisical <cmd>` si es necesario. |
 | **tofu/terraform** | ❌ No disponible. | INFRA-01: infra va por CI/CD. |
 
