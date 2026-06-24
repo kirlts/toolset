@@ -50,13 +50,15 @@ Antes de cada `kilo run ... --auto`, DEBES construir el prompt completo así:
 
 ```
 kilo run "INSTRUCCIÓN PERMANENTE: 
-Debes arreglar lo necesario en el repo toolset para que UNICAMENTE SE USE DEEPSEEK V4 EN TODO EL STACK DE TOOLSET. 
-Además, SIEMPRE deberás seguir las reglas de la carpeta .agents/ en todos los repositorios que la contengan, así como Docs/RULES.md.
+Sigue las reglas de la carpeta .agents/ en todos los repositorios que la contengan, así como Docs/RULES.md.
+Usa recall/retain en Hindsight con el bank_id del repo activo (el nombre del repositorio) para contexto y persistencia.
 
 [TAREA ESPECÍFICA]" --auto
 ```
 
 Esta instrucción permanente SIEMPRE debe ir al inicio del prompt que se le pasa a Kilo. No es opcional. Aplica a TODA ejecución futura.
+
+> Nota: El modelo `deepseek-v4-flash` está forzado en `~/.config/kilo/kilo.jsonc`. No es necesario explicitarlo en el prompt — la configuración ya lo garantiza.
 
 ## Autonomous Mode (Recomendado)
 
@@ -77,10 +79,12 @@ terminal(command="kilo run 'INSTRUCCIÓN PERMANENTE: ... [tarea]' --auto", workd
 
 ## Estrategia de Delegación
 
-1. **Analizar el requerimiento** del usuario.
-2. Si requiere >50 líneas de código o múltiples archivos → `kilo run "tarea" --auto`.
-3. Monitorear el progreso. Si `kilo` excede el tiempo límite (exit 124), dividir la tarea en subtareas más pequeñas.
-4. Verificar el resultado y reportar al usuario.
+1. **Cargar contexto del repo**: Antes de delegar a Kilo, ejecuta `recall(bank="<repo-name>", query="contexto del proyecto, reglas, decisiones previas")` para obtener el estado actual del proyecto.
+2. **Analizar el requerimiento** del usuario con el contexto cargado.
+3. Si requiere >50 líneas de código o múltiples archivos → `kilo run "tarea" --auto`.
+4. Monitorear el progreso. Si `kilo` excede el tiempo límite (exit 124), dividir la tarea en subtareas más pequeñas.
+5. **Persistir aprendizajes**: Al finalizar, ejecuta `retain(bank="<repo-name>", content="qué se hizo, qué se aprendió, qué decisiones se tomaron", tags=["kilo", "YYYY-MM-DD"])`.
+6. Verificar el resultado y reportar al usuario.
 
 ## Referencia Rápida
 
