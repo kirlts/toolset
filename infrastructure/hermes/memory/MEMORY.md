@@ -12,8 +12,4 @@ Proyecto cl-concerts-db tiene ambiente staging en UAH (172.16.8.58, usuario clco
 §
 KILO-01: toda invocación a Kilo CLI DEBE prepender instrucción permanente sobre deepseek v4 único + seguir .agents/ + docs/RULES.md. Documentado en SOUL.md §Reglas y en ambos skills kilo-code §PREAMBLE OBLIGATORIO.
 §
-User quiere versionar TODO el estado de Hermes en toolset repo DIARIO: SOUL.md, skills, config.yaml, scripts, memories, y banks como JSON export. El repo debe ser fuente de verdad del agente; la VM es host descartable.
-§
-User entiende que JSON dumps de banks (con fecha) son backup/audit/recovery, no runtime. Runtime usa recall/retain vs Hindsight MCP vivo. Preguntó: "si los guardas con fecha, el agente no tendrá problemas al invocarlos?" — respuesta correcta: no, porque nunca los lee.
-§
-Arquitectura aprobada: cron diario reflect→retain al bank hermes + sync al repo. Session start debe hacer recall al bank hermes. Reversibilidad vía git revert. Banks exportados como JSON para portabilidad.
+Sync diario implementado: 2 cron jobs (01:00 archivos, 02:00 banks Hindsight). SOUL.md + skills + config + memory + scripts versionados en toolset infra/hermes/. Banks exportados JSON diarios (backup/audit). Session start DEBE recall(bank=hermes).

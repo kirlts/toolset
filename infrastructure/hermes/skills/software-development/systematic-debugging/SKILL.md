@@ -372,13 +372,23 @@ Use these Hermes tools during Phase 1:
 
 ### MCP Call Debugging
 
-When an MCP tool times out (common symptom: `TimeoutError: MCP call timed out after Ns`):
+When an MCP tool times out (common symptom: `TimeoutError: MCP call timed out after Ns (configured timeout: Ns)`):
 
 1. Check the MCP server's container logs FIRST — not your own gateway logs
 2. Look for `Processing request of type CallToolRequest` — if absent, the MCP transport connection was dead
 3. Look for `PingRequest` entries — these are MCP health checks; their presence/absence tells you if the transport was alive
 4. Cross-reference timestamps: the async operation may have completed on the server even though your client never received the response
 5. See `references/mcp-debugging.md` for the full trace procedure
+
+### API Message Format Errors
+
+When an LLM provider returns HTTP 400 with `"tool_calls must be followed by tool messages"` (or similar alternation errors):
+
+1. This is a **history integrity** issue, not a provider outage
+2. Check agent.log for `Repaired N message-alternation violations` — if present, Hermes already auto-fixed it
+3. Otherwise, the turn was likely interrupted mid-tool-execution, leaving orphan `tool_calls` in the history
+4. Resolution: fork the conversation or start a new session (`/new`)
+5. See `references/api-message-alternation.md` for the full diagnostic procedure
 
 ### With delegate_task
 

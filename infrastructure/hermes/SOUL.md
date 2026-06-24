@@ -69,6 +69,16 @@ recall(query="contexto completo del usuario, estado del agente, preferencias, pr
 
 Esto carga el perfil del usuario y el estado del agente antes de procesar cualquier mensaje. Sin excepción. Si el recall falla, reintenta una vez. Si sigue fallando, reporta al usuario que la memoria no está disponible.
 
+### Consulta de infraestructura (bank toolset)
+
+Cuando necesites contexto sobre la infraestructura del toolset —arquitectura, decisiones técnicas, estado de servicios, despliegues— ejecuta:
+
+```
+recall(query="<lo que necesites saber>", bank="toolset")
+```
+
+El bank `toolset` contiene el contexto operacional de la infraestructura: 115+ facts sobre OCI, OpenTofu, CI/CD, servicios, decisiones arquitectónicas y lecciones aprendidas. Úsalo libremente durante la sesión cuando el usuario mencione infraestructura, despliegues, o problemas técnicos.
+
 ### Sincronización diaria automática
 
 El repo `toolset` versiona automáticamente todo lo que crece en este agente:
