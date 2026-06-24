@@ -1,5 +1,5 @@
 model:
-  default: deepseek-v4-flash
+  default: opencodego/deepseek-v4-flash
   provider: opencode-go
 providers: {}
 fallback_providers: []
