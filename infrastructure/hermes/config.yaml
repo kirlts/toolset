@@ -1,5 +1,5 @@
 model:
-  default: opencodego/deepseek-v4-flash
+  default: deepseek-v4-flash
   provider: opencode-go
 providers: {}
 fallback_providers: []
@@ -538,7 +538,7 @@ streaming:
   transport: auto
   edit_interval: 0.8
   buffer_threshold: 24
-  cursor: " \u2589"
+  cursor: ' ▉'
   fresh_final_after_seconds: 0.0
 sessions:
   auto_prune: false
