@@ -69,10 +69,17 @@ if [ -f "${HERMES_HOME}/webui/settings.json" ]; then
   cp "${HERMES_HOME}/webui/settings.json" "${HERMES_DIR}/webui/settings.json"
 fi
 
-# ---- 8. Commit local changes first ----
+# ---- 8. Commit local changes (exclude banks/ — handled by hermes-sync-banks) ----
 if ! git diff --quiet infrastructure/hermes/; then
-  echo "[SYNC] Committing local changes..."
-  git add infrastructure/hermes/
+  echo "[SYNC] Committing local changes (excluding banks/)..."
+  git add infrastructure/hermes/SOUL.md
+  git add infrastructure/hermes/config.yaml
+  git add infrastructure/hermes/memory/
+  git add infrastructure/hermes/skills/
+  git add infrastructure/hermes/scripts/
+  git add infrastructure/hermes/hooks/
+  git add infrastructure/hermes/webui/
+  git add infrastructure/hermes/CRONS.md
   git commit -m "${COMMIT_MSG}"
   CHANGES_COMMITTED=true
 else
@@ -80,14 +87,15 @@ else
   CHANGES_COMMITTED=false
 fi
 
-# ---- 8. Rebase on remote main then push ----
+# ---- 8. Pull rebase + push to main ----
 echo "[SYNC] Syncing with remote..."
 git fetch origin main 2>&1
 if [ "${CHANGES_COMMITTED}" = "true" ]; then
-  # Only rebase if we actually committed something (avoids issues with stale index)
-  git rebase origin/main 2>&1 && \
-  git push origin HEAD:main 2>&1 || \
+  git switch main 2>/dev/null || true
+  git pull --rebase origin main 2>&1 && \
+  git push origin main 2>&1 || \
   echo "[SYNC] Remote sync failed (will retry next cycle)"
+  git switch - 2>/dev/null || true
 fi
 
 echo "[SYNC] === Sync complete ==="
