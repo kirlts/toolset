@@ -145,8 +145,8 @@ bedrock:
 auxiliary:
   vision:
     provider: opencode-go
-    model: openai/gpt-4o
-    base_url: ''
+    model: mimo-v2-omni
+    base_url: 'https://opencode.ai/zen/go/v1'
     api_key: ''
     timeout: 120
     extra_body: {}
