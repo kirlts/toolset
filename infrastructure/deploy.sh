@@ -126,6 +126,28 @@ else
   echo "[DEPLOY] WARNING: Caddyfile not found at $CADDYFILE"
 fi
 
+# --- Transfer Hermes artifacts (SOUL.md, config.yaml, memory) from repo to instance ---
+HERMES_REPO_DIR="$(dirname "$0")/hermes"
+if [ -d "$HERMES_REPO_DIR" ]; then
+  echo "[DEPLOY] Transferring Hermes artifacts from repo..."
+  rsync -rlptv --delete -e "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
+    "$HERMES_REPO_DIR/SOUL.md" \
+    "$HERMES_REPO_DIR/config.yaml" \
+    "${SSH_HOST}:/tmp/hermes-repo/" 2>/dev/null || true
+  # Transfer memory files if present
+  [ -f "$HERMES_REPO_DIR/memory/MEMORY.md" ] && \
+    scp -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+      "$HERMES_REPO_DIR/memory/MEMORY.md" "${SSH_HOST}:/tmp/hermes-repo/memory/" 2>/dev/null || true
+  [ -f "$HERMES_REPO_DIR/memory/USER.md" ] && \
+    scp -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+      "$HERMES_REPO_DIR/memory/USER.md" "${SSH_HOST}:/tmp/hermes-repo/memory/" 2>/dev/null || true
+  echo "[DEPLOY] Hermes artifacts transferred."
+  HERMES_ARTIFACTS_DEPLOYED=true
+else
+  echo "[DEPLOY] No hermes artifacts dir at $HERMES_REPO_DIR — skipping."
+  HERMES_ARTIFACTS_DEPLOYED=false
+fi
+
 # --- Pull images ---
 echo "[DEPLOY] Pulling container images..."
 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
@@ -559,6 +581,24 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     \
     # ---- Add opc to docker group for sandbox access ----
     sudo usermod -aG docker opc 2>/dev/null
+    \
+    # ---- Restore Hermes artifacts from repo (SOUL.md, config.yaml, memory) ----
+    if [ -f /tmp/hermes-repo/SOUL.md ]; then
+      cp /tmp/hermes-repo/SOUL.md /home/opc/.hermes/SOUL.md
+      echo '[hermes] SOUL.md restored from repo' | sudo tee -a ${HERMES_LOG}
+    fi
+    if [ -f /tmp/hermes-repo/config.yaml ]; then
+      cp /tmp/hermes-repo/config.yaml /home/opc/.hermes/config.yaml
+      echo '[hermes] config.yaml restored from repo' | sudo tee -a ${HERMES_LOG}
+    fi
+    if [ -f /tmp/hermes-repo/memory/MEMORY.md ]; then
+      cp /tmp/hermes-repo/memory/MEMORY.md /home/opc/.hermes/memories/MEMORY.md 2>/dev/null || true
+    fi
+    if [ -f /tmp/hermes-repo/memory/USER.md ]; then
+      cp /tmp/hermes-repo/memory/USER.md /home/opc/.hermes/memories/USER.md 2>/dev/null || true
+    fi
+    # Clean up temp files
+    rm -rf /tmp/hermes-repo 2>/dev/null || true
     \
     # ---- Setup systemd for Hermes gateway (idempotent, non-interactive) ----
     export PATH="/usr/local/bin:/usr/local/lib/hermes-agent:\$PATH"
