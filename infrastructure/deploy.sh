@@ -642,6 +642,20 @@ if [ "$HAS_HERMES_BANK" = "False" ]; then
 else
   echo "[DEPLOY] 'hermes' bank already exists"
 fi
+
+# --- Ensure all known project banks exist in Hindsight ---
+echo "[DEPLOY] Ensuring project banks exist in Hindsight..."
+for bank_id in kairos yacv evidencia-zero witral; do
+  HAS_BANK=$(curl -s "https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/v1/default/banks" 2>/dev/null | python3 -c "import sys,json; print(any(b.get('bank_id')=='$bank_id' for b in json.load(sys.stdin).get('banks',[])))" 2>/dev/null || echo "False")
+  if [ "$HAS_BANK" = "False" ]; then
+    echo "  Creating bank '$bank_id'..."
+    curl -s -X PUT "https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/v1/default/banks/$bank_id" \
+      -H "Content-Type: application/json" \
+      -d '{"name":"'"$bank_id"'"}' 2>/dev/null > /dev/null && echo "  Bank $bank_id created" || echo "  Bank $bank_id already exists or error"
+  else
+    echo "  Bank '$bank_id' already exists"
+  fi
+done
  
 # --- Hermes runtime config (idempotent) ---
 echo "[DEPLOY] Configuring Hermes runtime..."

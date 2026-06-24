@@ -15,11 +15,12 @@ These rules apply to all operations performed by the artificial intelligence ass
 
 ### Synergy and Use of Hindsight MCP (Centralized Memory)
 
-- **Dynamic Routing by Project:** The agent (regardless of harness or IDE, e.g., Kilo Code, Antigravity, Codex, Claude Code, or this assistant) interacts exclusively with the Hindsight bank corresponding to the active repository:
-  - The agent determines the bank name by extracting the name of the current project's root directory.
-  - The agent searches the environment's MCP server configuration for the server with the exact identifier `hindsight-<project-name>`.
-  - If the corresponding server exists, it is used for all recall and retain operations.
-  - If a server configured with the active project's name does not exist, the agent aborts the memory operation immediately and alerts the user to add the configuration to their harness's global MCP configuration.
+- **Dynamic Routing by Project (Hermes):** The agent (this assistant) uses a single Hindsight MCP server (`hindsight-selfhosted`) that hosts ALL banks. Bank selection is done via the `bank_id` parameter in recall/retain/reflect calls:
+  - The agent determines the active repository from the working directory, user mention, or context.
+  - The agent uses the repo name as the `bank_id` for all memory operations.
+  - The bank naming convention is `kebab-case` of the repo name (e.g., `cl-concerts-db`, `evidencia-zero`).
+  - If a bank for the active repo does not exist, the agent creates it via `create_bank(bank_id="<repo-name>")`.
+  - All skills that work with code MUST start with `recall(bank=<repo>)` and end with `retain(bank=<repo>)`.
 - **[MEM-01] Context Initialization Architecture:** The Kairos infrastructure delegates all historical context, architectural decisions, and repository knowledge to the Hindsight vector memory. The standard initialization flow dictates that the recall tool, provided by the Hindsight MCP server, functions as the primary abstraction layer to access this state. The agent invokes the recall tool using specific keywords related to the active task immediately upon receiving user input (e.g., questions about the repo, exploring files, new tasks). This MUST happen at the very beginning of the session, before reading physical files or saturating the context window. The physical documentary axis in docs/ supplements this knowledge, but Hindsight MUST be prioritized to optimize context window usage. This process establishes the baseline operational state.
 - **[MEM-02] Structural Synchronization Conditions:** The Kairos system maintains inter-agent state coherence and tracks progress exclusively through the retain tool, provided by the Hindsight MCP server. The operating model standardizes the execution of the retain tool as the definitive consolidation step for the following system events:
   - **Governance Workflow Closure:** The execution sequence of the /document, /repomap, and /derive workflows structurally concludes with a call to the retain tool.
