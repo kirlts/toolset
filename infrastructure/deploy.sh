@@ -141,6 +141,10 @@ if [ -d "$HERMES_REPO_DIR" ]; then
   [ -f "$HERMES_REPO_DIR/memory/USER.md" ] && \
     scp -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
       "$HERMES_REPO_DIR/memory/USER.md" "${SSH_HOST}:/tmp/hermes-repo/memory/" 2>/dev/null || true
+  # Transfer WebUI settings if present
+  [ -f "$HERMES_REPO_DIR/webui/settings.json" ] && \
+    scp -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+      "$HERMES_REPO_DIR/webui/settings.json" "${SSH_HOST}:/tmp/hermes-repo/webui/" 2>/dev/null || true
   echo "[DEPLOY] Hermes artifacts transferred."
   HERMES_ARTIFACTS_DEPLOYED=true
 else
@@ -596,6 +600,12 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     fi
     if [ -f /tmp/hermes-repo/memory/USER.md ]; then
       cp /tmp/hermes-repo/memory/USER.md /home/opc/.hermes/memories/USER.md 2>/dev/null || true
+    fi
+    # Restore WebUI settings if present (solo si no existe ya la config local)
+    if [ -f /tmp/hermes-repo/webui/settings.json ] && [ ! -f /home/opc/.hermes/webui/settings.json ]; then
+      mkdir -p /home/opc/.hermes/webui
+      cp /tmp/hermes-repo/webui/settings.json /home/opc/.hermes/webui/settings.json
+      echo '[hermes] WebUI settings restored from repo' | sudo tee -a ${HERMES_LOG}
     fi
     # Clean up temp files
     rm -rf /tmp/hermes-repo 2>/dev/null || true

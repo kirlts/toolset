@@ -46,10 +46,10 @@ rm -f "${HERMES_DIR}/skills/.usage.json" 2>/dev/null || true
 # Remove .hub directory (hub-installed skills cache)
 rm -rf "${HERMES_DIR}/skills/.hub" 2>/dev/null || true
 
-# ---- 5. Scripts ----
+# ---- 5. Scripts (excluye node_modules) ----
 echo "[SYNC] Scripts..."
 if [ -d "${HERMES_HOME}/scripts" ] && [ -n "$(ls -A ${HERMES_HOME}/scripts 2>/dev/null)" ]; then
-  rsync -a --delete "${HERMES_HOME}/scripts/" "${HERMES_DIR}/scripts/"
+  rsync -a --delete --exclude node_modules "${HERMES_HOME}/scripts/" "${HERMES_DIR}/scripts/"
 else
   echo "  (no scripts)"
 fi
@@ -62,7 +62,14 @@ else
   echo "  (no hooks)"
 fi
 
-# ---- 7. Commit local changes first ----
+# ---- 7. WebUI settings (send_key, theme, font size, etc.) ----
+echo "[SYNC] WebUI settings..."
+if [ -f "${HERMES_HOME}/webui/settings.json" ]; then
+  mkdir -p "${HERMES_DIR}/webui"
+  cp "${HERMES_HOME}/webui/settings.json" "${HERMES_DIR}/webui/settings.json"
+fi
+
+# ---- 8. Commit local changes first ----
 if ! git diff --quiet infrastructure/hermes/; then
   echo "[SYNC] Committing local changes..."
   git add infrastructure/hermes/

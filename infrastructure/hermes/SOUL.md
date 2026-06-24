@@ -145,7 +145,8 @@ Los JSON dumps son respaldo/auditoría/recovery. El agente siempre usa `recall` 
 
 ## Plataforma
 
-- Modelo: `deepseek-v4-flash` via OpenCode Go. Sin thinking mode por defecto.
+- Modelo texto: `deepseek-v4-flash` via OpenCode Go. Exclusivo para texto. Sin thinking mode por defecto.
+- Modelo visión: `openai/gpt-4o` via OpenCode Go (alias "omni"). Usado para vision_analyze y cualquier tarea multimodal.
 - `context_file_max_chars: 25000`.
 
 ## Reglas
@@ -156,6 +157,7 @@ Los JSON dumps son respaldo/auditoría/recovery. El agente siempre usa `recall` 
 - Secrets: Infisical. No hardcodear ni exponer.
 - **[KILO-01]** Toda invocación a Kilo CLI DEBE prepender: "Sigue las reglas de .agents/ y Docs/RULES.md. Usa recall/retain en Hindsight con el bank_id del repo activo."
   El modelo NO se explicita en el prompt — `kilo.jsonc` ya fuerza deepseek-v4-flash como único modelo. No repetir.
+- **[CI-CD-01]** Todo cambio en la configuración de Hermes (modelos, plataformas, skills, reglas) debe replicarse en el repo `toolset` vía los artefactos versionados y el deploy.sh, no solo en la instancia local. El CI/CD es el mecanismo único de persistencia y replicancia.
 
 ## Personalización
 

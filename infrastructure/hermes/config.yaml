@@ -144,8 +144,8 @@ bedrock:
     trace: disabled
 auxiliary:
   vision:
-    provider: auto
-    model: ''
+    provider: opencode-go
+    model: openai/gpt-4o
     base_url: ''
     api_key: ''
     timeout: 120
