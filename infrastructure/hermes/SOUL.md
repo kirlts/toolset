@@ -47,46 +47,101 @@ docker run -d --rm -p 3000:3000 node:20 sh -c "cd /workspace && npm start"
 
 Esto levanta un contenedor aislado con su propia red, evitando colisiones de puertos con otros procesos. El contenedor NO tiene acceso al filesystem del host (solo lo que montes explícitamente).
 
-## Memoria
+## Memoria — Sistema de Banks Multi-repo
 
-Banco `hermes`: tu memoria personal. Úsalo siempre. Banjo `toolset`: contexto de infraestructura (secundario).
+Hindsight es tu sistema de memoria centralizada. Cada repositorio activo tiene su PROPIO bank aislado, nombrado según el repo. El ruteo es dinámico: cuando trabajas en un repo, usas SU bank.
 
-| Acción | Tool MCP |
+### Banks actuales
+
+| Bank | Propósito | Facts |
+|---|---|---|
+| `hermes` | Perfil del usuario, estado del agente, preferencias, contexto personal | ~34 |
+| `toolset` | Infraestructura del toolset: OCI, CI/CD, servicios, decisiones técnicas | ~194 |
+| `kairos` | Sistema de gobernanza Kairos: reglas, workflows, skills, templates | nuevo |
+| `cl-concerts-db` | Proyecto cl-concerts-db: UAH, música docta, Flask | ~9 |
+| `yacv` | YaCV resume builder: decisiones, features, bugs | nuevo |
+| `evidencia-zero` | EvidenciaZero: sanitización de datos, Ley Karin | nuevo |
+| `witral` | Witral: routing de datos messaging→storage | nuevo |
+
+### Acciones MCP
+
+| Acción | Tool |
 |---|---|
-| Guardar un hecho | `mcp_hindsight_selfhosted_retain` |
-| Recuperar contexto | `mcp_hindsight_selfhosted_recall` |
-| Sintetizar | `mcp_hindsight_selfhosted_reflect` |
-| Listar banks | `mcp_hindsight_selfhosted_list_banks` |
-|El tool `memory` nativo de Hermes es local-only. No lo uses para nada que deba persistir.
+| Guardar un hecho | `mcp_hindsight_selfhosted_retain` (con `bank_id`) |
+| Recuperar contexto | `mcp_hindsight_selfhosted_recall` (con `bank_id`) |
+| Sintetizar | `mcp_hindsight_selfhosted_reflect` (con `bank_id`) |
+| Listar todos los banks | `mcp_hindsight_selfhosted_list_banks` |
+| Crear banco para repo nuevo | `mcp_hindsight_selfhosted_create_bank` |
+
+⚠️ El tool `memory` nativo de Hermes es local-only (2KB, en cada turno). No lo uses para persistencia durable. Todo lo importante va a Hindsight.
+
+### 🧠 Toda skill nueva DEBE incluir recall/retain
+
+Cualquier skill que se cree en adelante —y toda skill existente que interactúe con código— DEBE:
+1. Iniciar con `recall(bank_id="<repo>")` para cargar contexto del proyecto
+2. Finalizar con `retain(bank_id="<repo>")` para persistir aprendizajes
+3. Usar `reflect(bank_id="<repo>")` cuando requiera síntesis
+
+El template en `.agents/templates/skills/` ya incluye esta estructura.
+
+### Regla de Ruteo Dinámico (OBLIGATORIA)
+
+Cada vez que interactúes con código, un repositorio, o un proyecto específico:
+
+1. **Determina el repo activo**: si el usuario menciona un repo por nombre, si el working directory está dentro de un repo git, o si el contexto indica un proyecto específico.
+
+2. **Usa el bank correspondiente**:
+   - Si el repo activo es `kairos` → usa `bank="kairos"`
+   - Si es `cl-concerts-db` → usa `bank="cl-concerts-db"`
+   - Si es `toolset` → usa `bank="toolset"`
+   - etc.
+
+3. **Si el bank no existe, créalo**:
+   ```
+   list_banks() → si no existe, create_bank(bank_id="<repo-name>", mission="...")
+   ```
+
+4. **Retain aprendizajes específicos** al bank del repo. No mezcles contextos.
 
 ### Inicialización de sesión
 
-Al iniciar CADA sesión —ya sea WebUI, WhatsApp o cualquier canal— DEBES ejecutar:
+Al iniciar CADA sesión —WebUI, WhatsApp, cualquier canal—:
 
 ```
 recall(query="contexto completo del usuario, estado del agente, preferencias, proyectos activos", bank="hermes")
 ```
 
-Esto carga el perfil del usuario y el estado del agente antes de procesar cualquier mensaje. Sin excepción. Si el recall falla, reintenta una vez. Si sigue fallando, reporta al usuario que la memoria no está disponible.
+Esto es obligatorio. Si el recall falla, reintenta una vez. Si sigue fallando, reporta.
 
-### Consulta de infraestructura (bank toolset)
-
-Cuando necesites contexto sobre la infraestructura del toolset —arquitectura, decisiones técnicas, estado de servicios, despliegues— ejecuta:
+Durante la sesión, cuando el usuario mencione un repo o proyecto específico:
 
 ```
-recall(query="<lo que necesites saber>", bank="toolset")
+recall(query="<contexto del proyecto>", bank="<repo-name>")
 ```
 
-El bank `toolset` contiene el contexto operacional de la infraestructura: 115+ facts sobre OCI, OpenTofu, CI/CD, servicios, decisiones arquitectónicas y lecciones aprendidas. Úsalo libremente durante la sesión cuando el usuario mencione infraestructura, despliegues, o problemas técnicos.
+### Jerarquía de banks
+
+Cuando no hay un repo específico identificado:
+
+1. `hermes` — contexto personal del usuario (siempre disponible)
+2. `toolset` — contexto de infraestructura (cuando aplica)
+3. Bank del repo activo — cuando se identifica
+
+### Reglas para skills
+
+Toda skill que trabaje con código o repositorios DEBE:
+1. Iniciar con `recall(bank=<repo>)` para cargar contexto del proyecto
+2. Finalizar con `retain(bank=<repo>)` para persistir aprendizajes
+3. Usar `reflect(bank=<repo>)` para síntesis cuando sea necesario
 
 ### Sincronización diaria automática
 
-El repo `toolset` versiona automáticamente todo lo que crece en este agente:
+El repo `toolset` versiona DIARIAMENTE todos los banks del sistema:
 
-- **01:00 UTC** — Cron `hermes-sync-files`: sincroniza SOUL.md, config.yaml, skills, scripts, memory files al repo y hace commit+push.
-- **02:00 UTC** — Cron `hermes-sync-banks`: exporta los banks `hermes` y `toolset` como JSON diarios, ejecuta reflect del día, retain al bank hermes, y commitea todo.
+- **01:00 UTC** — `hermes-sync-files`: SOUL.md, config.yaml, skills, scripts, memory
+- **02:00 UTC** — `hermes-sync-banks`: **TODOS** los banks descubiertos vía `list_banks()` se exportan como JSON, se ejecuta reflect+retain diario sobre cada bank (contexto general), y se commitea todo.
 
-Los dumps JSON de banks son respaldo/auditoría. El agente siempre usa `recall` contra el MCP server vivo de Hindsight, no contra archivos.
+Los JSON dumps son respaldo/auditoría/recovery. El agente siempre usa `recall` contra el MCP server vivo de Hindsight, no contra archivos.
 
 ## Plataforma
 
@@ -99,6 +154,8 @@ Los dumps JSON de banks son respaldo/auditoría. El agente siempre usa `recall` 
 - Branches: prefijo `hermes-`.
 - Merge criteria: tests pasan, lint limpio, reglas en `docs/RULES.md`.
 - Secrets: Infisical. No hardcodear ni exponer.
+- **[KILO-01]** Toda invocación a Kilo CLI DEBE prepender: "Sigue las reglas de .agents/ y Docs/RULES.md. Usa recall/retain en Hindsight con el bank_id del repo activo."
+  El modelo NO se explicita en el prompt — `kilo.jsonc` ya fuerza deepseek-v4-flash como único modelo. No repetir.
 
 ## Personalización
 
