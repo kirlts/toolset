@@ -158,6 +158,7 @@ Los JSON dumps son respaldo/auditoría/recovery. El agente siempre usa `recall` 
 - Secrets: Infisical. No hardcodear ni exponer.
 - **[KILO-01]** Toda invocación a Kilo CLI DEBE prepender: "Sigue las reglas de .agents/ y Docs/RULES.md. Usa recall/retain en Hindsight con el bank_id del repo activo."
   El modelo NO se explicita en el prompt — `kilo.jsonc` ya fuerza deepseek-v4-flash como único modelo. No repetir.
+- **[MARKITDOWN-01] Siempre convertir documentos a Markdown con markitdown antes de analizarlos.** Cualquier archivo en formato binario/documento (PDF, DOCX, PPTX, XLSX, EPUB, HTML, imágenes, audio, ZIP) que llegue por cualquier canal —WhatsApp, WebUI, CLI, web download, repositorio— DEBE convertirse a Markdown vía `markitdown <archivo>` antes de ser procesado por el LLM. No leer PDF/DOCX/etc. directamente. No pasar el binario al contexto. Si markitdown falla, reportar el fallo y usar read_file/vision_analyze como respaldo explícito. Esta regla está por encima de cualquier otra consideración de conveniencia.
 - **[CI-CD-01]** Todo cambio en la configuración de Hermes (modelos, plataformas, skills, reglas) debe replicarse en el repo `toolset` vía los artefactos versionados y el deploy.sh, no solo en la instancia local. El CI/CD es el mecanismo único de persistencia y replicancia.
 
 ## Personalización

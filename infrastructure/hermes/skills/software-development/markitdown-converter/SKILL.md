@@ -1,7 +1,7 @@
 ---
 name: markitdown-converter
 description: "Convert supported document formats (PDF, DOCX, PPTX, XLSX, EPUB, HTML, CSV, JSON, XML, images, audio, ZIP) to Markdown using Microsoft MarkItDown before analysis. Saves tokens, avoids hallucinations, preserves structure."
-version: 1.0.0
+version: 1.1.0
 author: Hermes Agent + Microsoft MarkItDown
 license: MIT
 platforms: [linux, macos]
@@ -98,13 +98,22 @@ docker run --rm -v /usr/local/lib/hermes-agent/venv:/venv:ro \
   python:3.11 bash -c "pip install -q markitdown[all] && markitdown /doc.pdf"
 ```
 
-## Rules
+## Rules (OBLIGATORIO — incumplir esta regla desperdicia tokens y causa alucinaciones)
 
-1. **ALWAYS convert first** — never pass raw PDF/DOCX/PPTX/XLSX/EPUB/HTML to LLM analysis
-2. **Use the CLI** `markitdown <file>` — it's a single command, no complex setup
-3. **Read the output** with `read_file` if the file is saved, or capture stdout
-4. **Fallback**: If `markitdown` fails or returns empty, use `read_file` or `vision_analyze` as fallback and note the fallback
-5. **Clean up**: Remove temp converted files after analysis
+1. **MARKITDOWN-01: CONVERTIR SIEMPRE.** Nunca, bajo ninguna circunstancia, pases un PDF, DOCX, PPTX, XLSX, EPUB, HTML, imagen, audio o ZIP directamente al LLM. Siempre ejecuta `markitdown <archivo>` primero. Esto aplica a:
+   - Archivos enviados por WhatsApp (PDFs, DOCX, imágenes, etc.)
+   - Archivos subidos al WebUI
+   - Archivos descargados de internet (curl, wget, APIs)
+   - Archivos locales en repositorios
+   - Archivos obtenidos vía Google Drive, Reddit, o cualquier otra fuente
+
+2. **Si markitdown falla** (error, empty output, formato no soportado): reporta el fallo explícitamente al usuario y usa `read_file` para texto plano o `vision_analyze` como ÚLTIMO recurso. No silencies el fallo.
+
+3. **No hay excepciones.** Ni "es muy corto", ni "es solo una tabla", ni "ya sé lo que dice". Markitdown primero, siempre.
+
+4. **Limpieza**: borra el archivo temporal convertido después de analizarlo.
+
+5. **Esta regla está por encima de cualquier otra consideración de conveniencia o velocidad.**
 
 ## Verification
 
