@@ -121,6 +121,24 @@ services:
     networks:
       - toolset-net
 
+  searxng:
+    image: searxng/searxng:latest
+    container_name: researchit-searxng
+    restart: unless-stopped
+    ports:
+      - "4000:8080"
+    user: root
+    environment:
+      - SEARXNG_BASE_URL=http://localhost:4000/
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+    networks:
+      - toolset-net
+
 networks:
   toolset-net:
     driver: bridge
