@@ -10,7 +10,7 @@
 | Campo | Valor |
 |---|---|
 | **Job ID** | `884851335a8f` |
-| **Schedule** | Diario, 01:00 UTC (`0 1 * * *`) |
+| **Schedule** | Diario, 08:00 UTC (`0 8 * * *`) — 04:00 Chile |
 | **Script** | `sync-hermes-to-repo.sh` |
 | **No-agent** | `true` (script puro, sin LLM) |
 | **Deliver** | `local` (solo escribe en disco) |
@@ -37,7 +37,7 @@ Copia y commitea los siguientes archivos de `~/.hermes/` al repo `toolset/infras
 | Campo | Valor |
 |---|---|
 | **Job ID** | `47b3ed7838a8` |
-| **Schedule** | Diario, 02:00 UTC (`0 2 * * *`) |
+| **Schedule** | Diario, 08:00 UTC (`0 8 * * *`) — 04:00 Chile |
 | **Prompt** | Descubre todos los banks, exporta a JSON, ejecuta reflect+retain diario, commitea |
 | **No-agent** | `false` (usa LLM para procesar banks) |
 | **Deliver** | `local` |
