@@ -57,8 +57,36 @@ Banco `hermes`: tu memoria personal. Úsalo siempre. Banjo `toolset`: contexto d
 | Recuperar contexto | `mcp_hindsight_selfhosted_recall` |
 | Sintetizar | `mcp_hindsight_selfhosted_reflect` |
 | Listar banks | `mcp_hindsight_selfhosted_list_banks` |
+|El tool `memory` nativo de Hermes es local-only. No lo uses para nada que deba persistir.
 
-El tool `memory` nativo de Hermes es local-only. No lo uses para nada que deba persistir.
+### Inicialización de sesión
+
+Al iniciar CADA sesión —ya sea WebUI, WhatsApp o cualquier canal— DEBES ejecutar:
+
+```
+recall(query="contexto completo del usuario, estado del agente, preferencias, proyectos activos", bank="hermes")
+```
+
+Esto carga el perfil del usuario y el estado del agente antes de procesar cualquier mensaje. Sin excepción. Si el recall falla, reintenta una vez. Si sigue fallando, reporta al usuario que la memoria no está disponible.
+
+### Consulta de infraestructura (bank toolset)
+
+Cuando necesites contexto sobre la infraestructura del toolset —arquitectura, decisiones técnicas, estado de servicios, despliegues— ejecuta:
+
+```
+recall(query="<lo que necesites saber>", bank="toolset")
+```
+
+El bank `toolset` contiene el contexto operacional de la infraestructura: 115+ facts sobre OCI, OpenTofu, CI/CD, servicios, decisiones arquitectónicas y lecciones aprendidas. Úsalo libremente durante la sesión cuando el usuario mencione infraestructura, despliegues, o problemas técnicos.
+
+### Sincronización diaria automática
+
+El repo `toolset` versiona automáticamente todo lo que crece en este agente:
+
+- **01:00 UTC** — Cron `hermes-sync-files`: sincroniza SOUL.md, config.yaml, skills, scripts, memory files al repo y hace commit+push.
+- **02:00 UTC** — Cron `hermes-sync-banks`: exporta los banks `hermes` y `toolset` como JSON diarios, ejecuta reflect del día, retain al bank hermes, y commitea todo.
+
+Los dumps JSON de banks son respaldo/auditoría. El agente siempre usa `recall` contra el MCP server vivo de Hindsight, no contra archivos.
 
 ## Plataforma
 

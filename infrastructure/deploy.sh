@@ -408,14 +408,62 @@ if [ -f "$SOUL_FILE" ]; then
   echo "[DEPLOY] Hermes SOUL.md synced."
 fi
 
+# --- Transfer Hermes config.yaml (structural config from repo) ---
+HERMES_CONFIG_SRC="$(dirname "${COMPOSE_FILE}")/hermes/config.yaml"
+if [ -f "$HERMES_CONFIG_SRC" ]; then
+  echo "[DEPLOY] Transferring Hermes config.yaml..."
+  scp -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    "$HERMES_CONFIG_SRC" "${SSH_HOST}:/tmp/hermes-config.yaml"
+  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    "${SSH_HOST}" \
+    "sudo cp /tmp/hermes-config.yaml /home/opc/.hermes/config.yaml && sudo chown opc:opc /home/opc/.hermes/config.yaml"
+  echo "[DEPLOY] Hermes config.yaml synced."
+fi
+
+# --- Transfer Hermes memory files (MEMORY.md + USER.md) ---
+HERMES_MEMORY_SRC="$(dirname "${COMPOSE_FILE}")/hermes/memory"
+if [ -d "$HERMES_MEMORY_SRC" ]; then
+  echo "[DEPLOY] Transferring Hermes memory files..."
+  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    "${SSH_HOST}" "sudo mkdir -p /home/opc/.hermes/memories"
+  for memfile in MEMORY.md USER.md; do
+    if [ -f "${HERMES_MEMORY_SRC}/${memfile}" ]; then
+      scp -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+        "${HERMES_MEMORY_SRC}/${memfile}" "${SSH_HOST}:/tmp/${memfile}"
+      ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+        "${SSH_HOST}" \
+        "sudo cp /tmp/${memfile} /home/opc/.hermes/memories/${memfile} && sudo chown opc:opc /home/opc/.hermes/memories/${memfile}"
+    fi
+  done
+  echo "[DEPLOY] Hermes memory files synced."
+fi
+
+# --- Transfer Hermes scripts ---
+HERMES_SCRIPTS_SRC="$(dirname "${COMPOSE_FILE}")/hermes/scripts"
+if [ -d "$HERMES_SCRIPTS_SRC" ] && [ -n "$(ls -A ${HERMES_SCRIPTS_SRC} 2>/dev/null)" ]; then
+  echo "[DEPLOY] Transferring Hermes scripts..."
+  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    "${SSH_HOST}" "sudo mkdir -p /home/opc/.hermes/scripts"
+  tar czf /tmp/hermes-scripts.tar.gz -C "$(dirname "${HERMES_SCRIPTS_SRC}")" "$(basename "${HERMES_SCRIPTS_SRC}")"
+  scp -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    /tmp/hermes-scripts.tar.gz "${SSH_HOST}:/tmp/"
+  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    "${SSH_HOST}" \
+    "sudo tar xzf /tmp/hermes-scripts.tar.gz -C /home/opc/.hermes/ --strip-components=1 && \
+     sudo chown -R opc:opc /home/opc/.hermes/scripts && \
+     sudo rm -f /tmp/hermes-scripts.tar.gz"
+  rm -f /tmp/hermes-scripts.tar.gz
+  echo "[DEPLOY] Hermes scripts synced."
+fi
+
 # --- Remove default SOUL.md template (solo debe existir nuestro custom SOUL.md) ---
 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   "${SSH_HOST}" \
   "sudo rm -f /usr/local/lib/hermes-agent/docker/SOUL.md && \
    echo '[hermes] Default SOUL.md template removed'"
 
-# --- Sync Hermes skills (including kilo-code skill) ---
-SKILLS_SRC="$(dirname "${COMPOSE_FILE}")/hermes-skills"
+# --- Sync Hermes skills (from repo hermes/skills/) ---
+SKILLS_SRC="$(dirname "${COMPOSE_FILE}")/hermes/skills"
 if [ -d "$SKILLS_SRC" ]; then
   echo "[DEPLOY] Syncing Hermes skills..."
   tar czf /tmp/hermes-skills.tar.gz -C "$(dirname "$SKILLS_SRC")" "$(basename "$SKILLS_SRC")" && \
