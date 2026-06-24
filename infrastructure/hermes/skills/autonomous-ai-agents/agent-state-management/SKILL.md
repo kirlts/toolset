@@ -55,6 +55,32 @@ Every session must load context from Hindsight before reading files. Per `projec
 4. Proceed to repo docs (REPOMAP → MASTER-SPEC → RULES → ...)
 ```
 
+## Session Awareness Protocol
+
+When the user asks about your current status — e.g. "qué haces", "en qué estás", "what are you doing", "que estas haciendo" — do NOT assume idle. Follow these steps:
+
+1. **Call `session_search()` with no arguments** — browse mode returns ALL active sessions with source, message count, last activity time
+2. **Check background processes** via `process(action='list')`
+3. **Check cron jobs** via `cronjob(action='list')`
+4. **Synthesize results** — do NOT report just processes/cron; session_search may reveal active WebUI, CLI, or other sessions
+
+**Correction (24 Jun 2026):** The agent responded "nada corriendo" while the user had a 305-message WebUI session active. The user explicitly corrected that ALL active sessions must be checked, not just OS processes.
+
+### Example flow
+
+```
+session_search()        → 3 sessions (WhatsApp, 2x WebUI)
+process(action='list')  → 0 running processes
+cronjob(action='list')  → 2 cron jobs, both healthy
+Result: WebUI session with 305 msgs active + 2 cron jobs scheduled. Not idle.
+```
+
+**Do NOT include**: `ps aux`, `systemctl`, `docker ps`, hardware metrics, or any info that wasn't asked for.
+
+### Related pitfall
+
+This protocol only applies when the user explicitly asks about your status. For routine work, session awareness is handled by the gateway — you don't need to poll session state on every turn.
+
 ## Lifecycle Automation Patterns
 
 ### Daily Hindsight Consolidation

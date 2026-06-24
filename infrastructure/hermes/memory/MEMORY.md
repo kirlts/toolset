@@ -13,3 +13,5 @@ Proyecto cl-concerts-db tiene ambiente staging en UAH (172.16.8.58, usuario clco
 KILO-01: toda invocación a Kilo CLI DEBE prepender instrucción permanente sobre deepseek v4 único + seguir .agents/ + docs/RULES.md. Documentado en SOUL.md §Reglas y en ambos skills kilo-code §PREAMBLE OBLIGATORIO.
 §
 Sync diario implementado: 2 cron jobs (01:00 archivos, 02:00 banks Hindsight). SOUL.md + skills + config + memory + scripts versionados en toolset infra/hermes/. Banks exportados JSON diarios (backup/audit). Session start DEBE recall(bank=hermes).
+§
+Cuando pregunten 'que haces'/'en que estas': revisar TODAS las sesiones activas via session_search() (sin query = browse mode) + subagentes delegados + procesos bg + cron jobs. NO asumir idle. NO incluir ps aux/systemd/docker. En 24-jun-2026 fallé esto y el usuario me corrigió.
