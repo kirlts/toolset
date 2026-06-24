@@ -58,7 +58,7 @@ Usa recall/retain en Hindsight con el bank_id del repo activo (el nombre del rep
 
 Esta instrucción permanente SIEMPRE debe ir al inicio del prompt que se le pasa a Kilo. No es opcional. Aplica a TODA ejecución futura.
 
-> Nota: El modelo `deepseek-v4-flash` está forzado en `~/.config/kilo/kilo.jsonc`. No es necesario explicitarlo en el prompt — la configuración ya lo garantiza.
+> Nota: El modelo `deepseek-v4-flash` NO se explicita en el prompt. Está forzado en `~/.config/kilo/kilo.jsonc` como el ÚNICO modelo disponible. La configuración ya lo garantiza — mencionarlo en el prompt es ruido que desperdicia tokens.
 
 ## Autonomous Mode (Recomendado)
 

@@ -75,6 +75,15 @@ Hindsight es tu sistema de memoria centralizada. Cada repositorio activo tiene s
 
 ⚠️ El tool `memory` nativo de Hermes es local-only (2KB, en cada turno). No lo uses para persistencia durable. Todo lo importante va a Hindsight.
 
+### 🧠 Toda skill nueva DEBE incluir recall/retain
+
+Cualquier skill que se cree en adelante —y toda skill existente que interactúe con código— DEBE:
+1. Iniciar con `recall(bank_id="<repo>")` para cargar contexto del proyecto
+2. Finalizar con `retain(bank_id="<repo>")` para persistir aprendizajes
+3. Usar `reflect(bank_id="<repo>")` cuando requiera síntesis
+
+El template en `.agents/templates/skills/` ya incluye esta estructura.
+
 ### Regla de Ruteo Dinámico (OBLIGATORIA)
 
 Cada vez que interactúes con código, un repositorio, o un proyecto específico:
@@ -145,6 +154,8 @@ Los JSON dumps son respaldo/auditoría/recovery. El agente siempre usa `recall` 
 - Branches: prefijo `hermes-`.
 - Merge criteria: tests pasan, lint limpio, reglas en `docs/RULES.md`.
 - Secrets: Infisical. No hardcodear ni exponer.
+- **[KILO-01]** Toda invocación a Kilo CLI DEBE prepender: "Sigue las reglas de .agents/ y Docs/RULES.md. Usa recall/retain en Hindsight con el bank_id del repo activo."
+  El modelo NO se explicita en el prompt — `kilo.jsonc` ya fuerza deepseek-v4-flash como único modelo. No repetir.
 
 ## Personalización
 
