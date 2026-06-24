@@ -50,7 +50,6 @@ REQUIRED_VARS=(
   HERMES_WHATSAPP_MODE
   WHATSAPP_ALLOWED_USERS
   COMPOSIO_API_KEY
-  COMPOSIO_REDDIT_CONNECTION_ID
 )
 
 MISSING=0
@@ -98,7 +97,6 @@ HINDSIGHT_API_LLM_BASE_URL=https://opencode.ai/zen/go/v1
 FUNNEL_DOMAIN=${FUNNEL_DOMAIN:-toolset-oci-1-1.tail2d4c18.ts.net}
 INFISICAL_PID=${INFISICAL_PID:-}
 INFISICAL_SERVICE_TOKEN=${INFISICAL_SERVICE_TOKEN:-}
-COMPOSIO_REDDIT_CONNECTION_ID=${COMPOSIO_REDDIT_CONNECTION_ID:-}
 ENVEOF
 else
   echo "[DEPLOY] .env exists. Skipping rewrite."
@@ -168,7 +166,7 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
      rm -rf /tmp/researchit-tmp; \
    fi && \
    set -a && source /home/opc/.hermes/.env && set +a && \
-   export COMPOSIO_REDDIT_CONNECTION_ID=*** printenv COMPOSIO_REDDIT_CONNECTION_ID) && \
+   export COMPOSIO_REDDIT_CONNECTION_ID=${COMPOSIO_REDDIT_CONNECTION_ID:-reddit_hight-mudden} && \\
    env | grep -E '^(OPENCODE_GO_API_KEY|COMPOSIO_API_KEY|COMPOSIO_REDDIT)' | \
    while IFS='=' read -r k v; do echo \"\$k=\$v\" >> /opt/researchit/.env; done" 2>&1 | sed 's/^/  [RESEARCHIT] /'
 echo "[DEPLOY] ResearchIt synced."
