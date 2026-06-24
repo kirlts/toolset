@@ -62,20 +62,25 @@ else
   echo "  (no hooks)"
 fi
 
-# ---- 7. Git pull with rebase to avoid non-fast-forward rejection ----
-echo "[SYNC] Pulling latest remote changes..."
-git fetch origin main 2>&1
-git rebase origin/main 2>&1 || echo "[SYNC] Rebase failed (will retry next cycle)"
-
-# ---- 8. Git commit ----"
-if git diff --quiet infrastructure/hermes/; then
-  echo "[SYNC] No changes to commit."
-else
+# ---- 7. Commit local changes first ----
+if ! git diff --quiet infrastructure/hermes/; then
+  echo "[SYNC] Committing local changes..."
   git add infrastructure/hermes/
   git commit -m "${COMMIT_MSG}"
-  # Push current branch to main on remote
-  git push origin HEAD:main 2>&1 || echo "[SYNC] Push failed (will retry next cycle)"
-  echo "[SYNC] Committed and pushed: ${COMMIT_MSG}"
+  CHANGES_COMMITTED=true
+else
+  echo "[SYNC] No local changes to commit."
+  CHANGES_COMMITTED=false
+fi
+
+# ---- 8. Rebase on remote main then push ----
+echo "[SYNC] Syncing with remote..."
+git fetch origin main 2>&1
+if [ "${CHANGES_COMMITTED}" = "true" ]; then
+  # Only rebase if we actually committed something (avoids issues with stale index)
+  git rebase origin/main 2>&1 && \
+  git push origin HEAD:main 2>&1 || \
+  echo "[SYNC] Remote sync failed (will retry next cycle)"
 fi
 
 echo "[SYNC] === Sync complete ==="
