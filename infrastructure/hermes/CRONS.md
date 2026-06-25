@@ -25,6 +25,8 @@ Copia y commitea los siguientes archivos de `~/.hermes/` al repo `toolset/infras
 - `skills/` (snapshot completo, excluye `.curator_backups`, `.hub`, node_modules)
 - `scripts/`
 - `hooks/`
+- `kilo.jsonc` (desde `~/.config/kilo/`)
+- Redacta secrets (COMPOSIO_MCP_KEY) antes de commitear
 
 ### Dependencias
 - `git` autenticado como `kirlts` vía HTTPS

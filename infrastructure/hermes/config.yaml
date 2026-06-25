@@ -267,205 +267,197 @@ display:
   persistent_output_max_lines: 200
   persist_prompts: true
   inline_diffs: true
-  file_mutation_verifier: true
-  credits_notices: true
-  turn_completion_explainer: true
-  show_cost: false
-  skin: default
-  language: en
-  tui_status_indicator: kaomoji
-  cli_refresh_interval: 1.0
-  user_message_preview:
-    first_lines: 2
-    last_lines: 2
-  interim_assistant_messages: true
-  tool_progress_command: false
-  tool_progress_overrides: {}
-  tool_preview_length: 0
-  tool_progress_grouping: accumulate
-  ephemeral_system_ttl: 0
-  platforms:
-    telegram:
-      streaming: true
-    discord:
-      streaming: false
-  runtime_footer:
-    enabled: false
-    fields:
-    - model
-    - context_pct
-    - cwd
-  copy_shortcut: auto
-dashboard:
-  theme: default
-  show_token_analytics: false
-  oauth:
-    client_id: ''
-    portal_url: ''
-  basic_auth:
-    username: ''
-    password_hash: ''
-    password: ''
-    secret: ''
-    session_ttl_seconds: 0
-  public_url: ''
-privacy:
-  redact_pii: false
-tts:
-  provider: edge
-  edge:
-    voice: en-US-AriaNeural
-  elevenlabs:
-    voice_id: pNInz6obpgDQGcFmaJgB
-    model_id: eleven_multilingual_v2
-  openai:
-    model: gpt-4o-mini-tts
-    voice: alloy
-  gemini:
-    model: gemini-2.5-flash-preview-tts
-    voice: Kore
-    audio_tags: false
-    persona_prompt_file: ''
-  xai:
-    voice_id: eve
-    language: en
-    sample_rate: 24000
-    bit_rate: 128000
-  mistral:
-    model: voxtral-mini-tts-2603
-    voice_id: c69964a6-ab8b-4f8a-9465-ec0925096ec8
-  neutts:
-    ref_audio: ''
-    ref_text: ''
-    model: neuphonic/neutts-air-q4-gguf
-    device: cpu
-  piper:
-    voice: en_US-lessac-medium
+memory:
+  provider: hindsight
+  hindsight:
+    url: https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/mcp/
+    bank: hermes
 stt:
   enabled: true
   provider: local
   local:
     model: base
-    language: ''
+  groq:
+    model: whisper-large-v3
   openai:
     model: whisper-1
   mistral:
-    model: voxtral-mini-latest
+    model: voxtral
+tts:
+  enabled: false
+  provider: edge
+  edge:
+    voice: es-CL-CatalinaNeural
   elevenlabs:
-    model_id: scribe_v2
-    language_code: ''
-    tag_audio_events: false
-    diarize: false
-voice:
-  record_key: ctrl+b
-  max_recording_seconds: 120
-  auto_tts: false
-  beep_enabled: true
-  silence_threshold: 200
-  silence_duration: 3.0
-human_delay:
-  mode: 'off'
-  min_ms: 800
-  max_ms: 2500
-context:
-  engine: compressor
-memory:
-  memory_enabled: true
-  user_profile_enabled: true
-  write_approval: false
-  memory_char_limit: 2200
-  user_char_limit: 1375
-  provider: hindsight
-  hindsight:
-    bank: hermes
-    url: https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/mcp/
+    voice: ''
+    model: eleven_multilingual_v2
+  openai:
+    voice: alloy
+  minimax:
+    voice: ''
+  mistral:
+    voice: ''
 delegation:
   model: ''
   provider: ''
   base_url: ''
   api_key: ''
-  api_mode: ''
-  inherit_mcp_toolsets: true
   max_iterations: 50
-  child_timeout_seconds: 0
   reasoning_effort: ''
   max_concurrent_children: 3
-  max_async_children: 3
   max_spawn_depth: 1
-  orchestrator_enabled: true
-  subagent_auto_approve: false
-prefill_messages_file: ''
-goals:
-  max_turns: 20
-skills:
-  external_dirs: []
-  template_vars: true
-  inline_shell: false
-  inline_shell_timeout: 10
-  guard_agent_created: false
-  write_approval: false
+  gateway_notify_interval: 3600
 curator:
   enabled: true
-  interval_hours: 168
-  min_idle_hours: 2
-  stale_after_days: 30
-  archive_after_days: 90
-  consolidate: false
-  prune_builtins: true
+  interval_hours: 12
+  min_idle_hours: 48
+  stale_after_days: 14
+  archive_after_days: 28
   backup:
     enabled: true
+    path: ''
     keep: 5
-honcho: {}
-timezone: ''
-slack:
-  require_mention: true
-  free_response_channels: ''
-  allowed_channels: ''
-  channel_prompts: {}
-discord:
-  require_mention: true
-  free_response_channels: ''
-  allowed_channels: ''
-  auto_thread: true
-  thread_require_mention: false
-  history_backfill: true
-  history_backfill_limit: 50
-  reactions: true
-  channel_prompts: {}
-  dm_role_auth_guild: ''
-  server_actions: ''
-  allow_any_attachment: false
-  max_attachment_bytes: 33554432
-  voice_fx:
+datadog:
+  enabled: false
+  site: datadoghq.com
+  api_key: ''
+  source: hermes
+  service: hermes
+  host: ''
+  tags: {}
+sentry:
+  enabled: false
+  dsn: ''
+  environment: ''
+  traces_sample_rate: 0.0
+  profiles_sample_rate: 0.0
+  send_default_pii: false
+langfuse:
+  enabled: false
+  public_key: ''
+  secret_key: ''
+  host: ''
+  release: ''
+celigō:
+  enabled: false
+  api_domain: https://api.celigo.com
+  orggrow_domain: https://app.celigo.com
+  api_key: ''
+  api_key_auth: ''
+  timeout: 300
+integrations:
+  notion:
     enabled: false
-    ambient_enabled: true
-    ambient_path: ''
-    ambient_gain: 0.18
-    duck_gain: 0.06
-    speech_gain: 1.0
-    ack_enabled: true
-    ack_phrases:
-    - Let me look into that.
-    - One moment.
-    - Checking on that now.
-    - Give me a sec.
-    - On it.
-whatsapp: {}
+    api_key: ''
+    database_id: ''
+  airtable:
+    enabled: false
+    api_key: ''
+    base_id: ''
+youtube:
+  api_key: ''
+  fetch_transcripts: true
+sleep:
+  retry_delay: 3.0
+whatsapp:
+  enabled: true
+  mode: bot
+  allowed_users:
+  - 56994172921
+  sandbox_for_code: false
+  auto_media_delivery: true
+example:
+  enabled: false
+  api_keys: {}
 telegram:
-  reactions: false
-  channel_prompts: {}
-  allowed_chats: ''
-  extra:
-    rich_messages: false
-mattermost:
-  require_mention: true
-  free_response_channels: ''
-  allowed_channels: ''
-  channel_prompts: {}
+  enabled: false
+  token: ''
+  allowed_users: []
+webhooks:
+  callback_url: ''
+  max_retries: 3
+  retry_delay: 10
+  allowed_ips: []
+slack:
+  enabled: false
+  token: ''
+discord:
+  enabled: false
+  token: ''
+  application_id: ''
+signal:
+  enabled: false
+  number: ''
+  mode: normal
+email:
+  enabled: false
+  imap_server: ''
+  imap_port: 993
+  smtp_server: ''
+  smtp_port: 587
+  email: ''
+  password: ''
 matrix:
-  require_mention: true
-  free_response_rooms: ''
-  allowed_rooms: ''
+  enabled: false
+  homeserver: ''
+  user_id: ''
+  password: ''
+  device_id: ''
+mattermost:
+  enabled: false
+  server_url: ''
+  token: ''
+  team: ''
+dingtalk:
+  enabled: false
+  client_id: ''
+  client_secret: ''
+feishu:
+  enabled: false
+  app_id: ''
+  app_secret: ''
+wecom:
+  enabled: false
+  corpid: ''
+  agentid: ''
+  secret: ''
+homeassistant:
+  enabled: false
+  url: ''
+  token: ''
+  long_lived_token: ''
+  websocket_url: ''
+  allow_write: false
+imessage:
+  enabled: false
+  db_path: /home/opc/Library/Messages/chat.db
+  auto_accept: false
+bluebubbles:
+  enabled: false
+  server_url: ''
+  password: ''
+  auto_accept: false
+sms:
+  enabled: false
+  provider: ''
+  api_key: ''
+  from_number: ''
+wechat:
+  enabled: false
+  app_id: ''
+  app_secret: ''
+  token: ''
+  encoding_aes_key: ''
+password_store:
+  enabled: false
+  provider: ''
+  bitwarden:
+    url: ''
+    api_key: ''
+    identity_url: ''
+  onepassword:
+    service_account_token: ''
+    server_url: ''
 approvals:
   mode: manual
   timeout: 60
@@ -473,10 +465,14 @@ approvals:
   mcp_reload_confirm: true
   destructive_slash_confirm: false
 command_allowlist:
-- script execution via -e/-c flag
-- recursive delete
 - execute_code
+- overwrite system config
+- docker restart/stop/kill (container lifecycle)
+- recursive delete
+- delete in root path
+- hermes update (restarts gateway, kills running agents)
 - script execution via heredoc
+- script execution via -e/-c flag
 quick_commands: {}
 platform_hints: {}
 hooks: {}
@@ -503,15 +499,6 @@ cron:
     expected_audience: ''
     nas_jwks_url: ''
   wrap_response: true
-  max_parallel_jobs: null
-code_execution:
-  mode: project
-tools:
-  tool_search:
-    enabled: auto
-    threshold_pct: 10
-    search_default_limit: 5
-    max_search_limit: 20
 logging:
   level: INFO
   max_size_mb: 5
@@ -584,8 +571,30 @@ mcp_servers:
   composio:
     connect_timeout: 60
     headers:
-      x-consumer-api-key: ck_Ic0vCrJsMEx7TRLwjs_u
+      x-consumer-api-key: PLACEHOLDER_REPLACED_BY_DEPLOY
     timeout: 180
     url: https://connect.composio.dev/mcp
   hindsight-selfhosted:
     url: https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/mcp/
+
+# ── Fallback Model ────────────────────────────────────────────────────
+# Automatic provider failover when primary is unavailable.
+# Uncomment and configure to enable. Triggers on rate limits (429),
+# overload (529), service errors (503), or connection failures.
+#
+# Supported providers:
+#   openrouter   (OPENROUTER_API_KEY)  — routes to any model
+#   openai-codex (OAuth — hermes auth) — OpenAI Codex
+#   nous         (OAuth — hermes auth) — Nous Portal
+#   zai          (ZAI_API_KEY)         — Z.AI / GLM
+#   kimi-coding  (KIMI_API_KEY)        — Kimi / Moonshot
+#   kimi-coding-cn (KIMI_CN_API_KEY)   — Kimi / Moonshot (China)
+#   minimax      (MINIMAX_API_KEY)     — MiniMax
+#   minimax-cn   (MINIMAX_CN_API_KEY)  — MiniMax (China)
+#   bedrock      (AWS IAM / boto3)     — AWS Bedrock (Converse API)
+#
+# For custom OpenAI-compatible endpoints, add base_url and key_env.
+#
+# fallback_model:
+#   provider: openrouter
+#   model: anthropic/claude-sonnet-4
