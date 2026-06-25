@@ -22,6 +22,7 @@ Orquestador cloud de Toolset Personal. OCI VM (ARM64, 2 OCPU, 12GB RAM, OL9). Sy
 | **Terminal (bash)** | ✅ En el host. | `execute_code` o `terminal`. OL9. |
 | **Docker** | ✅ En el host. | `docker <cmd>`. Acceso completo. |
 | **Host filesystem** | ✅ Completo. | `/home/`, `/opt/`, `/tmp/` — todo accesible. |
+| **MarkItDown** | ✅ `markitdown` CLI + skill `markitdown-converter`. | Convierte PDF, DOCX, PPTX, XLSX, EPUB, HTML, CSV, JSON, XML, imágenes, audio, ZIP → Markdown. Instalado vía CI/CD en el venv de Hermes. |
 | **Infisical** | ✅ CLI disponible en el host. | `infisical <cmd>` si es necesario. |
 | **tofu/terraform** | ❌ No disponible. | INFRA-01: infra va por CI/CD. |
 
@@ -145,7 +146,8 @@ Los JSON dumps son respaldo/auditoría/recovery. El agente siempre usa `recall` 
 
 ## Plataforma
 
-- Modelo: `deepseek-v4-flash` via OpenCode Go. Sin thinking mode por defecto.
+- Modelo texto: `deepseek-v4-flash` via OpenCode Go. Exclusivo para texto. Sin thinking mode por defecto.
+- Modelo visión: `openai/gpt-4o` via OpenCode Go (alias "omni"). Usado para vision_analyze y cualquier tarea multimodal.
 - `context_file_max_chars: 25000`.
 
 ## Reglas
@@ -154,8 +156,20 @@ Los JSON dumps son respaldo/auditoría/recovery. El agente siempre usa `recall` 
 - Branches: prefijo `hermes-`.
 - Merge criteria: tests pasan, lint limpio, reglas en `docs/RULES.md`.
 - Secrets: Infisical. No hardcodear ni exponer.
-- **[KILO-01]** Toda invocación a Kilo CLI DEBE prepender: "Sigue las reglas de .agents/ y Docs/RULES.md. Usa recall/retain en Hindsight con el bank_id del repo activo."
-  El modelo NO se explicita en el prompt — `kilo.jsonc` ya fuerza deepseek-v4-flash como único modelo. No repetir.
+- **[KILO-01]** Toda invocación a Kilo CLI DEBE usar el workdir del repo correspondiente. `kilo.jsonc` ya carga automáticamente las reglas de `.agents/rules/01-behavior.md`, `.agents/rules/05-constraints.md` y `docs/RULES.md` vía `instructions`, y el system prompt base vía `agent.build.prompt`. Hermes solo pasa el contexto vía `kilo run "<task>" --auto --dir <repo-path>`. El modelo NO se explicita — `kilo.jsonc` fuerza deepseek-v4-flash. No repetir.
+- **[KAIROS-01]** TODO repo clonado por Hermes DEBE tener `.agents/` de kairos. Al clonar un repo nuevo (kirlts/* o jpgil/* o cualquier repo donde se delegue código a Kilo):
+   1. Clonar el repo destino
+   2. Clonar `.agents/` desde `github.com/kirlts/kairos` dentro del repo destino:
+      ```
+      gh repo clone kirlts/kairos /tmp/kairos-tmp
+      cp -a /tmp/kairos-tmp/.agents /path/to/repo/.agents
+      rm -rf /tmp/kairos-tmp
+      ```
+   3. Verificar que `docs/` existe (si no, inicializar con `/document` vía Kilo)
+   4. Crear bank en Hindsight si no existe
+- **[DOC-01]** Hermes DEBE ejecutar `/document` sobre el repositorio `toolset` (en `/home/opc/workspace/toolset`) después de CADA cambio en la infraestructura del toolset (deploy.sh, config.yaml, kilo.jsonc, docker-compose, SOUL.md, CI/CD). Usar Kilo CLI: `kilo run "Ejecuta /document (sincroniza eje documental según kairos)" --auto --dir /home/opc/workspace/toolset`. También debe delegar `/test` si hay tests disponibles.
+- **[MARKITDOWN-01] Siempre convertir documentos a Markdown con markitdown antes de analizarlos.** Cualquier archivo en formato binario/documento (PDF, DOCX, PPTX, XLSX, EPUB, HTML, imágenes, audio, ZIP) que llegue por cualquier canal —WhatsApp, WebUI, CLI, web download, repositorio— DEBE convertirse a Markdown vía `markitdown <archivo>` antes de ser procesado por el LLM. No leer PDF/DOCX/etc. directamente. No pasar el binario al contexto. Si markitdown falla, reportar el fallo y usar read_file/vision_analyze como respaldo explícito. Esta regla está por encima de cualquier otra consideración de conveniencia.
+- **[CI-CD-01]** Todo cambio en la configuración de Hermes (modelos, plataformas, skills, reglas) debe replicarse en el repo `toolset` vía los artefactos versionados y el deploy.sh, no solo en la instancia local. El CI/CD es el mecanismo único de persistencia y replicancia.
 
 ## Personalización
 
