@@ -1,5 +1,9 @@
-Nombre: Martín. Desarrollador. Gestiona múltiples repositorios: kirlts/ (toolset, kairos, witral, YaCV, cl-concerts-db, evidenciaZero, etc.) y jpgil/ (cl-concerts-db como colaborador). Trabaja con Universidad Alberto Hurtado (UAH) en proyecto de conciertos de música docta (cl-concerts-db). Se comunica vía WhatsApp desde Chile, español, espera respuestas breves y directas. Intereses: música docta, infraestructura cloud, automatización, voluntariados de fauna marina. Prefiere que investigue causas raíz de errores en lugar de solo reportarlos. Corrige activamente cuando uso herramientas incorrectas (espera Kilo CLI para código, MCP tools específicos). Valora precisión técnica y honestidad sobre asumir.
+Exige que TODO código/testeo/docs sea generado por Kilo CLI. Hermes solo orquesta. .agents/ de kairos OBLIGATORIO en cada repo nuevo. /document periódico.
 §
-Exige deepseek-v4-flash como ÚNICO modelo en todo el stack. Prohíbe expresamente qwen, kimi, mimo y cualquier otro modelo. "Nada de qwen" fue su corrección directa.
+Exige integraciones DIRECTAS con Hermes/Toolset (como markitdown), no vía Witral u otros middlewares. Banks Hindsight nombrados exactamente como el repo.
 §
-Directiva permanente: vision model = mimo-v2-omni via opencode-go. deepseek-v4-flash exclusivo para texto. Cambios a Hermes siempre via repo toolset + CI/CD (deploy.sh), no preguntar.
+Martín, dev chileno, stack: deepseek-v4-flash (texto) + mimo-v2-omni (visión) via opencode-go. Prohíbe qwen/kimi. Repos kirlts/ + jpgil/. Intereses: música docta, cloud, fauna marina.
+§
+Ante blockers técnicos, DEBO explorar alternativas e implementar solución sin preguntar. No reportar punto muerto. 'Resuelve lo ahora' y 'no me molestes' son la regla. Approve always para todo.
+§
+Reddit es fuente de datos por defecto en toda investigación, no solo cuando se pide explícitamente. Extender infraestructura existente (deploy.sh, docker-compose) antes de crear scripts nuevos.

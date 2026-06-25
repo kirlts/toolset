@@ -1,103 +1,119 @@
 ---
 name: kilo-code
-description: "Delegate coding tasks to Kilo Code CLI (features, PRs, refactors, tests)."
-version: 1.1.0
+description: "Delegate ALL code generation, testing, and documentation to Kilo Code CLI. Hermes is a LIGHTWEIGHT ORCHESTRATOR only."
+version: 1.2.0
 author: Toolset Personal
 license: MIT
 platforms: [linux]
 metadata:
   hermes:
-    tags: [Coding-Agent, Kilo, OpenCode, Code-Review, Refactoring, Automation]
-    related_skills: [claude-code, codex, hermes-agent, opencode]
+    tags: [Coding-Agent, Kilo, Kairos, Orchestration, Automation]
+    related_skills: [hermes-agent, markitdown-converter]
 ---
 
-# Kilo Code — Hermes Orchestration Guide
+# Kilo Code — Mandato de Delegación Total
 
-Delegate coding tasks to [Kilo Code CLI](https://kilo.ai/docs/code-with-ai/platforms/cli) (`@kilocode/cli`) via the Hermes terminal. Kilo Code CLI is a fork of OpenCode with autonomous mode, ACP server, and MCP support. Uses the same `~/.config/kilo/kilo.jsonc` config as the local Kilo Code (VS Code extension).
+## Regla Cardinal
 
-## Prerequisites
+Hermes NO escribe código. Punto. Toda generación de código, testeo, debugging, refactorización, creación de documentación kairos (MASTER-SPEC, TODO, MEMORY, USER-DECISIONS, CHANGELOG) y cualquier archivo `.py`, `.ts`, `.js`, `.md` de proyecto DEBE ser generado por Kilo CLI.
 
-- **Install:** `npm install -g @kilocode/cli` (ya instalado en este entorno — v7.3.54)
-- **Auth:** usa `OPENCODE_GO_API_KEY` del .env. No requiere login adicional.
-- **Config:** `~/.config/kilo/kilo.jsonc` con proveedor OpenCode Go, modelos, MCPs.
-- **Verificar:** `kilo --version`
+Hermes solo:
+- Recibe la solicitud del usuario
+- Carga contexto de Hindsight (recall)
+- Construye el prompt para Kilo con instrucciones claras
+- Invoca `kilo run --auto`
+- Persiste aprendizajes en Hindsight (retain)
+- Reporta resultados al usuario
 
-## When to Delegate to Kilo Code
-
-| Situación | ¿Delegar a Kilo? |
-|---|---|
-| Tarea que produce >50 líneas de código | ✅ **SÍ** — delegar a `kilo run --auto` |
-| Refactorización de un módulo completo | ✅ **SÍ** |
-| Crear tests para una feature | ✅ **SÍ** |
-| Bug fix simple (<50 líneas) | ❌ NO — resolver directamente o con `delegate_task()` |
-| Leer archivos, analizar código | ❌ NO — terminal/read_file directamente |
-| Operaciones git (commit, push, PR) | ❌ NO — terminal/gh CLI directamente |
-| Cambios que requieren PR + merge | ✅ **SÍ** — `kilo run --auto` + gh CLI para PR |
-
-**Regla general:** si el output estimado supera 50 líneas de código o involucra múltiples archivos, delega a `kilo run --auto`. Si es un cambio pequeño o una consulta, terminal directo es suficiente.
-
-### Pitfall: Ignorar el mandato SOUL.md
-
-Si tu SOUL.md o identidad declarada dice explícitamente que uses Kilo CLI para tareas de código, ÚSALO. No caigas en la tentación de hacer todo con `terminal`/`read_file`/`search_files` solo porque parece más rápido. Esto aplica especialmente al diagnosticar código en repos clonados: si la tarea requiere entender, modificar o validar código, y tu identidad dice que tienes Kilo CLI disponible para eso, Kilo debe ser la primera opción, no el último recurso.
-
-**Señal de alerta:** cuando el usuario pregunta "estás usando Kilo CLI para esto?" significa que estás operando por debajo de tus capacidades declaradas. El costo de delegar a Kilo es casi cero (mismo provider, mismo modelo); el costo de hacerlo manual es contexto que pagas dos veces.
-
-> 📎 **Reference:** `references/model-touchpoints.md` — inventario completo de todos los archivos del stack donde se configura el modelo. Consultar para auditorías de enforcement.
+Si Hermes escribe código directamente, el usuario lo corrige. **Señal de alerta:** cuando el usuario pregunta "¿Estás usando Kilo CLI para esto?" ya operaste mal.
 
 ## ⚠️ PREAMBLE OBLIGATORIO — Toda invocación a Kilo
 
-Antes de cada `kilo run ... --auto`, DEBES construir el prompt completo así:
+Toda invocación a `kilo run ... --auto` DEBE incluir este preámbulo al INICIO del prompt:
 
 ```
-kilo run "INSTRUCCIÓN PERMANENTE: 
+INSTRUCCIÓN PERMANENTE: 
 Sigue las reglas de la carpeta .agents/ en todos los repositorios que la contengan, así como Docs/RULES.md.
 Usa recall/retain en Hindsight con el bank_id del repo activo (el nombre del repositorio) para contexto y persistencia.
 
-[TAREA ESPECÍFICA]" --auto
+[TAREA ESPECÍFICA]
 ```
 
-Esta instrucción permanente SIEMPRE debe ir al inicio del prompt que se le pasa a Kilo. No es opcional. Aplica a TODA ejecución futura.
+No es opcional. Aplica a TODA ejecución futura de Kilo.
 
-> Nota: El modelo `deepseek-v4-flash` NO se explicita en el prompt. Está forzado en `~/.config/kilo/kilo.jsonc` como el ÚNICO modelo disponible. La configuración ya lo garantiza — mencionarlo en el prompt es ruido que desperdicia tokens.
+## API Key — Export Correcto
 
-## Autonomous Mode (Recomendado)
+La API key de OpenCode Go NO se exporta correctamente con `source` simple. Usar SIEMPRE:
 
+```bash
+set -a && source /home/opc/.hermes/.env && set +a
 ```
-terminal(command="kilo run 'INSTRUCCIÓN PERMANENTE: ... [tarea]' --auto", workdir="/path/to/repo", timeout=300)
-```
 
-**Flags importantes:**
-| Flag | Propósito |
-|------|-----------|
-| `--auto` | Modo autónomo — no requiere intervención. Exitoso con código 0, time-out con 124, error con 1. |
-| `--continue` | Continuar sesión anterior. |
-| `--file <path>` | Pasar archivo(s) como contexto. |
+Luego invocar Kilo en el mismo comando compuesto, o usar el wrapper `/opt/researchit/kilo.sh`.
 
-**Exit codes:** 0 = éxito, 124 = time-out (más turns necesarios), 1 = error.
+## Kairos .agents/ — Obligatorio en Cada Proyecto
 
-**Modelo:** `deepseek-v4-flash` — ÚNICO modelo disponible y permitido. No usar otro.
+Para CADA proyecto nuevo o clonado, Hermes DEBE:
+
+1. Clonar `.agents/` desde `kirlts/kairos` en la raíz del proyecto
+2. Crear `docs/` con MASTER-SPEC.md, TODO.md, MEMORY.md, USER-DECISIONS.md, CHANGELOG.md siguiendo `.agents/templates/`
+3. Ejecutar `/document` workflow (vía Kilo: `kilo run "Ejecuta /document según .agents/workflows/document.md" --auto`)
+4. Crear bank en Hindsight con `bank_id = nombre-del-repo` (exactamente el nombre del repo, sin descripciones)
+5. Crear skill Hermes para la capacidad permanente
+6. Push a GitHub
 
 ## Estrategia de Delegación
 
-1. **Cargar contexto del repo**: Antes de delegar a Kilo, ejecuta `recall(bank="<repo-name>", query="contexto del proyecto, reglas, decisiones previas")` para obtener el estado actual del proyecto.
-2. **Analizar el requerimiento** del usuario con el contexto cargado.
-3. Si requiere >50 líneas de código o múltiples archivos → `kilo run "tarea" --auto`.
-4. Monitorear el progreso. Si `kilo` excede el tiempo límite (exit 124), dividir la tarea en subtareas más pequeñas.
-5. **Persistir aprendizajes**: Al finalizar, ejecuta `retain(bank="<repo-name>", content="qué se hizo, qué se aprendió, qué decisiones se tomaron", tags=["kilo", "YYYY-MM-DD"])`.
-6. Verificar el resultado y reportar al usuario.
+1. **Cargar contexto**: `recall(bank="<repo-name>", query="contexto del proyecto")`
+2. **Si .agents/ no existe** en el repo → clonar desde kirlts/kairos primero
+3. **Delegar TODO** a Kilo (código, tests, docs, debugging)
+4. **Monitorear**: si Kilo excede timeout (exit 124), dividir en subtareas más pequeñas
+5. **Persistir**: `retain(bank="<repo-name>", content="qué se hizo, qué se aprendió")`
+6. **/document periódico**: ejecutar `/document` tras bloques de trabajo significativos. **IMPORTANTE:** el `/document` se ejecuta SIEMPRE en el contexto del repo `kirlts/toolset` (el repo de gobierno central), NO en el repo donde se trabajó. Toolset es el repo que contiene la configuración global de Hermes, skills, y documentación de infraestructura.
+7. **Reportar** al usuario concreto y sin verborrea
 
-## Referencia Rápida
+## Pitfalls
 
+- **Bash quoting en prompts largos**: Si el prompt contiene backticks (`), comillas simples ('), o caracteres especiales, `kilo run 'prompt'` puede fallar con errores de sintaxis bash. Preferir escribir el prompt en un archivo temporal y pasarlo con `--file prompt.txt`. Alternativa: usar `export OPENC...E_API_KEY` en un `set -a && source && set +a` compuesto.
+- **PREAMBLE OBLIGATORIO OLVIDADO**: Cada invocación a Kilo DEBE empezar con la instrucción permanente sobre .agents/ y recall/retain. Si Kilo no sabe que debe seguir .agents/, las reglas de kairos no se aplican y el output puede ser inconsistente.
+- **Timeout vs error**: Exit code 124 = time-out (dividir tarea en subtareas más pequeñas). Exit code 1 = error real (revisar API key, sintaxis del prompt, .agents/).
+- **`set -a` obligatorio**: Sin `set -a` antes de `source .env`, las variables de entorno no llegan a procesos hijo (Kilo, Python) y fallan con 401 o "Missing API key".
+- **Non-interactive**: NO usar `kilo run` con `pty=true`. `--auto` es suficiente. No hay TUI que necesite pty.
+
+## Prompts Complejos con Kilo
+
+Cuando el prompt contiene caracteres especiales (backticks, comillas, $, saltos de línea), `kilo run 'prompt'` falla con errores de sintaxis bash. Dos estrategias:
+
+**Estrategia A (Recomendada):** Escribir el prompt en un archivo y pasarlo con `--file`:
+```bash
+cat > /tmp/kilo-prompt.txt << 'EOF'
+INSTRUCCIÓN PERMANENTE: Sigue .agents/ y reglas kairos.
+Usa recall/retain en Hindsight con bank_id del repo activo.
+
+[TAREA con carácteres especiales: `backticks`, $variables, "comillas"]
+EOF
+kilo run --file /tmp/kilo-prompt.txt --auto
 ```
-# Tarea típica de feature
-kilo run "Implementar endpoint GET /api/users en el módulo de autenticación, siguiendo el patrón existente en src/auth/" --auto
 
-# Refactorización
-kilo run "Refactorizar src/processor.py: extraer la lógica de validación a un módulo separado, agregar type hints" --auto
-
-# Tests
-kilo run "Agregar tests unitarios para la clase PaymentService en tests/test_payment.py" --auto
-
-# Bug fix
-kilo run "Arreglar el bug en src/inventory.py donde el stock no se actualiza después de una devolución" --auto
+**Estrategia B:** Prompt inline pero con variables de entorno exportadas antes:
+```bash
+set -a && source /home/opc/.hermes/.env && set +a && \
+  kilo run 'tarea simple sin caracteres especiales' --auto
 ```
+
+## Flags Importantes
+
+| Flag | Propósito |
+|------|-----------|
+| `--auto` | Modo autónomo — no requiere intervención |
+| `--continue` | Continuar sesión anterior |
+| `--file <path>` | Pasar archivo(s) como contexto |
+
+**Exit codes:** 0 = éxito, 124 = time-out (dividir tarea), 1 = error.
+
+## Integración con Toolset
+
+- Los cambios de infraestructura (docker-compose, deploy.sh) se versionan en `kirlts/toolset/infrastructure/`
+- Las skills de Hermes se versionan en `toolset/infrastructure/hermes/skills/`
+- El CI/CD es el único mecanismo para cambios de infraestructura (INFRA-01)
+- Los nuevos servicios se agregan al `docker-compose.yml` canónico de toolset
