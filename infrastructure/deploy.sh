@@ -758,7 +758,7 @@ fi
 
 # --- Ensure all known project banks exist in Hindsight ---
 echo "[DEPLOY] Ensuring project banks exist in Hindsight..."
-for bank_id in cl-concerts-db evidencia-zero hermes kairos toolset witral yacv; do
+for bank_id in $(ls infrastructure/hermes/banks/); do
   HAS_BANK=$(curl -s "https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/v1/default/banks" 2>/dev/null | python3 -c "import sys,json; print(any(b.get('bank_id')=='$bank_id' for b in json.load(sys.stdin).get('banks',[])))" 2>/dev/null || echo "False")
   if [ "$HAS_BANK" = "False" ]; then
     echo "  Creating bank '$bank_id'..."
