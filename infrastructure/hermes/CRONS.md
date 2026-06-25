@@ -64,6 +64,26 @@ Copia y commitea los siguientes archivos de `~/.hermes/` al repo `toolset/infras
 | `witral` | ~2 | Routing messaging→storage |
 | `default` | ~52 | Banco por defecto |
 
+## 3. `hermes-health-check` — Diagnóstico diario del sistema
+
+| Campo | Valor |
+|---|---|
+| **Job ID** | `0a88e1791af5` |
+| **Schedule** | Diario, 04:00 UTC (`0 4 * * *`) — 00:00 Chile |
+| **Prompt** | Revisa CI/CD, mensajes pendientes, tareas pendientes, servicios |
+| **Skills** | `github-pr-workflow`, `systematic-debugging` |
+| **Deliver** | WhatsApp del usuario |
+| **Estado** | ✅ Activo |
+| **Creado** | 2026-06-25 |
+
+### Qué revisa
+
+1. **CI/CD** — Últimos 3 runs; si alguno falló, diagnostica y sugiere corrección
+2. **Mensajes pendientes** — Respuestas sin contestar en WhatsApp >12h
+3. **Tareas pendientes** — Banks de Hindsight con work pendiente
+4. **Servicios core** — hindsight, infisical, caddy, hermes-webui, hermes-gateway
+5. **Reporte al usuario** — Resumen por WhatsApp. Si todo bien, mensaje breve. Si hay problemas, detalle.
+
 ---
 
 ## Notas
