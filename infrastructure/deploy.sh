@@ -608,6 +608,9 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
       echo '[hermes] Installing Hermes Agent...' | sudo tee -a ${HERMES_LOG}
       curl -fsSL https://hermes-agent.nousresearch.com/install.sh | sudo bash 2>&1 | sudo tee -a ${HERMES_LOG}
     fi
+    # Ensure Hermes code dir is owned by opc (git safe.directory compliance, v2.35+)
+    # curl|sudo bash installs as root, but git blocks repos not owned by the current user.
+    sudo chown -R opc:opc /usr/local/lib/hermes-agent 2>/dev/null || true
     # Ensure Whisper STT is installed (for WhatsApp voice message transcription)
     /home/opc/.local/bin/uv pip install --python /usr/local/lib/hermes-agent/venv/bin/python3 faster-whisper -q 2>/dev/null || true
     \
@@ -679,6 +682,17 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
      echo '[hermes] markitdown CLI wrapper installed at /usr/local/bin/markitdown'; \
    fi" 2>&1 | sed 's/^/  [markitdown] /'
 echo "[DEPLOY] MarkItDown installation complete."
+
+# --- Fix pydantic in Hermes venv (mcp package requires pydantic >=2) ---
+echo "[DEPLOY] Ensuring Hermes venv has pydantic >=2 (required by mcp 1.26.0)..."
+ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  "${SSH_HOST}" \
+  "VENV_PY=/usr/local/lib/hermes-agent/venv/bin/python && \
+   SUDO_PIP=\"sudo \\\$VENV_PY -m pip install\" && \
+   echo '[hermes] Installing/upgrading pydantic to >=2 (mcp streamable_http support)...' && \
+   eval \\\$SUDO_PIP 'pydantic>=2' -q 2>&1 | tail -2 && \
+   echo '[hermes] pydantic OK'" 2>&1 | sed 's/^/  [pydantic] /'
+echo "[DEPLOY] pydantic check complete."
 
 # --- Create gh token file for Docker sandbox (idempotent) ---
 echo "[DEPLOY] Creating gh token file for Docker sandbox..."

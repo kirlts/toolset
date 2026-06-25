@@ -148,13 +148,21 @@ If the project involves deployed infrastructure (like Toolset Personal):
 
 2. **Skipping Hindsight recall** — per Kairos MEM-01, Hindsight MUST be the first step. Reading files first and then recalling duplicates effort and wastes context window.
 
-3. **Reading files out of order** — REPOMAP defines the reading order...
+3. **Reading files out of order** — REPOMAP defines the reading order. Always start with REPOMAP, then MASTER-SPEC, then RULES.
 
-3. **Treating all docs as equal** — `MASTER-SPEC.md` is a Domain Axiom (architectural authority), `TODO.md` is documentation (task tracking). They have different authority levels. REPOMAP clarifies this.
+4. **Treating all docs as equal** — `MASTER-SPEC.md` is a Domain Axiom (architectural authority), `TODO.md` is documentation (task tracking). They have different authority levels. REPOMAP clarifies this.
 
-4. **Over-relying on git log** — commit messages only show *what* changed, not *why* or *how the system works*. The documentary axis (docs/) and memory (Hindsight) provide the "why".
+5. **Over-relying on git log** — commit messages only show *what* changed, not *why* or *how the system works*. The documentary axis (docs/) and memory (Hindsight) provide the "why".
 
-5. **Ignoring .agents/** — the `.agents/` directory is the active governance layer with roles, skills, workflows, and templates that define how the agent should operate in this repo. Per Kairos, it's a MUST-READ.
+6. **Ignoring .agents/** — the `.agents/` directory is the active governance layer with roles, skills, workflows, and templates that define how the agent should operate in this repo. Per Kairos, it's a MUST-READ.
+
+7. **Forgetting .agents/ on new projects** — Para CADA proyecto nuevo, .agents/ debe clonarse desde `kirlts/kairos`. No crearlo manualmente ni copiar de otro repo. Esto asegura reglas, templates y workflows consistentes en todos los proyectos del toolset.
+
+8. **/document en el repo equivocado** — El workflow `/document` debe ejecutarse SIEMPRE en el contexto del repo `kirlts/toolset` (repo de gobierno central), NO en el repo donde se trabajó. Toolset contiene la configuración global, skills, y documentación de infraestructura.
+
+9. **Bank naming** — Los banks de Hindsight se nombran EXACTAMENTE como el repo al que refieren (bank_id="researchit", no "ResearchIt Engine"). El name (nombre amigable) también debe ser el nombre del repo.
+
+10. **Secrets no van en código** — Todos los secrets (API keys, connection IDs) van en Infisical, respaldados por GitHub Secrets. No hardcodear en el código fuente. Ver `kilo-code` skill para el patrón de exportación (`set -a && source .env`).
 
 ## References
 
