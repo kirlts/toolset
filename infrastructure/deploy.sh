@@ -599,6 +599,9 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
       echo '[hermes] Installing Hermes Agent...' | sudo tee -a ${HERMES_LOG}
       curl -fsSL https://hermes-agent.nousresearch.com/install.sh | sudo bash 2>&1 | sudo tee -a ${HERMES_LOG}
     fi
+    # Ensure Hermes code dir is owned by opc (git safe.directory compliance, v2.35+)
+    # curl|sudo bash installs as root, but git blocks repos not owned by the current user.
+    sudo chown -R opc:opc /usr/local/lib/hermes-agent 2>/dev/null || true
     # Ensure Whisper STT is installed (for WhatsApp voice message transcription)
     /home/opc/.local/bin/uv pip install --python /usr/local/lib/hermes-agent/venv/bin/python3 faster-whisper -q 2>/dev/null || true
     \
