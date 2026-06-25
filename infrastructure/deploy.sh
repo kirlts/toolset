@@ -758,7 +758,7 @@ fi
 
 # --- Ensure all known project banks exist in Hindsight ---
 echo "[DEPLOY] Ensuring project banks exist in Hindsight..."
-for bank_id in kairos yacv evidencia-zero witral; do
+for bank_id in cl-concerts-db evidencia-zero hermes kairos toolset witral yacv; do
   HAS_BANK=$(curl -s "https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/v1/default/banks" 2>/dev/null | python3 -c "import sys,json; print(any(b.get('bank_id')=='$bank_id' for b in json.load(sys.stdin).get('banks',[])))" 2>/dev/null || echo "False")
   if [ "$HAS_BANK" = "False" ]; then
     echo "  Creating bank '$bank_id'..."
@@ -845,7 +845,9 @@ echo "[DEPLOY] Ensuring Hermes WebUI systemd service..."
 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   "${SSH_HOST}" \
   "if ! systemctl is-enabled hermes-webui &>/dev/null 2>&1; then
-     cd /opt/hermes-webui 2>/dev/null || (sudo git clone https://github.com/nesquena/hermes-webui.git /opt/hermes-webui && sudo chown -R opc:opc /opt/hermes-webui)
+     # Pull latest or clone fresh
+     sudo git -C /opt/hermes-webui pull --ff-only 2>/dev/null || (sudo git clone https://github.com/nesquena/hermes-webui.git /opt/hermes-webui && sudo chown -R opc:opc /opt/hermes-webui && sudo git -C /opt/hermes-webui config pull.ff only)
+     # Ensure correct ownership
      sudo tee /etc/systemd/system/hermes-webui.service > /dev/null << SERVEOF
 [Unit]
 Description=Hermes WebUI
@@ -870,8 +872,11 @@ SERVEOF
      sudo systemctl enable --now hermes-webui 2>&1
      echo '[hermes-webui] Service installed and started'
    else
+      # Pull latest version before restarting
+      sudo git -C /opt/hermes-webui pull --ff-only 2>/dev/null || true
+      sudo chown -R opc:opc /opt/hermes-webui 2>/dev/null || true
       sudo systemctl restart hermes-webui 2>/dev/null || true
-      echo '[hermes-webui] Service restarted'
+      echo '[hermes-webui] Service updated and restarted'
     fi
     # Set default model in WebUI settings
     python3 -c 'import json, os; sp="/home/opc/.hermes/webui/settings.json"; d={}
