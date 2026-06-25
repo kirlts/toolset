@@ -12,12 +12,33 @@ env:
   REMOTE_DIR: /opt/toolset
 
 jobs:
-  opentofu:
-    name: OpenTofu Infrastructure
+  validate-configs:
+    name: Validate Configs
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Código
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+
+      - name: Install validation tools
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq yamllint jq 2>/dev/null
+
+      - name: Validate deploy.sh syntax
+        run: bash -n infrastructure/deploy.sh
+
+      - name: Validate config.yaml
+        run: python3 -c "import yaml; yaml.safe_load(open('infrastructure/hermes/config.yaml')); print('config.yaml OK')"
+
+      - name: Validate kilo.jsonc
+        run: python3 -c "import json,re; json.loads(re.sub(r'//.*','',open('infrastructure/kilo.jsonc').read())); print('kilo.jsonc OK')"
+
+      - name: Check env refs in kilo.jsonc
+        run: python3 scripts/validate-kilo-config.py infrastructure/kilo.jsonc
+
+  opentofu:
+    name: OpenTofu Infrastructure
+    needs: validate-configs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
       - name: Configurar API Key de OCI
         run: |
@@ -56,7 +77,7 @@ jobs:
           ssh-keygen -y -f /tmp/ssh_key > /tmp/ssh_key.pub
           echo "SSH_PUBLIC_KEY=$(cat /tmp/ssh_key.pub)" >> "$GITHUB_ENV"
 
-      - name: Inicializar OpenTofu
+      - name: Init OpenTofu
         working-directory: ${{ env.INFRA_DIR }}
         run: tofu init
 
@@ -91,20 +112,15 @@ jobs:
             --force
 
   deploy-services:
-    name: Deploy Services (Docker Compose)
-    needs: opentofu
+    name: Deploy Services
+    needs: validate-configs
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Código
-        uses: actions/checkout@v4
-
-      - name: Validate deploy.sh syntax
-        run: bash -n infrastructure/deploy.sh
+      - uses: actions/checkout@v4
 
       - name: Install Tailscale
-        run: |
-          curl -fsSL https://tailscale.com/install.sh | sh
+        run: curl -fsSL https://tailscale.com/install.sh | sh
 
       - name: Connect to Tailnet
         run: |
@@ -123,9 +139,19 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
 
       - name: Verify connectivity
+        run: ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 ${{ env.SSH_HOST }} "hostname && uptime"
+
+      - name: Build Hermes sandbox Docker image
+        env:
+          DOCKER_BUILDKIT: 1
         run: |
-          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
-            ${{ env.SSH_HOST }} "hostname && uptime"
+          IMAGE_TAG="toolset/hermes-sandbox:$(date -u +%Y%m%d)"
+          IMAGE_LATEST="toolset/hermes-sandbox:latest"
+          docker build \
+            -t "$IMAGE_TAG" \
+            -t "$IMAGE_LATEST" \
+            -f infrastructure/hermes-sandbox.Dockerfile \
+            infrastructure/
 
       - name: Deploy services
         env:
@@ -147,6 +173,4 @@ jobs:
           GH_CLI_TOKEN: ${{ secrets.GH_CLI_TOKEN }}
           FUNNEL_DOMAIN: toolset-oci-1-1.tail2d4c18.ts.net
         working-directory: ${{ env.INFRA_DIR }}
-        run: |
-          chmod +x deploy.sh
-          ./deploy.sh
+        run: chmod +x deploy.sh && ./deploy.sh

@@ -15,7 +15,7 @@ HERMES_DIR="${REPO_DIR}/infrastructure/hermes"
 HERMES_HOME="${HERMES_HOME:-/home/opc/.hermes}"
 
 TIMESTAMP=$(date -u +%Y-%m-%d)
-COMMIT_MSG="hermes-sync: file artifacts ${TIMESTAMP}"
+COMMIT_MSG="hermes-sync: file artifacts + kilo ${TIMESTAMP}"
 
 cd "$REPO_DIR"
 
@@ -69,7 +69,20 @@ if [ -f "${HERMES_HOME}/webui/settings.json" ]; then
   cp "${HERMES_HOME}/webui/settings.json" "${HERMES_DIR}/webui/settings.json"
 fi
 
-# ---- 8. Commit local changes (exclude banks/ — handled by hermes-sync-banks) ----
+# ---- 8. Kilo CLI config (versionado junto con Hermes) ----
+KILO_SRC="${HOME}/.config/kilo/kilo.jsonc"
+KILO_DST="${REPO_DIR}/infrastructure/kilo.jsonc"
+echo "[SYNC] Kilo config..."
+if [ -f "$KILO_SRC" ]; then
+  cp "$KILO_SRC" "$KILO_DST"
+  echo "  kilo.jsonc synced"
+fi
+
+# ---- 9. Redact secrets from config.yaml before commit ----
+# COMPOSIO_MCP_KEY es escrita por deploy.sh desde env var; no debe quedar hardcodeada en el repo.
+sed -i 's|\(x-consumer-api-key:\) .*|\1 PLACEHOLDER_REPLACED_BY_DEPLOY|' "${HERMES_DIR}/config.yaml"
+
+# ---- 10. Commit local changes (exclude banks/ — handled by hermes-sync-banks) ----
 if ! git diff --quiet infrastructure/hermes/; then
   echo "[SYNC] Committing local changes (excluding banks/)..."
   git add infrastructure/hermes/SOUL.md
@@ -80,6 +93,7 @@ if ! git diff --quiet infrastructure/hermes/; then
   git add infrastructure/hermes/hooks/
   git add infrastructure/hermes/webui/
   git add infrastructure/hermes/CRONS.md
+  git add infrastructure/kilo.jsonc
   git commit -m "${COMMIT_MSG}"
   CHANGES_COMMITTED=true
 else
@@ -87,7 +101,7 @@ else
   CHANGES_COMMITTED=false
 fi
 
-# ---- 8. Pull rebase + push to main ----
+# ---- 11. Pull rebase + push to main ----
 echo "[SYNC] Syncing with remote..."
 git fetch origin main 2>&1
 if [ "${CHANGES_COMMITTED}" = "true" ]; then
