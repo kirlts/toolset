@@ -778,6 +778,7 @@ echo "[DEPLOY] Configuring Hermes runtime..."
 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   "${SSH_HOST}" \
   "export PATH=/usr/local/bin:/home/opc/.local/bin:\$PATH; \
+    export COMPOSIO_MCP_KEY=\${COMPOSIO_MCP_KEY}; \
     hermes config set terminal.backend local 2>/dev/null; \
     hermes config set memory.provider hindsight 2>/dev/null; \
     hermes config set memory.hindsight.url 'https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/mcp/' 2>/dev/null; \
@@ -796,7 +797,7 @@ cfg.setdefault('mcp_servers', {})
 # Model config: nested format for WebUI + CLI compatibility
 cfg['model'] = {'default': 'opencodego/deepseek-v4-flash', 'provider': 'opencode-go'}
 cfg['context_file_max_chars'] = 25000
-composio_key = os.environ.get('COMPOSIO_MCP_KEY', '${COMPOSIO_MCP_KEY:-}')
+composio_key = os.environ.get('COMPOSIO_MCP_KEY', '')
 if composio_key:
     cfg['mcp_servers']['composio'] = {
         'url': 'https://connect.composio.dev/mcp',
