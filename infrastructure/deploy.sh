@@ -778,7 +778,6 @@ echo "[DEPLOY] Configuring Hermes runtime..."
 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   "${SSH_HOST}" \
   "export PATH=/usr/local/bin:/home/opc/.local/bin:\$PATH; \
-    export COMPOSIO_MCP_KEY=\${COMPOSIO_MCP_KEY}; \
     hermes config set terminal.backend local 2>/dev/null; \
     hermes config set memory.provider hindsight 2>/dev/null; \
     hermes config set memory.hindsight.url 'https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/mcp/' 2>/dev/null; \
@@ -787,6 +786,30 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     hermes config set model.provider 'opencode-go' 2>/dev/null; \
     hermes config set context_file_max_chars 25000 2>/dev/null; \
     python3 -c \"
+import json, subprocess
+# Read Infisical token from .env
+token = ''
+try:
+    with open('/opt/toolset/.env') as f:
+        for line in f:
+            line = line.strip()
+            if line.startswith('INFISICAL_SERVICE_TOKEN='):
+                token = line.split('=', 1)[1]
+                break
+except:
+    pass
+composio_key = ''
+if token:
+    try:
+        r = subprocess.run(
+            ['curl', '-s', '-H', f'Authorization: Bearer {token}',
+             'http://localhost:8081/api/v3/secrets/raw/COMPOSIO_MCP_KEY'],
+            capture_output=True, text=True, timeout=10)
+        if r.returncode == 0:
+            data = json.loads(r.stdout)
+            composio_key = data.get('secret', {}).get('secretValue', '')
+    except:
+        pass
 import yaml
 cfg_path = '/home/opc/.hermes/config.yaml'
 with open(cfg_path) as f:
@@ -797,7 +820,6 @@ cfg.setdefault('mcp_servers', {})
 # Model config: nested format for WebUI + CLI compatibility
 cfg['model'] = {'default': 'opencodego/deepseek-v4-flash', 'provider': 'opencode-go'}
 cfg['context_file_max_chars'] = 25000
-composio_key = os.environ.get('COMPOSIO_MCP_KEY', '')
 if composio_key:
     cfg['mcp_servers']['composio'] = {
         'url': 'https://connect.composio.dev/mcp',
