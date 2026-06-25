@@ -786,8 +786,8 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     hermes config set model.provider 'opencode-go' 2>/dev/null; \
     hermes config set context_file_max_chars 25000 2>/dev/null; \
     python3 -c \"
-import json, subprocess
-# Read Infisical token + project ID from .env
+import json, os, subprocess
+# --- Attempt 1: fetch COMPOSIO_MCP_KEY from Infisical ---
 token = ''
 pid = ''
 try:
@@ -810,6 +810,18 @@ if token and pid:
         if r.returncode == 0:
             data = json.loads(r.stdout)
             composio_key = data.get('secret', {}).get('secretValue', '')
+            print('  [composio] key fetched from Infisical')
+    except Exception as e:
+        print(f'  [composio] Infisical fetch failed: {e}')
+# --- Attempt 2: fallback to Hermes .env (already written by deploy.sh) ---
+if not composio_key:
+    try:
+        with open('/home/opc/.hermes/.env') as f:
+            for line in f:
+                if line.startswith('COMPOSIO_MCP_KEY='):
+                    composio_key = line.strip().split('=', 1)[1]
+                    print('  [composio] key read from Hermes .env (fallback)')
+                    break
     except:
         pass
 import yaml
@@ -829,6 +841,9 @@ if composio_key:
         'connect_timeout': 60,
         'timeout': 180
     }
+    print('  [composio] MCP server configured with real key')
+else:
+    print('  [composio] WARNING: could not obtain composio key — preserving existing config if any')
 cfg['mcp_servers']['hindsight-selfhosted'] = {
     'url': 'https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/mcp/'
 }
