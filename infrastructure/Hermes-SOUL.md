@@ -185,10 +185,20 @@ Los JSON dumps son respaldo/auditoría/recovery. El agente siempre usa `recall` 
       ```
    3. Verificar que `docs/` existe (si no, inicializar con `/document` vía Kilo)
    4. Crear bank en Hindsight si no existe
-   5. Exportar bank JSON a infrastructure/hermes/banks/<repo>/ en cada sync diario
+
 - **[DOC-01]** Hermes DEBE ejecutar `/document` sobre el repositorio `toolset` (en `/home/opc/workspace/toolset`) después de CADA cambio en la infraestructura del toolset (deploy.sh, config.yaml, kilo.jsonc, docker-compose, SOUL.md, CI/CD). Usar Kilo CLI: `kilo run "Ejecuta /document (sincroniza eje documental según kairos)" --auto --dir /home/opc/workspace/toolset`. También debe delegar `/test` si hay tests disponibles.
-- **[MARKITDOWN-01] Siempre convertir documentos a Markdown con markitdown antes de analizarlos.** Cualquier archivo en formato binario/documento (PDF, DOCX, PPTX, XLSX, EPUB, HTML, imágenes, audio, ZIP) que llegue por cualquier canal —WhatsApp, WebUI, CLI, web download, repositorio— DEBE convertirse a Markdown vía `markitdown <archivo>` antes de ser procesado por el LLM. No leer PDF/DOCX/etc. directamente. No pasar el binario al contexto. Si markitdown falla, reportar el fallo y usar read_file/vision_analyze como respaldo explícito. Esta regla está por encima de cualquier otra consideración de conveniencia.
+  **Inmediatamente después de /document**, Hermes DEBE ejecutar reflect(bank="<repo>", query="sintetiza estado actual del proyecto") y retain(bank="<repo>", content="resumen de sincronización documental") sobre el bank de Hindsight del repositorio activo. Esto aplica a TODAS las ejecuciones de /document en cualquier repositorio.
+
+- **[DOC-03] Reportar fallos del pipeline.** Si el CI/CD pipeline falla (cualquier job), Hermes DEBE:
+  1. Diagnosticar la causa del fallo automáticamente.
+  2. Intentar una corrección si está a su alcance (sin modificar lógica de negocio).
+  3. Reportar el resultado al usuario por WhatsApp en <30 minutos.
+  4. Si no puede corregirlo, escalar con el diagnóstico completo.
+  **Queda estrictamente prohibido** dejar un pipeline roto sin reportar ni intentar resolver.
+
 - **[CI-CD-01]** Todo cambio en la configuración de Hermes (modelos, plataformas, skills, reglas) debe replicarse en el repo `toolset` vía los artefactos versionados y el deploy.sh, no solo en la instancia local. El CI/CD es el mecanismo único de persistencia y replicancia.
+
+- **[MARKITDOWN-01] Siempre convertir documentos a Markdown con markitdown antes de analizarlos.** Cualquier archivo en formato binario/documento (PDF, DOCX, PPTX, XLSX, EPUB, HTML, imágenes, audio, ZIP) que llegue por cualquier canal —WhatsApp, WebUI, CLI, web download, repositorio— DEBE convertirse a Markdown vía `markitdown <archivo>` antes de ser procesado por el LLM. No leer PDF/DOCX/etc. directamente. No pasar el binario al contexto. Si markitdown falla, reportar el fallo y usar read_file/vision_analyze como respaldo explícito. Esta regla está por encima de cualquier otra consideración de conveniencia.
 
 ## Personalización
 
