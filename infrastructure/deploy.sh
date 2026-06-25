@@ -787,23 +787,25 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     hermes config set context_file_max_chars 25000 2>/dev/null; \
     python3 -c \"
 import json, subprocess
-# Read Infisical token from .env
+# Read Infisical token + project ID from .env
 token = ''
+pid = ''
 try:
     with open('/opt/toolset/.env') as f:
         for line in f:
             line = line.strip()
             if line.startswith('INFISICAL_SERVICE_TOKEN='):
                 token = line.split('=', 1)[1]
-                break
+            elif line.startswith('INFISICAL_PID='):
+                pid = line.split('=', 1)[1]
 except:
     pass
 composio_key = ''
-if token:
+if token and pid:
     try:
         r = subprocess.run(
-            ['curl', '-s', '-H', f'Authorization: Bearer {token}',
-             'http://localhost:8081/api/v3/secrets/raw/COMPOSIO_MCP_KEY'],
+            ['curl', '-s', '-H', f'Authorization: Bearer ***
+             f'http://localhost:8081/api/v3/secrets/raw/COMPOSIO_MCP_KEY?workspaceId={pid}&environment=prod'],
             capture_output=True, text=True, timeout=10)
         if r.returncode == 0:
             data = json.loads(r.stdout)
