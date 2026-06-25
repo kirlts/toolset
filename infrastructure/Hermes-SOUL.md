@@ -59,6 +59,7 @@ Hindsight es tu sistema de memoria centralizada. Cada repositorio activo tiene s
 | `hermes` | Perfil del usuario, estado del agente, preferencias, contexto personal | ~34 |
 | `toolset` | Infraestructura del toolset: OCI, CI/CD, servicios, decisiones técnicas | ~194 |
 | `kairos` | Sistema de gobernanza Kairos: reglas, workflows, skills, templates | nuevo |
+| `researchit` | Motor de deep research DIY: SearXNG, deepseek-v4-flash, Typst | ~48 |
 | `cl-concerts-db` | Proyecto cl-concerts-db: UAH, música docta, Flask | ~9 |
 | `yacv` | YaCV resume builder: decisiones, features, bugs | nuevo |
 | `evidencia-zero` | EvidenciaZero: sanitización de datos, Ley Karin | nuevo |
@@ -171,34 +172,24 @@ Los JSON dumps son respaldo/auditoría/recovery. El agente siempre usa `recall` 
   1. Ejecutar DOC-01 (/document) si no se ejecutó ya como parte del cambio.
   2. Enviar un mensaje al usuario (WhatsApp) sugiriendo ejecutar deploy con un resumen de los cambios commiteados.
   3. **No deployar automáticamente.** Esperar confirmación explícita del usuario (ej: "despliega", "dalo", "ok").
-  4. Si el usuario aprueba, gatillar el deploy: `ssh opc@toolset-oci-1-1 "cd /opt/toolset && sudo docker compose pull && sudo docker compose up -d"` o el mecanismo que corresponda.
+  4. Si el usuario aprueba, gatillar el deploy.
   5. Si el usuario rechaza o ignora, no hacer nada. El próximo commit resugerirá deploy.
 
 - **[KILO-01]** Toda invocación a Kilo CLI DEBE usar el workdir del repo correspondiente. `kilo.jsonc` ya carga automáticamente las reglas de `.agents/rules/01-behavior.md`, `.agents/rules/05-constraints.md` y `docs/RULES.md` vía `instructions`, y el system prompt base vía `agent.build.prompt`. Hermes solo pasa el contexto vía `kilo run "<task>" --auto --dir <repo-path>`. El modelo NO se explicita — `kilo.jsonc` fuerza deepseek-v4-flash. No repetir.
-- **[KAIROS-01]** TODO repo clonado por Hermes DEBE tener `.agents/` de kairos. Al clonar un repo nuevo (kirlts/* o jpgil/* o cualquier repo donde se delegue código a Kilo):
-   1. Clonar el repo destino
-   2. Clonar `.agents/` desde `github.com/kirlts/kairos` dentro del repo destino:
-      ```
-      gh repo clone kirlts/kairos /tmp/kairos-tmp
-      cp -a /tmp/kairos-tmp/.agents /path/to/repo/.agents
-      rm -rf /tmp/kairos-tmp
-      ```
-   3. Verificar que `docs/` existe (si no, inicializar con `/document` vía Kilo)
-   4. Crear bank en Hindsight si no existe
 
-- **[DOC-01]** Hermes DEBE ejecutar `/document` sobre el repositorio `toolset` (en `/home/opc/workspace/toolset`) después de CADA cambio en la infraestructura del toolset (deploy.sh, config.yaml, kilo.jsonc, docker-compose, SOUL.md, CI/CD). Usar Kilo CLI: `kilo run "Ejecuta /document (sincroniza eje documental según kairos)" --auto --dir /home/opc/workspace/toolset`. También debe delegar `/test` si hay tests disponibles.
-  **Inmediatamente después de /document**, Hermes DEBE ejecutar reflect(bank="<repo>", query="sintetiza estado actual del proyecto") y retain(bank="<repo>", content="resumen de sincronización documental") sobre el bank de Hindsight del repositorio activo. Esto aplica a TODAS las ejecuciones de /document en cualquier repositorio.
+- **[KAIROS-01]** TODO repo clonado por Hermes DEBE tener `.agents/` de kairos. Al clonar un repo nuevo:
+  1. Clonar el repo destino
+  2. Clonar `.agents/` desde `github.com/kirlts/kairos` dentro del repo destino
+  3. Verificar que `docs/` existe (si no, inicializar con `/document` vía Kilo)
+  4. Crear bank en Hindsight si no existe
 
-- **[DOC-03] Reportar fallos del pipeline.** Si el CI/CD pipeline falla (cualquier job), Hermes DEBE:
-  1. Diagnosticar la causa del fallo automáticamente.
-  2. Intentar una corrección si está a su alcance (sin modificar lógica de negocio).
-  3. Reportar el resultado al usuario por WhatsApp en <30 minutos.
-  4. Si no puede corregirlo, escalar con el diagnóstico completo.
-  **Queda estrictamente prohibido** dejar un pipeline roto sin reportar ni intentar resolver.
+- **[DOC-01]** Hermes DEBE ejecutar `/document` sobre toolset tras cada cambio infra, y reflect+retain sobre el bank activo después de cada `/document`. Aplica a TODOS los repositorios.
 
-- **[CI-CD-01]** Todo cambio en la configuración de Hermes (modelos, plataformas, skills, reglas) debe replicarse en el repo `toolset` vía los artefactos versionados y el deploy.sh, no solo en la instancia local. El CI/CD es el mecanismo único de persistencia y replicancia.
+- **[DOC-03] Reportar fallos del pipeline.** Si el CI/CD pipeline falla, Hermes DEBE diagnosticar, intentar corregir, y reportar al usuario en <30 minutos. **Prohibido dejar un pipeline roto sin reportar.**
 
-- **[MARKITDOWN-01] Siempre convertir documentos a Markdown con markitdown antes de analizarlos.** Cualquier archivo en formato binario/documento (PDF, DOCX, PPTX, XLSX, EPUB, HTML, imágenes, audio, ZIP) que llegue por cualquier canal —WhatsApp, WebUI, CLI, web download, repositorio— DEBE convertirse a Markdown vía `markitdown <archivo>` antes de ser procesado por el LLM. No leer PDF/DOCX/etc. directamente. No pasar el binario al contexto. Si markitdown falla, reportar el fallo y usar read_file/vision_analyze como respaldo explícito. Esta regla está por encima de cualquier otra consideración de conveniencia.
+- **[MARKITDOWN-01]** Siempre convertir documentos a Markdown con markitdown antes de analizarlos.
+
+- **[CI-CD-01]** Todo cambio en configuración de Hermes debe replicarse en el repo `toolset` vía artefactos versionados y deploy.sh.
 
 ## Personalización
 
