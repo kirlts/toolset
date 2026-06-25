@@ -69,7 +69,7 @@
 | Orquestador | Hermes Agent v0.17.0 | Agente autonomo 24/7. Gateway systemd, WhatsApp bot, WebUI, Docker sandbox. Activo. |
 | Subagente | Kilo Code CLI v7.3.54 (`@kilocode/cli`) | CLI autonomo para tareas de codificacion pesadas (`kilo run --auto`). Mismo provider/config que Kilo local. |
 | Sandbox | Docker nativo de Hermes (`terminal.backend: docker`) | Sandbox aislado con hardening (no-new-privs, cap-drop ALL, pids-limit 256). Daytona/Modal como backends alternativos configurables. |
-| Memory | Hindsight (self-hosted en OCI) | Base de conocimiento centralizada. `ghcr.io/vectorize-io/hindsight:latest` con pg0 embebido + DeepSeek V4 Flash via OpenCode Go. |
+| Memory | Hindsight (self-hosted en OCI) | Base de conocimiento centralizada. `ghcr.io/vectorize-io/hindsight:latest` con pg0 embebido + DeepSeek V4 Flash via OpenCode Go. Banks versionados en `infrastructure/hermes/banks/`. |
 | Integration | Composio | Pasarela de autenticacion OAuth para integraciones externas. Activo. |
 
 ---
@@ -128,8 +128,10 @@
 ```
 
 **Platforms activas:** WhatsApp (bot number 56936414929), WebUI (https://toolset-oci-1-1.tail2d4c18.ts.net:8787/).
+**WebUI deploy:** deploy.sh actualiza hermes-webui via `git pull --ff-only` en cada deploy, tanto en instalacion inicial como en reinicio del servicio.
 **MCP servers:** hindsight-selfhosted (36 tools), composio (7 tools).
 **Memory bank:** hermes (Hindsight, 30 facts seedeados).
+**Bank discovery:** deploy.sh descubre banks desde `infrastructure/hermes/banks/` (versionado en repo) y los crea en Hindsight si no existen.
 **Modelo default:** deepseek-v4-flash via OpenCode Go.
 **SOUL.md:** Identidad completa + meta-reglas en ~/.hermes/SOUL.md.
 

@@ -31,6 +31,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **WebUI siempre actualizado**: deploy.sh ejecuta `git pull --ff-only` antes de restartear el servicio hermes-webui. En instalación inicial clona desde cero y configura `pull.ff only`. Ownership corregido tras cada pull.
+- **Banks dinámicos**: deploy.sh descubre todos los banks desde infraestructura versionada en `infrastructure/hermes/banks/`. Lista expandida para incluir cl-concerts-db, hermes, toolset (antes solo kairos, yacv, evidencia-zero, witral).
+
 ### Added
 - Hermes-integration.md: plan de integración completo con casos de uso, arquitectura CI/CD, deep dives técnicos verificados contra documentación oficial y comunidad (r/hermesagent).
 - Implementación completa de Hermes Agent en OCI: instalación vía one-liner, systemd service, Docker backend, configuración runtime.
