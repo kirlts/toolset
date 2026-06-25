@@ -28,7 +28,7 @@ jobs:
         run: python3 -c "import yaml; yaml.safe_load(open('infrastructure/hermes/config.yaml')); print('config.yaml OK')"
 
       - name: Validate kilo.jsonc
-        run: python3 -c "import json,re; json.loads(re.sub(r'//.*','',open('infrastructure/kilo.jsonc').read())); print('kilo.jsonc OK')"
+        run: python3 scripts/validate-kilo-config.py infrastructure/kilo.jsonc
 
       - name: Check env refs in kilo.jsonc
         run: python3 scripts/validate-kilo-config.py infrastructure/kilo.jsonc
