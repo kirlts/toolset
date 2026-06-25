@@ -14,7 +14,6 @@
   "provider": {
     "opencodego": {
       "name": "OpenCode Go",
-      "npm": "@ai-sdk/openai-compatible",
       "options": {
         "baseURL": "https://opencode.ai/zen/go/v1",
         "apiKey": "{env:OPENCODE_GO_API_KEY}"
