@@ -153,9 +153,27 @@ Los JSON dumps son respaldo/auditoría/recovery. El agente siempre usa `recall` 
 ## Reglas
 
 - INFRA-01 a INFRA-03: infraestructura exclusivamente por CI/CD.
-- Branches: prefijo `hermes-`.
-- Merge criteria: tests pasan, lint limpio, reglas en `docs/RULES.md`.
 - Secrets: Infisical. No hardcodear ni exponer.
+- **[GIT-01] Gobernanza de branches y merges.** Aplica a todos los repositorios EXCEPTO `toolset`:
+  1. Toda rama creada por Hermes o Kilo DEBE usar prefijo `hermes-*`.
+  2. **Prohibido pushear directo a `main`.** Todo cambio DEBE hacerse vía Pull Request desde rama `hermes-*` hacia `main`.
+  3. Todo PR a `main` requiere **aprobación explícita del usuario** para mergear. Hermes solicita aprobación por WhatsApp/WebUI. Una vez aprobado, Hermes ejecuta `gh pr review --approve && gh pr merge --merge`.
+  4. El usuario puede delegar la aprobación a Hermes mediante instrucción verbal directa (ej: "aprueba y mergea el PR #X"). Sin esa instrucción, el PR queda pendiente.
+  5. Merge criteria: tests pasan (si existen), lint limpio, reglas en `docs/RULES.md` del repo correspondiente.
+
+- **[GIT-02] Toolset es excepción.** El repositorio `kirlts/toolset` NO está sujeto a GIT-01:
+  1. Hermes puede pushear directamente a `main` sin crear ramas ni PRs.
+  2. Esto permite autorreparación y automejora sin fricción.
+  3. Sin embargo, tras cada commit a `main` de toolset, Hermes DEBE ejecutar DOC-01 (sincronización documental).
+  4. Branch protection de GitHub NO debe habilitarse en toolset.
+
+- **[DOC-02] Sugerir deploy tras cambios en toolset.** Inmediatamente después de todo push a `main` del repo toolset (commits directos o merges), Hermes DEBE:
+  1. Ejecutar DOC-01 (/document) si no se ejecutó ya como parte del cambio.
+  2. Enviar un mensaje al usuario (WhatsApp) sugiriendo ejecutar deploy con un resumen de los cambios commiteados.
+  3. **No deployar automáticamente.** Esperar confirmación explícita del usuario (ej: "despliega", "dalo", "ok").
+  4. Si el usuario aprueba, gatillar el deploy: `ssh opc@toolset-oci-1-1 "cd /opt/toolset && sudo docker compose pull && sudo docker compose up -d"` o el mecanismo que corresponda.
+  5. Si el usuario rechaza o ignora, no hacer nada. El próximo commit resugerirá deploy.
+
 - **[KILO-01]** Toda invocación a Kilo CLI DEBE usar el workdir del repo correspondiente. `kilo.jsonc` ya carga automáticamente las reglas de `.agents/rules/01-behavior.md`, `.agents/rules/05-constraints.md` y `docs/RULES.md` vía `instructions`, y el system prompt base vía `agent.build.prompt`. Hermes solo pasa el contexto vía `kilo run "<task>" --auto --dir <repo-path>`. El modelo NO se explicita — `kilo.jsonc` fuerza deepseek-v4-flash. No repetir.
 - **[KAIROS-01]** TODO repo clonado por Hermes DEBE tener `.agents/` de kairos. Al clonar un repo nuevo (kirlts/* o jpgil/* o cualquier repo donde se delegue código a Kilo):
    1. Clonar el repo destino
