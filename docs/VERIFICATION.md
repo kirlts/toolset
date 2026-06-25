@@ -62,9 +62,9 @@
 
 ### Verificaciones de Orquestación y Mensajería (EPIC-004)
 
-- 🔲 `[DEV.CR.07.LLM]` Verificar que Hermes Agent está corriendo como servicio persistente.
+- ✅ `[DEV.CR.13.LLM]` Verificar que Hermes Agent está corriendo como servicio persistente.
   - *Resultado esperado:* El agente responde a health checks internos y su proceso está activo.
-  - *Verificacion:* 🔲 Pendiente
+  - *Verificacion:* ✅ Implemented (🤖 Verified by deploy; 2026-06-23)
 
 - 🔲 `[USER.FN.04.HUM]` Probar la comunicación bidireccional mediante interfaz móvil.
   - *Resultado esperado:* El usuario puede enviar un mensaje y recibir respuesta desde el agente.

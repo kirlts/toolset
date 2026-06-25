@@ -43,6 +43,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bidirectional secret sync GitHub ↔ Infisical con reverse sync automático.
 - Bash syntax validation step en pipeline CI/CD.
 - gh CLI install + GH_CLI_TOKEN auth en deploy.sh.
+- `instructions` y `agent.build.prompt` en kilo.jsonc global para orquestación Kilo CLI → Hermes.
+- Export automático de `OPENCODE_GO_API_KEY` a .bashrc en VPS para resolución `{env:...}` de Kilo CLI.
+- `KAIROS-01` y `DOC-01` rules en Hermes-SOUL.md para gobernanza y documentación.
 
 ### Fixed
 - **DT-004**: `ENCRYPTION_KEY` de Infisical corregida de base64 a `openssl rand -hex 16` (32 hex chars = 32 UTF-8 bytes). `$getBasicEncryptionKey()` lee la key como UTF-8 buffer; base64 producía 44+ bytes → `ERR_CRYPTO_INVALID_KEYLEN` en KMS migration.
@@ -50,6 +53,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CP bank routing: removido `rewrite * /dashboard` para `/banks/*` — ahora el request llega directo al CP (App Router) con la URL original.
 - Catch-all `handle /api/*` de Infisical ya no intercepta rutas del CP (`/api/profile/*`, `/api/stats/*`).
 - Caddy healthcheck ahora depende solo de Hindsight, no de Infisical.
+- `COMPOSIO_REDDIT_CONNECTION_ID` escapado correctamente en deploy.sh (doble backslash → simple).
 
 ### Changed
 - Caddyfile reestructurado: landing page en `/`, Infisical API en `/api/*` (después de rutas CP), Infisical UI bypasses Caddy via puerto Funnel independiente.
@@ -59,6 +63,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `GITHUB SECRET` `INFISICAL_ENCRYPTION_KEY` actualizado con formato hex correcto.
 - Service token permanente creado (`st.*`) para CI/CD y almacenado como GitHub Secret `INFISICAL_SERVICE_TOKEN`.
 - `deploy.sh`: bootstrap automático de admin Infisical vía API en cada deploy (idempotente). Sync de secrets desde GitHub Secrets a Infisical.
+- `deploy.sh`: agregada sección de export OPENCODE_GO_API_KEY a .bashrc del VPS.
+- `infrastructure/kilo.jsonc` eliminado del repo — config migrado a `~/.config/kilo/kilo.jsonc` global con instructions, agent.build.prompt y provider sin npm field.
+- `VERIFICATION.md`: `[DEV.CR.07.LLM]` duplicado corregido — la check de EPIC-004 renombrada a `[DEV.CR.13.LLM]` (servicio persistente de Hermes) y marcada como implementada.
+- `TODO.md`: coverage summary corregido para reflejar conteo real de checks por epic.
 
 ## [0.1.0] - 2026-06-21
 

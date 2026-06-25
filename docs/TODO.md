@@ -92,7 +92,7 @@
 
 ### [TASK-006] Despliegue de Hermes Agent
 
-**Covered checks:** `[DEV.CR.06.LLM]`, `[DEV.CR.07.LLM]`, `[USER.FN.04.HUM]`
+**Covered checks:** `[DEV.CR.06.LLM]`, `[DEV.CR.07.LLM]`, `[DEV.CR.13.LLM]`, `[USER.FN.04.HUM]`
 
 - [x] Investigar Hermes Agent (Nous Research) — framework OSS real con sandbox Docker nativo, subagentes asíncronos, v0.15.0 (May 2026). 2026-06-22 [🤖 Verified by tool]
 - [x] Investigar sandbox backend: comunidad usa Docker nativo (`terminal.backend: docker`) con hardening automático. Daytona/Modal/Vercel como backends alternativos configurables. 2026-06-22 [🤖 Verified by tool]
@@ -200,9 +200,9 @@
 | Epic | Tasks | Status | 🤖 .LLM | 🧑 .HUM | 🤖🧑 .MIX | Total Checks |
 | --- | --- | --- | --- | --- | --- | --- |
 | EPIC-001 | TASK-001 a TASK-003 | Completed | 4 | 1 | 0 | 5 |
-| EPIC-002 | TASK-004 | Completed | 2 | 1 | 0 | 3 |
+| EPIC-002 | TASK-004 | Completed | 1 | 1 | 0 | 2 |
 | EPIC-003 | TASK-005 | In Progress | 1 | 0 | 0 | 1 |
-| EPIC-004 | TASK-006 | In Progress | 8 | 1 | 0 | 9 |
-| EPIC-005 | TASK-007 | Completed | 8 | 0 | 1 | 9 |
-| EPIC-006 | TASK-008 a TASK-011 | In Progress | 5 | 1 | 0 | 6 |
-| **TOTAL** | | | **22** | **4** | **1** | **27** |
+| EPIC-004 | TASK-006 | In Progress | 3 | 1 | 0 | 4 |
+| EPIC-005 | TASK-007 | Completed | 0 | 0 | 1 | 1 |
+| EPIC-006 | TASK-008 a TASK-011 | In Progress | 4 | 0 | 0 | 4 |
+| **TOTAL** | | | **13** | **3** | **1** | **17** |
