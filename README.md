@@ -192,4 +192,3 @@ export INFISICAL_AUTH_SECRET=***
   <sub>Toolset Personal · OCI Free Tier sa-valparaiso-1 · ARM64 · Hecho en 🇨🇱<br>
   Sin suscripciones · Sin vendor lock-in · Sin que te crezca la cuenta</sub>
 </p>
-
