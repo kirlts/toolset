@@ -181,7 +181,10 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
 echo "[DEPLOY] Recreating services..."
 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   "${SSH_HOST}" \
-  "cd ${REMOTE_DIR} && sudo docker compose down --remove-orphans 2>&1 && sudo docker compose up -d --remove-orphans --force-recreate 2>&1" | sed 's/^/  [UP] /'
+  "sudo systemctl stop hermes-webui 2>/dev/null || true && \
+   cd ${REMOTE_DIR} && sudo docker compose down --remove-orphans 2>&1 && \
+   sudo docker compose up -d --remove-orphans --force-recreate 2>&1 && \
+   sudo systemctl start hermes-webui 2>/dev/null || true" | sed 's/^/  [UP] /'
 
 # --- Verify critical services ---
 echo "[DEPLOY] Verifying critical services..."
