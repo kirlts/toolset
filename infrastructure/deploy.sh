@@ -775,9 +775,14 @@ done
  
 # --- Hermes runtime config (idempotent) ---
 echo "[DEPLOY] Configuring Hermes runtime..."
+# Transfer standalone inject-composio-key.py to remote server
+scp -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  "$(dirname "$0")/hermes/inject-composio-key.py" \
+  "${SSH_HOST}:/tmp/inject-composio-key.py"
 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   "${SSH_HOST}" \
   "export PATH=/usr/local/bin:/home/opc/.local/bin:\$PATH; \
+    chmod +x /tmp/inject-composio-key.py && \
     hermes config set terminal.backend local 2>/dev/null; \
     hermes config set memory.provider hindsight 2>/dev/null; \
     hermes config set memory.hindsight.url 'https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/mcp/' 2>/dev/null; \
@@ -785,72 +790,8 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     hermes config set model.default 'opencodego/deepseek-v4-flash' 2>/dev/null; \
     hermes config set model.provider 'opencode-go' 2>/dev/null; \
     hermes config set context_file_max_chars 25000 2>/dev/null; \
-    python3 -c \"
-import json, os, subprocess
-# --- Attempt 1: fetch COMPOSIO_MCP_KEY from Infisical ---
-token = ''
-pid = ''
-try:
-    with open('/opt/toolset/.env') as f:
-        for line in f:
-            line = line.strip()
-            if line.startswith('INFISICAL_SERVICE_TOKEN='):
-                token = line.split('=', 1)[1]
-            elif line.startswith('INFISICAL_PID='):
-                pid = line.split('=', 1)[1]
-except:
-    pass
-composio_key = ''
-if token and pid:
-    try:
-        r = subprocess.run(
-            ['curl', '-s', '-H', f'Authorization: Bearer ***
-             f'http://localhost:8081/api/v3/secrets/raw/COMPOSIO_MCP_KEY?workspaceId={pid}&environment=prod'],
-            capture_output=True, text=True, timeout=10)
-        if r.returncode == 0:
-            data = json.loads(r.stdout)
-            composio_key = data.get('secret', {}).get('secretValue', '')
-            print('  [composio] key fetched from Infisical')
-    except Exception as e:
-        print(f'  [composio] Infisical fetch failed: {e}')
-# --- Attempt 2: fallback to Hermes .env (already written by deploy.sh) ---
-if not composio_key:
-    try:
-        with open('/home/opc/.hermes/.env') as f:
-            for line in f:
-                if line.startswith('COMPOSIO_MCP_KEY='):
-                    composio_key = line.strip().split('=', 1)[1]
-                    print('  [composio] key read from Hermes .env (fallback)')
-                    break
-    except:
-        pass
-import yaml
-cfg_path = '/home/opc/.hermes/config.yaml'
-with open(cfg_path) as f:
-    cfg = yaml.safe_load(f) or {}
-cfg.pop('memory_provider', None)
-cfg.pop('default', None)  # old format, use model: instead
-cfg.setdefault('mcp_servers', {})
-# Model config: nested format for WebUI + CLI compatibility
-cfg['model'] = {'default': 'opencodego/deepseek-v4-flash', 'provider': 'opencode-go'}
-cfg['context_file_max_chars'] = 25000
-if composio_key:
-    cfg['mcp_servers']['composio'] = {
-        'url': 'https://connect.composio.dev/mcp',
-        'headers': {'x-consumer-api-key': composio_key},
-        'connect_timeout': 60,
-        'timeout': 180
-    }
-    print('  [composio] MCP server configured with real key')
-else:
-    print('  [composio] WARNING: could not obtain composio key — preserving existing config if any')
-cfg['mcp_servers']['hindsight-selfhosted'] = {
-    'url': 'https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/mcp/'
-}
-with open(cfg_path, 'w') as f:
-    yaml.dump(cfg, f, default_flow_style=False)
-print('MCP servers configured')
-\" 2>&1 || echo 'MCP config fallback: hindsight only'"
+    python3 /tmp/inject-composio-key.py 2>&1; \
+    rm -f /tmp/inject-composio-key.py"
 
 echo "[DEPLOY] Hermes runtime configuration complete."
 FUNNEL_TARGET="http://localhost:8080"
