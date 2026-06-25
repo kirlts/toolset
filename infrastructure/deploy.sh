@@ -166,7 +166,7 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
      rm -rf /tmp/researchit-tmp; \
    fi && \
    set -a && source /home/opc/.hermes/.env && set +a && \
-   export COMPOSIO_REDDIT_CONNECTION_ID=${COMPOSIO_REDDIT_CONNECTION_ID:-reddit_hight-mudden} && \\
+   export COMPOSIO_REDDIT_CONNECTION_ID=${COMPOSIO_REDDIT_CONNECTION_ID:-reddit_hight-mudden} && \
    env | grep -E '^(OPENCODE_GO_API_KEY|COMPOSIO_API_KEY|COMPOSIO_REDDIT)' | \
    while IFS='=' read -r k v; do echo \"\$k=\$v\" >> /opt/researchit/.env; done" 2>&1 | sed 's/^/  [RESEARCHIT] /'
 echo "[DEPLOY] ResearchIt synced."
@@ -550,6 +550,15 @@ COMPOSIO_MCP_KEY=${COMPOSIO_MCP_KEY:-}
 HERMESENV
 echo "[DEPLOY] Hermes .env written."
 
+# --- Export OPENCODE_GO_API_KEY to shell (needed by Kilo CLI {env:...} resolution) ---
+echo "[DEPLOY] Exporting OPENCODE_GO_API_KEY to .bashrc for Kilo CLI..."
+ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  "${SSH_HOST}" \
+  "grep -q 'OPENCODE_GO_API_KEY' /home/opc/.bashrc 2>/dev/null && \
+   echo '[bashrc] Export already present' || \
+   printf '%s\n' '' '# Export for Kilo CLI (managed by deploy.sh)' \"export OPENCODE_GO_API_KEY=\\\$(grep '^OPENCODE_GO_API_KEY=' /home/opc/.hermes/.env 2>/dev/null | cut -d= -f2-)\" | sudo tee -a /home/opc/.bashrc > /dev/null && \
+   echo '[bashrc] Export added'"
+
 # --- Hermes Agent + Kilo CLI install (idempotent) ---
 HERMES_LOG="/var/log/hermes-bootstrap.log"
 echo "[DEPLOY] Setting up Hermes Agent + Kilo CLI..."
@@ -670,6 +679,17 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
      echo '[hermes] markitdown CLI wrapper installed at /usr/local/bin/markitdown'; \
    fi" 2>&1 | sed 's/^/  [markitdown] /'
 echo "[DEPLOY] MarkItDown installation complete."
+
+# --- Fix pydantic in Hermes venv (mcp package requires pydantic >=2) ---
+echo "[DEPLOY] Ensuring Hermes venv has pydantic >=2 (required by mcp 1.26.0)..."
+ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  "${SSH_HOST}" \
+  "VENV_PY=/usr/local/lib/hermes-agent/venv/bin/python && \
+   SUDO_PIP=\"sudo \\\$VENV_PY -m pip install\" && \
+   echo '[hermes] Installing/upgrading pydantic to >=2 (mcp streamable_http support)...' && \
+   eval \\\$SUDO_PIP 'pydantic>=2' -q 2>&1 | tail -2 && \
+   echo '[hermes] pydantic OK'" 2>&1 | sed 's/^/  [pydantic] /'
+echo "[DEPLOY] pydantic check complete."
 
 # --- Create gh token file for Docker sandbox (idempotent) ---
 echo "[DEPLOY] Creating gh token file for Docker sandbox..."
