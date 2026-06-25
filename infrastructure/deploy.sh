@@ -166,7 +166,7 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
      rm -rf /tmp/researchit-tmp; \
    fi && \
    set -a && source /home/opc/.hermes/.env && set +a && \
-   export COMPOSIO_REDDIT_CONNECTION_ID=${COMPOSIO_REDDIT_CONNECTION_ID:-reddit_hight-mudden} && \\
+   export COMPOSIO_REDDIT_CONNECTION_ID=${COMPOSIO_REDDIT_CONNECTION_ID:-reddit_hight-mudden} && \
    env | grep -E '^(OPENCODE_GO_API_KEY|COMPOSIO_API_KEY|COMPOSIO_REDDIT)' | \
    while IFS='=' read -r k v; do echo \"\$k=\$v\" >> /opt/researchit/.env; done" 2>&1 | sed 's/^/  [RESEARCHIT] /'
 echo "[DEPLOY] ResearchIt synced."
@@ -549,6 +549,15 @@ COMPOSIO_API_KEY=${COMPOSIO_API_KEY:-}
 COMPOSIO_MCP_KEY=${COMPOSIO_MCP_KEY:-}
 HERMESENV
 echo "[DEPLOY] Hermes .env written."
+
+# --- Export OPENCODE_GO_API_KEY to shell (needed by Kilo CLI {env:...} resolution) ---
+echo "[DEPLOY] Exporting OPENCODE_GO_API_KEY to .bashrc for Kilo CLI..."
+ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  "${SSH_HOST}" \
+  "grep -q 'OPENCODE_GO_API_KEY' /home/opc/.bashrc 2>/dev/null && \
+   echo '[bashrc] Export already present' || \
+   printf '%s\n' '' '# Export for Kilo CLI (managed by deploy.sh)' \"export OPENCODE_GO_API_KEY=\\\$(grep '^OPENCODE_GO_API_KEY=' /home/opc/.hermes/.env 2>/dev/null | cut -d= -f2-)\" | sudo tee -a /home/opc/.bashrc > /dev/null && \
+   echo '[bashrc] Export added'"
 
 # --- Hermes Agent + Kilo CLI install (idempotent) ---
 HERMES_LOG="/var/log/hermes-bootstrap.log"
