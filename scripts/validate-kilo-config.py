@@ -3,8 +3,9 @@
 import json, re, sys
 
 text = open(sys.argv[1]).read()
-# Strip JSONC comments
-text = re.sub(r'//.*', '', text)
+# Strip JSONC comments (respecting strings)
+# Remove single-line comments only outside quoted strings
+text = re.sub(r'(?s)("(?:[^"\\]|\\.)*")|//.*', lambda m: m.group(1) or '', text)
 cfg = json.loads(text)
 
 refs = set()
