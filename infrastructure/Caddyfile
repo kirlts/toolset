@@ -92,6 +92,11 @@
         reverse_proxy hindsight:8888
     }
 
+    # MCP Proxy (Streamable HTTP bridge for Kilo CLI)
+    handle_path /mcp-proxy/* {
+        reverse_proxy mcp-proxy:9090
+    }
+
     # Hermes WebUI (accessible from mobile where non-standard ports are blocked)
     handle_path /hermes/* {
         reverse_proxy host.docker.internal:8888

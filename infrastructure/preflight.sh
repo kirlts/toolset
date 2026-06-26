@@ -50,7 +50,7 @@ check "MCP servers configured in yaml" \
 # --- MCP 3-Step Verification (§3.5 recommendation 5) ---
 echo "  -- MCP 3-Step Verification --"
 
-# Step 1: Health check
+# Step 1: Health check (REST API, not MCP)
 GW_HEALTH=$(ssh -o StrictHostKeyChecking=no "${SSH_HOST}" \
   "curl -sf https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/health 2>/dev/null && echo ok" 2>/dev/null)
 if [ -n "$GW_HEALTH" ]; then
@@ -60,51 +60,89 @@ else
   ERRORS=$((ERRORS + 1))
 fi
 
-# Step 2: List MCP tools via hindsight API
-TOOLS_LIST=$(ssh -o StrictHostKeyChecking=no "${SSH_HOST}" \
-  "curl -sf https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/mcp/ 2>/dev/null | python3 -c \"
-import sys,json
-try:
-    data = json.load(sys.stdin)
-    tools = data.get('tools', data.get('result', data.get('tools', [])))
-    if isinstance(tools, list) and len(tools) > 0:
-        print(f'ok ({len(tools)} tools)')
-    else:
-        print('ok (endpoint reachable)')
-except:
-    print('ok (endpoint reachable)')
-\" 2>/dev/null || echo 'reachable'" 2>/dev/null)
+# Steps 2+3: Test both direct SSE MCP and Streamable HTTP proxy.
+MCP_BASE="https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/mcp"
+MCP_PROXY="https://toolset-oci-1-1.tail2d4c18.ts.net/mcp-proxy/"
+MCP_INIT='{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"preflight","version":"1.0"}},"id":1}'
 
-if echo "$TOOLS_LIST" | grep -q 'ok'; then
-  echo "    PASS MCP Step 2 (tools/list): $TOOLS_LIST"
+# Initialize SSE session and extract session ID from headers
+MCP_SESSION=$(ssh -o StrictHostKeyChecking=no "${SSH_HOST}" \
+  "curl -s -D - --max-time 15 -X POST '${MCP_BASE}/' \
+    -H 'Content-Type: application/json' \
+    -d '${MCP_INIT}' 2>/dev/null | head -10 | grep -oP 'mcp-session-id: \K\S+' 2>/dev/null || echo ''")
+
+if [ -n "$MCP_SESSION" ]; then
+  echo "    PASS MCP Step 2 (SSE session initialized): $MCP_SESSION"
+
+  # Step 3a: Execute list_banks via SSE with session
+  MCP_CALL=$(ssh -o StrictHostKeyChecking=no "${SSH_HOST}" \
+    "curl -s --max-time 15 -X POST '${MCP_BASE}/' \
+      -H 'Content-Type: application/json' \
+      -H 'Mcp-Session-Id: ${MCP_SESSION}' \
+      -d '{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"list_banks\",\"arguments\":{}}}' 2>/dev/null")
+
+  if echo "$MCP_CALL" | grep -q 'result'; then
+    BANKS=$(echo "$MCP_CALL" | python3 -c "
+import sys,json
+for line in sys.stdin:
+    if line.startswith('data: '):
+        d=json.loads(line[6:])
+        r=d.get('result',{})
+        c=r.get('content',[])
+        for item in c:
+            txt=item.get('text','')
+            try:
+                b=json.loads(txt)
+                banks=b.get('banks',[])
+                print(f'ok ({len(banks)} banks)')
+            except:
+                pass
+" 2>/dev/null || echo "ok (executed)")
+    echo "    PASS MCP Step 3a (SSE list_banks): $BANKS"
+  else
+    echo "    FAIL MCP Step 3a (SSE list_banks)"
+    ERRORS=$((ERRORS + 1))
+  fi
 else
-  echo "    FAIL MCP Step 2 (tools/list): $TOOLS_LIST"
+  echo "    FAIL MCP Step 2 (SSE session init failed)"
   ERRORS=$((ERRORS + 1))
 fi
 
-# Step 3: Execute a dummy tool (list_banks)
-DUMMY_EXEC=$(ssh -o StrictHostKeyChecking=no "${SSH_HOST}" \
-  "curl -sf -X POST https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/mcp/ \
+# Step 3b: Test Streamable HTTP proxy (for Kilo CLI)
+PROXY_TEST=$(ssh -o StrictHostKeyChecking=no "${SSH_HOST}" \
+  "curl -s --max-time 15 -X POST '${MCP_PROXY}' \
     -H 'Content-Type: application/json' \
-    -d '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"list_banks\",\"arguments\":{}}}' 2>/dev/null | python3 -c \"
-import sys,json
-try:
-    data = json.load(sys.stdin)
-    result = data.get('result', data.get('content', []))
-    if isinstance(result, list) and len(result) > 0:
-        print('ok (dummy tool executed)')
-    elif isinstance(result, dict):
-        print('ok (dummy tool executed)')
-    else:
-        print('ok (response received)')
-except:
-    print('ok (response received)')
-\" 2>/dev/null || echo 'executed'" 2>/dev/null)
+    -d '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\",\"params\":{}}' 2>/dev/null")
 
-if echo "$DUMMY_EXEC" | grep -q 'ok\|executed'; then
-  echo "    PASS MCP Step 3 (list_banks executed)"
+if echo "$PROXY_TEST" | grep -q 'tools'; then
+  echo "    PASS MCP Step 3b (Streamable HTTP proxy): tools endpoint reachable"
 else
-  echo "    FAIL MCP Step 3 (list_banks execution)"
+  echo "    FAIL MCP Step 3b (Streamable HTTP proxy)"
+  ERRORS=$((ERRORS + 1))
+fi
+
+# Step 3c: Execute list_banks via proxy
+PROXY_EXEC=$(ssh -o StrictHostKeyChecking=no "${SSH_HOST}" \
+  "curl -s --max-time 15 -X POST '${MCP_PROXY}' \
+    -H 'Content-Type: application/json' \
+    -d '{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"list_banks\",\"arguments\":{}}}' 2>/dev/null")
+
+if echo "$PROXY_EXEC" | python3 -c "
+import sys,json
+d=json.load(sys.stdin)
+r=d.get('result',{})
+c=r.get('content',[])
+for item in c:
+    txt=item.get('text','')
+    try:
+        b=json.loads(txt)
+        print(f'ok ({len(b.get(\"banks\",[]))} banks)')
+    except:
+        pass
+" 2>/dev/null | grep -q ok; then
+  echo "    PASS MCP Step 3c (proxy list_banks executed)"
+else
+  echo "    FAIL MCP Step 3c (proxy list_banks)"
   ERRORS=$((ERRORS + 1))
 fi
 

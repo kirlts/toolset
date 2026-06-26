@@ -153,6 +153,8 @@ jobs:
             -f infrastructure/hermes-sandbox.Dockerfile \
             infrastructure/
 
+
+
       - name: Deploy services
         env:
           SSH_HOST: ${{ env.SSH_HOST }}
