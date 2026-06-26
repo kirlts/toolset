@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
 # consolidate-memory.sh — Monitor MEMORY.md size, trigger reflect+retain at threshold
-# Ran by cron. If MEMORY.md exceeds 80% of capacity (~1760 chars), runs reflect+retain
-# on the toolset bank via Hermes one-shot mode, then clears the memory buffer.
+# Runs on cron. If MEMORY.md exceeds 85% of capacity, consolidates to Hindsight
+# via reflect+retain, then clears the buffer. After clearing, leaves a recall
+# instruction so the next Hermes session restores context from Hindsight.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 HERMES_HOME="${SCRIPT_DIR}"
 MEMORY_FILE="${HERMES_HOME}/memories/MEMORY.md"
 CAPACITY=2200
-THRESHOLD=$((CAPACITY * 80 / 100))
+THRESHOLD=$((CAPACITY * 85 / 100))
 LOG="/var/log/hermes-memory-consolidation.log"
 
 if [ ! -f "$MEMORY_FILE" ]; then
-  echo "[$(date -u)] MEMORY.md not found at $MEMORY_FILE" >> "$LOG"
   exit 0
 fi
 
@@ -21,7 +21,7 @@ if [ "$SIZE" -lt "$THRESHOLD" ]; then
   exit 0
 fi
 
-echo "[$(date -u)] MEMORY.md at ${SIZE}/${CAPACITY} chars (>80%), consolidating..." >> "$LOG"
+echo "[$(date -u)] MEMORY.md at ${SIZE}/${CAPACITY} chars (>85%), consolidating..." >> "$LOG"
 
 export PATH="/usr/local/bin:/home/opc/.local/bin:$PATH"
 
@@ -29,12 +29,13 @@ export PATH="/usr/local/bin:/home/opc/.local/bin:$PATH"
 REFLECT_OUTPUT=$(hermes -z "Run reflect on bank toolset with query 'synthesize all MEMORY.md heuristics into structured observations' then retain the results" 2>&1)
 echo "  Reflect+retain: $REFLECT_OUTPUT" >> "$LOG"
 
-# Step 2: Clear the buffer (truncate to header only)
-HEADER=$(head -5 "$MEMORY_FILE")
+# Step 2: Clear the buffer. Leave a recall instruction so Hermes restores
+# context from Hindsight on the next session.
 cat > "$MEMORY_FILE" << 'HEADER'
 # MEMORY: Transferable Heuristics
 
-> Append-only repository of patterns and lessons applicable to any software project.
+> Append-only repository. Buffer was consolidated to Hindsight via reflect+retain.
+> Run `recall(bank="toolset")` at session start to restore consolidated heuristics.
 
 HEADER
 

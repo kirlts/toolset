@@ -882,7 +882,7 @@ echo "[DEPLOY] AGENTS.md symlink created."
 echo "[DEPLOY] Installing memory consolidation cron..."
 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   "${SSH_HOST}" \
-  "CRON_CMD='*/30 * * * * /home/opc/.hermes/consolidate-memory.sh' && \
+  "CRON_CMD='*/5 * * * * /home/opc/.hermes/consolidate-memory.sh' && \
    (crontab -l 2>/dev/null | grep -q consolidate-memory && \
      echo '[cron] Already installed' || \
      (crontab -l 2>/dev/null; echo \"\$CRON_CMD\") | crontab - && \
