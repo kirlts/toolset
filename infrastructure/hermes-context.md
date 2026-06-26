@@ -39,8 +39,8 @@ Hindsight is centralized memory. Each active repo has its own isolated bank, nam
 
 | Bank | Purpose | Facts |
 |---|---|---|
-| hermes | User profile, agent state, preferences, personal context | ~34 |
-| toolset | Toolset infrastructure: OCI, CI/CD, services, decisions | ~194 |
+| **hermes** | **[AGENT MEMORY]** User profile, agent state, preferences, personal context, consolidated working memory | ~34 |
+| **toolset** | **[INFRASTRUCTURE]** Toolset IaC: OCI, CI/CD, services, architecture decisions, deploy state | ~194 |
 | kairos | Kairos governance: rules, workflows, skills, templates | new |
 | researchit | Deep research engine: SearXNG, deepseek-v4-flash, Typst | ~48 |
 | cl-concerts-db | UAH, docta music, Flask | ~9 |
