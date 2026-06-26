@@ -315,18 +315,21 @@ if [ -n "$INFISICAL_TOKEN" ] && [ -n "$INFISICAL_PID" ]; then
   SYNC_SCRIPT="/opt/toolset-repo/scripts/sync-infisical-secrets.py"
   ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     "${SSH_HOST}" \
-    "export INFISICAL_TOKEN='${INFISICAL_TOKEN}' INFISICAL_PID='${INFISICAL_PID}' \
-     OPENCODE_GO_API_KEY='${OPENCODE_GO_API_KEY:-}' \
-     FUNNEL_DOMAIN='${FUNNEL_DOMAIN:-}' \
-     HERMES_LLM_PROVIDER='${HERMES_LLM_PROVIDER:-}' \
-     HERMES_LLM_MODEL='${HERMES_LLM_MODEL:-}' \
-     HERMES_WEBUI_PASSWORD='${HERMES_WEBUI_PASSWORD:-}' \
-     HERMES_WHATSAPP_MODE='${HERMES_WHATSAPP_MODE:-}' \
-     WHATSAPP_ALLOWED_USERS='${WHATSAPP_ALLOWED_USERS:-}' \
-     COMPOSIO_API_KEY='${COMPOSIO_API_KEY:-}' \
-     COMPOSIO_MCP_KEY='${COMPOSIO_MCP_KEY:-}' \
-     python3 ${SYNC_SCRIPT} push && \
-     python3 ${SYNC_SCRIPT} verify"
+    "set -- \
+      INFISICAL_TOKEN='${INFISICAL_TOKEN}' \
+      INFISICAL_PID='${INFISICAL_PID}' \
+      OPENCODE_GO_API_KEY='${OPENCODE_GO_API_KEY:-}' \
+      FUNNEL_DOMAIN='${FUNNEL_DOMAIN:-}' \
+      HERMES_LLM_PROVIDER='${HERMES_LLM_PROVIDER:-}' \
+      HERMES_LLM_MODEL='${HERMES_LLM_MODEL:-}' \
+      HERMES_WEBUI_PASSWORD='${HERMES_WEBUI_PASSWORD:-}' \
+      HERMES_WHATSAPP_MODE='${HERMES_WHATSAPP_MODE:-}' \
+      WHATSAPP_ALLOWED_USERS='${WHATSAPP_ALLOWED_USERS:-}' \
+      COMPOSIO_API_KEY='${COMPOSIO_API_KEY:-}' \
+      COMPOSIO_MCP_KEY='${COMPOSIO_MCP_KEY:-}'; \
+    for var in \"\$@\"; do eval export \"\$var\"; done && \
+    python3 ${SYNC_SCRIPT} push && \
+    python3 ${SYNC_SCRIPT} verify"
   echo "[DEPLOY] All secrets synced to Infisical (dev + prod)."
 
   # Reverse sync moved to deploy.yml (GitHub Runner context) where
