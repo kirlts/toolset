@@ -886,7 +886,7 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
    (crontab -l 2>/dev/null | grep -q consolidate-memory && \
      echo '[cron] Already installed' || \
      (crontab -l 2>/dev/null; echo \"\$CRON_CMD\") | crontab - && \
-     echo '[cron] Consolidation cron installed (every 30 min)')"
+     echo '[cron] Consolidation cron installed (every 5 min)')"
 echo "[DEPLOY] Memory consolidation cron configured."
 
 FUNNEL_TARGET="http://localhost:8080"

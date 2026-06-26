@@ -25,8 +25,8 @@ echo "[$(date -u)] MEMORY.md at ${SIZE}/${CAPACITY} chars (>85%), consolidating.
 
 export PATH="/usr/local/bin:/home/opc/.local/bin:$PATH"
 
-# Step 1: reflect + retain on toolset bank
-REFLECT_OUTPUT=$(hermes -z "Run reflect on bank toolset with query 'synthesize all MEMORY.md heuristics into structured observations' then retain the results" 2>&1)
+# Step 1: reflect + retain on hermes bank (Hermes personal memory)
+REFLECT_OUTPUT=$(hermes -z "Run reflect on bank hermes with query 'synthesize all MEMORY.md heuristics into structured observations' then retain the results" 2>&1)
 echo "  Reflect+retain: $REFLECT_OUTPUT" >> "$LOG"
 
 # Step 2: Clear the buffer. Leave a recall instruction so Hermes restores
@@ -34,8 +34,8 @@ echo "  Reflect+retain: $REFLECT_OUTPUT" >> "$LOG"
 cat > "$MEMORY_FILE" << 'HEADER'
 # MEMORY: Transferable Heuristics
 
-> Append-only repository. Buffer was consolidated to Hindsight via reflect+retain.
-> Run `recall(bank="toolset")` at session start to restore consolidated heuristics.
+> Append-only repository. Buffer was consolidated to bank `hermes` via reflect+retain.
+> Session init already runs `recall(bank="hermes")` — consolidated heuristics restore automatically.
 
 HEADER
 
