@@ -5,45 +5,6 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.3.0] - 2026-06-26
-
-### Added
-- SOUL.md refactorizado: reducido de 210 a 21 líneas (solo identidad/tono).
-- hermes-context.md con contenido operacional extraído de SOUL.md (capacidades, arquitectura, banks, reglas).
-- AGENTS.md en repo root para auto-descubrimiento de contexto por Hermes.
-- preflight.sh: verificación post-deploy de 15 invariantes MASTER-SPEC.
-- pre-commit hook: bloquea .env y secrets en commits.
-- INFRA-04 en RULES.md: restart obligatorio de MCP gateway post-deploy.
-- skills externas via `external_skills_dirs`: toolset-ops, monitoring, kilo-code.
-- MCP Lifecycle documentado en MASTER-SPEC §7.1.
-- Script de consolidación de memoria (cron cada 30min).
-- approvals.mode: smart configurado en inject-composio-key.py.
-
-### Changed
-- deploy.sh: toolset repo clone, context file sync, gateway restart dedicado + health check, memory cron, AGENTS.md symlink.
-- deploy.sh: Infisical sync batch en un solo SSH Python call.
-- deploy.sh: eliminado `--force-recreate` en docker compose (usa change detection nativo).
-- deploy.sh: reducidos sleeps de verificación (10→5s, 30→15s).
-- deploy.sh: gateway health check reducido (5×5s→3×3s).
-- deploy.sh: Hindsight backup condicional (<1hr skip).
-- deploy.sh: banks dir check protegido contra directorio faltante.
-- inject-composio-key.py: approvals.mode smart, skills.external_dirs configurados.
-- MASTER-SPEC.md §7.1: documentado MCP Lifecycle completo.
-- MEMORY.md: Consolidation Protocol agregado como header.
-- REPOMAP.md: regenerado vía /repomap.
-- Skills reorganized: estructura flat (toolset-ops, monitoring, kilo-code).
-- Kilo-code skill traducida a inglés.
-
-### Added
-- MCP Proxy (Streamable HTTP bridge): proxy Python que traduce SSE de Hindsight a Streamable HTTP para Kilo CLI.
-- mcp-proxy container en docker-compose.yml, ruta /mcp-proxy/ en Caddyfile.
-- preflight.sh ahora prueba SSE + proxy Streamable HTTP en MCP 3-Step.
-
-### Removed
-- Skills tar/scp block en deploy.sh (reemplazado por external_skills_dirs).
-- autonomous-ai-agents/ directory (skills movidas a estructura flat).
-- `context_file_max_chars` duplicado en deploy.sh (ya en inject-composio-key.py).
-
 ## [0.2.0] - 2026-06-22
 
 ### Added

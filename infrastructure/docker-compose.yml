@@ -142,17 +142,6 @@ services:
     networks:
       - toolset-net
 
-  mcp-proxy:
-    build:
-      context: .
-      dockerfile: mcp-proxy.Dockerfile
-    container_name: mcp-proxy
-    restart: unless-stopped
-    ports:
-      - "127.0.0.1:9090:9090"
-    networks:
-      - toolset-net
-
 networks:
   toolset-net:
     driver: bridge

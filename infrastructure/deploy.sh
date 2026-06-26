@@ -122,18 +122,6 @@ scp -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   "${SSH_HOST}" "sudo mv -f /tmp/docker-compose.yml ${REMOTE_DIR}/docker-compose.yml"
 echo "[DEPLOY] docker-compose.yml synced."
-# Transfer MCP proxy files (for docker compose build on server)
-MCP_PROXY_DIR="$(dirname "${COMPOSE_FILE}")"
-if [ -f "${MCP_PROXY_DIR}/mcp-proxy.Dockerfile" ] && [ -f "${MCP_PROXY_DIR}/hindsight-mcp-proxy.py" ]; then
-  echo "[DEPLOY] Transferring MCP proxy files..."
-  scp -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    "${MCP_PROXY_DIR}/mcp-proxy.Dockerfile" \
-    "${SSH_HOST}:${REMOTE_DIR}/mcp-proxy.Dockerfile"
-  scp -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    "${MCP_PROXY_DIR}/hindsight-mcp-proxy.py" \
-    "${SSH_HOST}:${REMOTE_DIR}/hindsight-mcp-proxy.py"
-  echo "[DEPLOY] MCP proxy files transferred."
-fi
 else
   echo "[DEPLOY] WARNING: Caddyfile not found at $CADDYFILE"
 fi
@@ -457,7 +445,7 @@ LANDING_HTML=$(cat <<EOF
   Abre el <a href="/dashboard" style="color:#7ec8e3;">Control Plane</a> para ver todos los banks disponibles.
 </p>
 <div class="meta">
-  <p>MCP Direct: <code>/hindsight/mcp/</code> (SSE) &bull; MCP Proxy (Streamable HTTP): <code>/mcp-proxy/</code></p>
+  <p>MCP: <code>opencodego://${CADDY_DOMAIN}/hindsight/mcp/</code></p>
   <p>Infisical UI: <a href="https://${CADDY_DOMAIN}:8443/" style="color:#7ec8e3;">https://${CADDY_DOMAIN}:8443/</a> <span class="status">(Funnel)</span></p>
   <p>Hermes WebUI: <a href="https://${CADDY_DOMAIN}:8787/" style="color:#7ec8e3;">https://${CADDY_DOMAIN}:8787/</a> <span class="status">(Funnel)</span> &bull; <a href="/hermes/" style="color:#7ec8e3;">/hermes/</a> <span class="status">(via Caddy, mobile-friendly)</span></p>
   <p>Gobernanza: <a href="https://github.com/kirlts/toolset/blob/main/docs/RULES.md" style="color:#7ec8e3;">docs/RULES.md</a></p>
@@ -482,25 +470,6 @@ if [ -f "$KILO_CONFIG" ]; then
     "${SSH_HOST}" \
     "mkdir -p /home/opc/.config/kilo && sudo cp /tmp/kilo.jsonc /home/opc/.config/kilo/kilo.jsonc"
   echo "[DEPLOY] kilo.jsonc transferred."
-  # Patch MCP URL to use proxy (Streamable HTTP bridge)
-  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    "${SSH_HOST}" \
-    "python3 -c \"
-import json, re
-path = '/home/opc/.config/kilo/kilo.jsonc'
-with open(path) as f:
-    raw = f.read()
-clean = re.sub(r'//.*', '', raw)
-cfg = json.loads(clean)
-hs = cfg.get('mcp', {}).get('hindsight-selfhosted', {})
-if hs.get('url', '').endswith('/hindsight/mcp/'):
-    hs['url'] = 'https://${CADDY_DOMAIN}/mcp-proxy/'
-    with open(path, 'w') as f:
-        f.write(json.dumps(cfg, indent=2))
-    print('[kilo] MCP URL patched to proxy')
-else:
-    print('[kilo] MCP URL already patched')
-\" 2>/dev/null || true"
 else
   echo "[DEPLOY] WARNING: kilo.jsonc not found at $KILO_CONFIG"
 fi
