@@ -185,6 +185,18 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     cd ${REMOTE_DIR} && sudo docker compose up -d --remove-orphans 2>&1 && \
    sudo systemctl start hermes-webui 2>/dev/null || true" | sed 's/^/  [UP] /'
 
+# --- Save compose state for rollback ---
+echo "[DEPLOY] Saving compose state for rollback..."
+ROLLBACK_FILE="${REMOTE_DIR}/docker-compose.previous.yml"
+ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  "${SSH_HOST}" \
+  "if [ -f ${REMOTE_DIR}/docker-compose.yml ]; then \
+     sudo cp ${REMOTE_DIR}/docker-compose.yml ${ROLLBACK_FILE} && \
+     echo '  Previous compose saved'; \
+   else echo '  No previous compose to save'; fi"
+
+DEPLOY_FAILED=false
+
 # --- Verify critical services ---
 echo "[DEPLOY] Verifying critical services..."
 sleep 5
@@ -207,7 +219,7 @@ for svc in $CRITICAL; do
   STATUS=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     "${SSH_HOST}" \
     "sudo docker inspect $svc --format '{{.State.Health.Status}}' 2>/dev/null || echo missing")
-  if [ "$STATUS" = "healthy" ]; then echo "  ✅ $svc"; else echo "  ❌ $svc: $STATUS"; fi
+  if [ "$STATUS" = "healthy" ]; then echo "  ✅ $svc"; else echo "  ❌ $svc: $STATUS"; DEPLOY_FAILED=true; fi
 done
 
 # --- Clone toolset repo on server (idempotent) ---
@@ -297,96 +309,28 @@ else
   INFISICAL_TOKEN="$INFISICAL_SERVICE_TOKEN"
 fi
 
-# Step 3: Sync secrets to Infisical (batched in single SSH Python call)
+# Step 3: Sync secrets to Infisical (standalone script, verifiable)
 if [ -n "$INFISICAL_TOKEN" ] && [ -n "$INFISICAL_PID" ]; then
   echo "[DEPLOY] Syncing secrets to Infisical..."
+  SYNC_SCRIPT="/opt/toolset-repo/scripts/sync-infisical-secrets.py"
   ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     "${SSH_HOST}" \
-    "cat > /tmp/sync-secrets.py << 'PYEOF'
-import os, json, subprocess
-secrets = []
-envs = {}
-envs['dev'] = [
-    ('OPENCODE_GO_API_KEY', '${OPENCODE_GO_API_KEY:-}'),
-    ('FUNNEL_DOMAIN', '${FUNNEL_DOMAIN:-}'),
-    ('HERMES_LLM_PROVIDER', '${HERMES_LLM_PROVIDER:-}'),
-    ('HERMES_LLM_MODEL', '${HERMES_LLM_MODEL:-}'),
-    ('HERMES_WEBUI_PASSWORD', '${HERMES_WEBUI_PASSWORD:-}'),
-    ('HERMES_WHATSAPP_MODE', '${HERMES_WHATSAPP_MODE:-}'),
-    ('COMPOSIO_MCP_KEY', '${COMPOSIO_MCP_KEY:-}'),
-]
-envs['prod'] = [
-    ('OPENCODE_GO_API_KEY', '${OPENCODE_GO_API_KEY:-}'),
-    ('FUNNEL_DOMAIN', '${FUNNEL_DOMAIN:-}'),
-    ('HERMES_LLM_PROVIDER', '${HERMES_LLM_PROVIDER:-}'),
-    ('HERMES_LLM_MODEL', '${HERMES_LLM_MODEL:-}'),
-    ('HERMES_WEBUI_PASSWORD', '${HERMES_WEBUI_PASSWORD:-}'),
-    ('HERMES_WHATSAPP_MODE', '${HERMES_WHATSAPP_MODE:-}'),
-    ('WHATSAPP_ALLOWED_USERS', '${WHATSAPP_ALLOWED_USERS:-}'),
-    ('COMPOSIO_API_KEY', '${COMPOSIO_API_KEY:-}'),
-    ('COMPOSIO_MCP_KEY', '${COMPOSIO_MCP_KEY:-}'),
-    ('FUNNEL_DOMAIN', '${FUNNEL_DOMAIN:-}'),
-    ('HERMES_LLM_PROVIDER', '${HERMES_LLM_PROVIDER:-}'),
-    ('HERMES_LLM_MODEL', '${HERMES_LLM_MODEL:-}'),
-    ('HERMES_WEBUI_PASSWORD', '${HERMES_WEBUI_PASSWORD:-}'),
-    ('HERMES_WHATSAPP_MODE', '${HERMES_WHATSAPP_MODE:-}'),
-    ('WHATSAPP_ALLOWED_USERS', '${WHATSAPP_ALLOWED_USERS:-}'),
-    ('COMPOSIO_API_KEY', '${COMPOSIO_API_KEY:-}'),
-]
-PID = '${INFISICAL_PID}'
-TOKEN = '${INFISICAL_TOKEN}'
-for env_name, secret_list in envs.items():
-    for name, value in secret_list:
-        if not value:
-            continue
-        cmd = [
-            'sudo', 'docker', 'exec', '-i', 'infisical', 'sh', '-c',
-            f'curl -s -X POST "http://localhost:8080/api/v3/secrets/raw/{name}"'
-            f' -H "Authorization: Bearer {TOKEN}"'
-            f' -H "Content-Type: application/json"'
-            f' -d \'{{"workspaceId":"{PID}","environment":"{env_name}","secretValue":"{value}","type":"shared"}}\''
-        ]
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
-        print(f'  [Infisical] {env_name}/{name} -> synced')
-PYEOF
-    python3 /tmp/sync-secrets.py && rm -f /tmp/sync-secrets.py"
+    "export INFISICAL_TOKEN='${INFISICAL_TOKEN}' INFISICAL_PID='${INFISICAL_PID}' \
+     OPENCODE_GO_API_KEY='${OPENCODE_GO_API_KEY:-}' \
+     FUNNEL_DOMAIN='${FUNNEL_DOMAIN:-}' \
+     HERMES_LLM_PROVIDER='${HERMES_LLM_PROVIDER:-}' \
+     HERMES_LLM_MODEL='${HERMES_LLM_MODEL:-}' \
+     HERMES_WEBUI_PASSWORD='${HERMES_WEBUI_PASSWORD:-}' \
+     HERMES_WHATSAPP_MODE='${HERMES_WHATSAPP_MODE:-}' \
+     WHATSAPP_ALLOWED_USERS='${WHATSAPP_ALLOWED_USERS:-}' \
+     COMPOSIO_API_KEY='${COMPOSIO_API_KEY:-}' \
+     COMPOSIO_MCP_KEY='${COMPOSIO_MCP_KEY:-}' \
+     python3 ${SYNC_SCRIPT} push && \
+     python3 ${SYNC_SCRIPT} verify"
   echo "[DEPLOY] All secrets synced to Infisical (dev + prod)."
 
-  # --- Reverse sync: Infisical → GitHub Secrets ---
-  # Hermes may create new secrets in Infisical at runtime. This syncs them back
-  # to GitHub Secrets using gh CLI (authenticated via GITHUB_TOKEN in CI/CD).
-  # Each deploy pushes any new HERMES_/WHATSAPP_ secrets from Infisical to GitHub.
-  if command -v gh &>/dev/null; then
-    echo "[DEPLOY] Reverse-syncing Infisical secrets to GitHub..."
-    INFISICAL_RAW=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-      "${SSH_HOST}" \
-      "sudo docker exec -i infisical sh -c 'curl -s \"http://localhost:8080/api/v3/secrets?workspaceId=${INFISICAL_PID}&environment=dev\" -H \"Authorization: Bearer ${INFISICAL_TOKEN}\"'" 2>/dev/null)
-    echo "$INFISICAL_RAW" | python3 -c "
-import sys, json, subprocess, os
-try:
-    data = json.load(sys.stdin)
-    for s in data.get('secrets', []):
-        key = s.get('secretKey', '')
-        val = s.get('secretValue', '')
-        # Only sync secrets with our naming prefixes
-        if not (key.startswith('HERMES_') or key.startswith('WHATSAPP_') or key.startswith('INFISICAL_')):
-            continue
-        if not val:
-            continue
-        # Skip secrets we already pushed from GitHub this run (known env vars)
-        if os.environ.get(key, '') == val:
-            continue
-        # Sync to GitHub Secrets
-        cmd = ['gh', 'secret', 'set', key, '--body', val, '--repo', 'kirlts/toolset']
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        if result.returncode == 0:
-            print(f'  [Infisical→GitHub] {key} synced')
-        else:
-            print(f'  [Infisical→GitHub] {key} failed: {result.stderr.strip()}')
-" 2>/dev/null || echo "  [Infisical→GitHub] Could not process secrets"
-  else
-    echo "[DEPLOY] gh CLI not available, skipping reverse sync"
-  fi
+  # Reverse sync moved to deploy.yml (GitHub Runner context) where
+  # GH_TOKEN has permissions for gh secret set. See deploy.yml step.
 elif [ -n "$INFISICAL_SERVICE_TOKEN" ]; then
   echo "[DEPLOY] INFISICAL_SERVICE_TOKEN set but could not resolve project"
 else
@@ -981,6 +925,49 @@ else
   ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     "${SSH_HOST}" "sudo tailscale funnel --bg --https=${HERMES_PORT} http://localhost:${HERMES_BACKEND} 2>&1" | sed 's/^/  /'
   echo "[DEPLOY] Hermes WebUI Funnel configured on :${HERMES_PORT} -> :${HERMES_BACKEND}"
+fi
+
+# --- Rollback on failure: restore previous compose ---
+if [ "$DEPLOY_FAILED" = "true" ]; then
+  echo ""
+  echo "============================================"
+  echo "  [DEPLOY] ❌ Service verification failed — initiating rollback"
+  echo "============================================"
+  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    "${SSH_HOST}" \
+    "if [ -f ${ROLLBACK_FILE} ]; then \
+       echo '  Restoring previous docker-compose.yml...'; \
+       sudo cp ${ROLLBACK_FILE} ${REMOTE_DIR}/docker-compose.yml && \
+       cd ${REMOTE_DIR} && sudo docker compose up -d --remove-orphans 2>&1 && \
+       echo '  Rollback complete'; \
+     else \
+       echo '  No rollback file available — manual recovery required'; \
+     fi"
+fi
+
+# --- Preflight checks (post-deploy verification) ---
+PREFLIGHT_SCRIPT="$(dirname "$0")/preflight.sh"
+if [ -f "$PREFLIGHT_SCRIPT" ]; then
+  echo "[DEPLOY] Running preflight checks..."
+  if bash "$PREFLIGHT_SCRIPT"; then
+    echo "[DEPLOY] All preflight checks passed"
+  else
+    echo "[DEPLOY] ❌ Preflight failed"
+    DEPLOY_FAILED=true
+    # Attempt rollback again from preflight failure
+    ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+      "${SSH_HOST}" \
+      "if [ -f ${ROLLBACK_FILE} ]; then \
+         sudo cp ${ROLLBACK_FILE} ${REMOTE_DIR}/docker-compose.yml && \
+         cd ${REMOTE_DIR} && sudo docker compose up -d --remove-orphans 2>&1; \
+       fi"
+  fi
+fi
+
+# --- Exit with error if deploy failed ---
+if [ "$DEPLOY_FAILED" = "true" ]; then
+  echo "[DEPLOY] ❌ Deploy completed with errors — check logs above"
+  exit 1
 fi
 
 # --- Post-deploy summary ---
