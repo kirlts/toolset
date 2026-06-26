@@ -181,28 +181,27 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
 echo "[DEPLOY] Recreating services..."
 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   "${SSH_HOST}" \
-  "sudo systemctl stop hermes-webui 2>/dev/null || true && \
-   cd ${REMOTE_DIR} && sudo docker compose down --remove-orphans 2>&1 && \
-   sudo docker compose up -d --remove-orphans --force-recreate 2>&1 && \
+   "sudo systemctl stop hermes-webui 2>/dev/null || true && \
+    cd ${REMOTE_DIR} && sudo docker compose up -d --remove-orphans 2>&1 && \
    sudo systemctl start hermes-webui 2>/dev/null || true" | sed 's/^/  [UP] /'
 
 # --- Verify critical services ---
 echo "[DEPLOY] Verifying critical services..."
-sleep 10
+sleep 5
 CRITICAL="caddy hindsight infisical"
-for attempt in 1 2 3 4; do
+for attempt in 1 2 3; do
   ALL_OK=true
   for svc in $CRITICAL; do
     STATUS=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
       "${SSH_HOST}" \
       "sudo docker inspect $svc --format '{{.State.Health.Status}}' 2>/dev/null || echo missing")
     if [ "$STATUS" != "healthy" ]; then
-      echo "  ⏳ $svc: $STATUS (attempt $attempt/4)"
+      echo "  ⏳ $svc: $STATUS (attempt $attempt/3)"
       ALL_OK=false
     fi
   done
   $ALL_OK && break
-  [ "$attempt" -lt 4 ] && sleep 30
+  [ "$attempt" -lt 3 ] && sleep 15
 done
 for svc in $CRITICAL; do
   STATUS=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
@@ -298,39 +297,59 @@ else
   INFISICAL_TOKEN="$INFISICAL_SERVICE_TOKEN"
 fi
 
-# Step 3: Sync secrets to Infisical
+# Step 3: Sync secrets to Infisical (batched in single SSH Python call)
 if [ -n "$INFISICAL_TOKEN" ] && [ -n "$INFISICAL_PID" ]; then
   echo "[DEPLOY] Syncing secrets to Infisical..."
-  sync_secret() {
-    local env="$1" name="$2" value="$3"
-    [ -z "$value" ] && return
-    ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-      "${SSH_HOST}" \
-      "sudo docker exec -i infisical sh -c 'curl -s -X POST \"http://localhost:8080/api/v3/secrets/raw/${name}\" -H \"Authorization: Bearer ${INFISICAL_TOKEN}\" -H \"Content-Type: application/json\" -d \"{\\\"workspaceId\\\":\\\"${INFISICAL_PID}\\\",\\\"environment\\\":\\\"${env}\\\",\\\"secretValue\\\":\\\"${value}\\\",\\\"type\\\":\\\"shared\\\"}\" 2>/dev/null'" 2>&1 | python3 -c "import sys,json;d=json.load(sys.stdin);key=d.get('secret',{}).get('secretKey','OK');print(f'  [Infisical] $env/$name -> synced')" 2>/dev/null || echo "  [Infisical] $env/$name -> synced"
-  }
-  sync_secret "dev" "OPENCODE_GO_API_KEY" "${OPENCODE_GO_API_KEY:-}"
-  sync_secret "dev" "FUNNEL_DOMAIN" "${FUNNEL_DOMAIN:-}"
-  sync_secret "dev" "HERMES_LLM_PROVIDER" "${HERMES_LLM_PROVIDER:-}"
-  sync_secret "dev" "HERMES_LLM_MODEL" "${HERMES_LLM_MODEL:-}"
-  sync_secret "dev" "HERMES_WEBUI_PASSWORD" "${HERMES_WEBUI_PASSWORD:-}"
-  sync_secret "dev" "HERMES_WHATSAPP_MODE" "${HERMES_WHATSAPP_MODE:-}"
-  sync_secret "dev" "COMPOSIO_MCP_KEY" "${COMPOSIO_MCP_KEY:-}"
-  sync_secret "prod" "OPENCODE_GO_API_KEY" "${OPENCODE_GO_API_KEY:-}"
-  sync_secret "prod" "FUNNEL_DOMAIN" "${FUNNEL_DOMAIN:-}"
-  sync_secret "prod" "HERMES_LLM_PROVIDER" "${HERMES_LLM_PROVIDER:-}"
-  sync_secret "prod" "HERMES_LLM_MODEL" "${HERMES_LLM_MODEL:-}"
-  sync_secret "prod" "HERMES_WEBUI_PASSWORD" "${HERMES_WEBUI_PASSWORD:-}"
-  sync_secret "prod" "HERMES_WHATSAPP_MODE" "${HERMES_WHATSAPP_MODE:-}"
-  sync_secret "prod" "WHATSAPP_ALLOWED_USERS" "${WHATSAPP_ALLOWED_USERS:-}"
-  sync_secret "prod" "COMPOSIO_API_KEY" "${COMPOSIO_API_KEY:-}"
-  sync_secret "prod" "COMPOSIO_MCP_KEY" "${COMPOSIO_MCP_KEY:-}"
-  sync_secret "prod" "FUNNEL_DOMAIN" "${FUNNEL_DOMAIN:-}"
-  sync_secret "prod" "HERMES_LLM_PROVIDER" "${HERMES_LLM_PROVIDER:-}"
-  sync_secret "prod" "HERMES_LLM_MODEL" "${HERMES_LLM_MODEL:-}"
-  sync_secret "prod" "HERMES_WEBUI_PASSWORD" "${HERMES_WEBUI_PASSWORD:-}"
-  sync_secret "prod" "HERMES_WHATSAPP_MODE" "${HERMES_WHATSAPP_MODE:-}"
-  sync_secret "prod" "WHATSAPP_ALLOWED_USERS" "${WHATSAPP_ALLOWED_USERS:-}"
-  sync_secret "prod" "COMPOSIO_API_KEY" "${COMPOSIO_API_KEY:-}"
+  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    "${SSH_HOST}" \
+    "cat > /tmp/sync-secrets.py << 'PYEOF'
+import os, json, subprocess
+secrets = []
+envs = {}
+envs['dev'] = [
+    ('OPENCODE_GO_API_KEY', '${OPENCODE_GO_API_KEY:-}'),
+    ('FUNNEL_DOMAIN', '${FUNNEL_DOMAIN:-}'),
+    ('HERMES_LLM_PROVIDER', '${HERMES_LLM_PROVIDER:-}'),
+    ('HERMES_LLM_MODEL', '${HERMES_LLM_MODEL:-}'),
+    ('HERMES_WEBUI_PASSWORD', '${HERMES_WEBUI_PASSWORD:-}'),
+    ('HERMES_WHATSAPP_MODE', '${HERMES_WHATSAPP_MODE:-}'),
+    ('COMPOSIO_MCP_KEY', '${COMPOSIO_MCP_KEY:-}'),
+]
+envs['prod'] = [
+    ('OPENCODE_GO_API_KEY', '${OPENCODE_GO_API_KEY:-}'),
+    ('FUNNEL_DOMAIN', '${FUNNEL_DOMAIN:-}'),
+    ('HERMES_LLM_PROVIDER', '${HERMES_LLM_PROVIDER:-}'),
+    ('HERMES_LLM_MODEL', '${HERMES_LLM_MODEL:-}'),
+    ('HERMES_WEBUI_PASSWORD', '${HERMES_WEBUI_PASSWORD:-}'),
+    ('HERMES_WHATSAPP_MODE', '${HERMES_WHATSAPP_MODE:-}'),
+    ('WHATSAPP_ALLOWED_USERS', '${WHATSAPP_ALLOWED_USERS:-}'),
+    ('COMPOSIO_API_KEY', '${COMPOSIO_API_KEY:-}'),
+    ('COMPOSIO_MCP_KEY', '${COMPOSIO_MCP_KEY:-}'),
+    ('FUNNEL_DOMAIN', '${FUNNEL_DOMAIN:-}'),
+    ('HERMES_LLM_PROVIDER', '${HERMES_LLM_PROVIDER:-}'),
+    ('HERMES_LLM_MODEL', '${HERMES_LLM_MODEL:-}'),
+    ('HERMES_WEBUI_PASSWORD', '${HERMES_WEBUI_PASSWORD:-}'),
+    ('HERMES_WHATSAPP_MODE', '${HERMES_WHATSAPP_MODE:-}'),
+    ('WHATSAPP_ALLOWED_USERS', '${WHATSAPP_ALLOWED_USERS:-}'),
+    ('COMPOSIO_API_KEY', '${COMPOSIO_API_KEY:-}'),
+]
+PID = '${INFISICAL_PID}'
+TOKEN = '${INFISICAL_TOKEN}'
+for env_name, secret_list in envs.items():
+    for name, value in secret_list:
+        if not value:
+            continue
+        cmd = [
+            'sudo', 'docker', 'exec', '-i', 'infisical', 'sh', '-c',
+            f'curl -s -X POST "http://localhost:8080/api/v3/secrets/raw/{name}"'
+            f' -H "Authorization: Bearer {TOKEN}"'
+            f' -H "Content-Type: application/json"'
+            f' -d \'{{"workspaceId":"{PID}","environment":"{env_name}","secretValue":"{value}","type":"shared"}}\''
+        ]
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+        print(f'  [Infisical] {env_name}/{name} -> synced')
+PYEOF
+    python3 /tmp/sync-secrets.py && rm -f /tmp/sync-secrets.py"
   echo "[DEPLOY] All secrets synced to Infisical (dev + prod)."
 
   # --- Reverse sync: Infisical → GitHub Secrets ---
@@ -720,17 +739,32 @@ HINDSIGHT_DATA_EXISTS=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/d
   "${SSH_HOST}" \
   "sudo docker inspect hindsight --format '{{.State.Running}}' 2>/dev/null || echo 'missing'" 2>/dev/null || echo "missing")
 if [ "$HINDSIGHT_DATA_EXISTS" = "true" ]; then
-  # Create timestamped backup
-  BACKUP_TS=$(date -u +"%Y%m%dT%H%M%SZ")
-  echo "[DEPLOY][backup] Creating Hindsight data backup (${BACKUP_TS})..."
-  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    "${SSH_HOST}" \
-     "sudo mkdir -p ${BACKUP_DIR} && \
-      sudo docker exec hindsight sh -c 'tar czf /tmp/hindsight-backup-${BACKUP_TS}.tar.gz -C /home/hindsight .pg0' && \
-      sudo docker cp hindsight:/tmp/hindsight-backup-${BACKUP_TS}.tar.gz ${BACKUP_DIR}/ && \
-      sudo docker exec hindsight rm /tmp/hindsight-backup-${BACKUP_TS}.tar.gz && \
-      ls -1t ${BACKUP_DIR}/*.tar.gz 2>/dev/null | tail -n +11 | xargs -r sudo rm -f && \
-      echo '[DEPLOY][backup] Done'"
+  # Check if backup was done within the last hour
+  LATEST_BACKUP=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    "${SSH_HOST}" "ls -1t ${BACKUP_DIR}/*.tar.gz 2>/dev/null | head -1" 2>/dev/null || echo "")
+  SKIP_BACKUP=false
+  if [ -n "$LATEST_BACKUP" ]; then
+    BACKUP_AGE=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+      "${SSH_HOST}" "echo \$(( \$(date +%s) - \$(date -r ${LATEST_BACKUP} +%s 2>/dev/null || echo 0) ))" 2>/dev/null || echo "9999")
+    if [ "$BACKUP_AGE" -lt 3600 ] 2>/dev/null; then
+      SKIP_BACKUP=true
+    fi
+  fi
+  if [ "$SKIP_BACKUP" = "true" ]; then
+    echo "[DEPLOY][backup] Last backup <1hr old, skipping"
+  else
+    # Create timestamped backup
+    BACKUP_TS=$(date -u +"%Y%m%dT%H%M%SZ")
+    echo "[DEPLOY][backup] Creating Hindsight data backup (${BACKUP_TS})..."
+    ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+      "${SSH_HOST}" \
+       "sudo mkdir -p ${BACKUP_DIR} && \
+        sudo docker exec hindsight sh -c 'tar czf /tmp/hindsight-backup-${BACKUP_TS}.tar.gz -C /home/hindsight .pg0' && \
+        sudo docker cp hindsight:/tmp/hindsight-backup-${BACKUP_TS}.tar.gz ${BACKUP_DIR}/ && \
+        sudo docker exec hindsight rm /tmp/hindsight-backup-${BACKUP_TS}.tar.gz && \
+        ls -1t ${BACKUP_DIR}/*.tar.gz 2>/dev/null | tail -n +11 | xargs -r sudo rm -f && \
+        echo '[DEPLOY][backup] Done'"
+  fi
 else
   # Try to restore from latest backup (volume was wiped or fresh deploy)
   LATEST_BACKUP=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
@@ -767,18 +801,22 @@ else
 fi
 
 # --- Ensure all known project banks exist in Hindsight ---
-echo "[DEPLOY] Ensuring project banks exist in Hindsight..."
-for bank_id in $(ls infrastructure/hermes/banks/); do
-  HAS_BANK=$(curl -s "https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/v1/default/banks" 2>/dev/null | python3 -c "import sys,json; print(any(b.get('bank_id')=='$bank_id' for b in json.load(sys.stdin).get('banks',[])))" 2>/dev/null || echo "False")
-  if [ "$HAS_BANK" = "False" ]; then
-    echo "  Creating bank '$bank_id'..."
-    curl -s -X PUT "https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/v1/default/banks/$bank_id" \
-      -H "Content-Type: application/json" \
-      -d '{"name":"'"$bank_id"'"}' 2>/dev/null > /dev/null && echo "  Bank $bank_id created" || echo "  Bank $bank_id already exists or error"
-  else
-    echo "  Bank '$bank_id' already exists"
-  fi
-done
+BANKS_DIR="$(dirname "${COMPOSE_FILE}")/hermes/banks"
+BANKS_DIR="$(dirname "${COMPOSE_FILE}")/hermes/banks"
+if [ -d "$BANKS_DIR" ]; then
+  echo "[DEPLOY] Ensuring project banks exist in Hindsight..."
+  for bank_id in $(ls "$BANKS_DIR"); do
+    HAS_BANK=$(curl -s "https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/v1/default/banks" 2>/dev/null | python3 -c "import sys,json; print(any(b.get('bank_id')=='$bank_id' for b in json.load(sys.stdin).get('banks',[])))" 2>/dev/null || echo "False")
+    if [ "$HAS_BANK" = "False" ]; then
+      echo "  Creating bank '$bank_id'..."
+      curl -s -X PUT "https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/v1/default/banks/$bank_id" \
+        -H "Content-Type: application/json" \
+        -d '{"name":"'"$bank_id"'"}' 2>/dev/null > /dev/null && echo "  Bank $bank_id created" || echo "  Bank $bank_id already exists or error"
+    else
+      echo "  Bank '$bank_id' already exists"
+    fi
+  done
+fi
  
 # --- Hermes runtime config (idempotent) ---
 echo "[DEPLOY] Configuring Hermes runtime..."
@@ -821,11 +859,11 @@ echo "[DEPLOY] hermes-gateway restart issued."
 # --- Verify hermes-gateway ---
 echo "[DEPLOY] Verifying hermes-gateway..."
 GW_STATUS="inactive"
-for i in 1 2 3 4 5; do
+for i in 1 2 3; do
   GW_STATUS=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     "${SSH_HOST}" "systemctl is-active hermes-gateway 2>/dev/null || echo inactive")
   [ "$GW_STATUS" = "active" ] && break
-  sleep 5
+  [ "$i" -lt 3 ] && sleep 3
 done
 echo "  Gateway: $GW_STATUS"
 
