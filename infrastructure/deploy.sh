@@ -128,15 +128,10 @@ if [ -f "${MCP_PROXY_DIR}/mcp-proxy.Dockerfile" ] && [ -f "${MCP_PROXY_DIR}/hind
   echo "[DEPLOY] Transferring MCP proxy files..."
   scp -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     "${MCP_PROXY_DIR}/mcp-proxy.Dockerfile" \
-    "${SSH_HOST}:/tmp/mcp-proxy.Dockerfile"
+    "${SSH_HOST}:${REMOTE_DIR}/mcp-proxy.Dockerfile"
   scp -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     "${MCP_PROXY_DIR}/hindsight-mcp-proxy.py" \
-    "${SSH_HOST}:/tmp/hindsight-mcp-proxy.py"
-  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    "${SSH_HOST}" \
-    "sudo cp /tmp/mcp-proxy.Dockerfile ${REMOTE_DIR}/mcp-proxy.Dockerfile && \
-     sudo cp /tmp/hindsight-mcp-proxy.py ${REMOTE_DIR}/hindsight-mcp-proxy.py && \
-     rm -f /tmp/mcp-proxy.Dockerfile /tmp/hindsight-mcp-proxy.py"
+    "${SSH_HOST}:${REMOTE_DIR}/hindsight-mcp-proxy.py"
   echo "[DEPLOY] MCP proxy files transferred."
 fi
 else
