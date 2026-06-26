@@ -4,7 +4,9 @@
 # on the toolset bank via Hermes one-shot mode, then clears the memory buffer.
 set -euo pipefail
 
-MEMORY_FILE="${HERMES_HOME:-/home/opc/.hermes}/memories/MEMORY.md"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+HERMES_HOME="${SCRIPT_DIR}"
+MEMORY_FILE="${HERMES_HOME}/memories/MEMORY.md"
 CAPACITY=2200
 THRESHOLD=$((CAPACITY * 80 / 100))
 LOG="/var/log/hermes-memory-consolidation.log"

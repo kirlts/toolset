@@ -829,11 +829,22 @@ for i in 1 2 3 4 5; do
 done
 echo "  Gateway: $GW_STATUS"
 
+# --- Create AGENTS.md symlink in Hermes home for auto-discovery ---
+# Hermes discovers AGENTS.md by walking to git root from CWD.
+# Systemd service starts from ~opc, not /opt/toolset-repo.
+# A symlink in ~opc ensures discovery regardless of service CWD.
+echo "[DEPLOY] Creating AGENTS.md symlink for Hermes auto-discovery..."
+ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  "${SSH_HOST}" \
+  "ln -sf /opt/toolset-repo/AGENTS.md /home/opc/AGENTS.md && \
+   echo '[hermes] AGENTS.md symlink created'"
+echo "[DEPLOY] AGENTS.md symlink created."
+
 # --- Install memory consolidation cron ---
 echo "[DEPLOY] Installing memory consolidation cron..."
 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   "${SSH_HOST}" \
-  "CRON_CMD='*/30 * * * * /home/opc/.hermes/scripts/consolidate-memory.sh' && \
+  "CRON_CMD='*/30 * * * * /home/opc/.hermes/consolidate-memory.sh' && \
    (crontab -l 2>/dev/null | grep -q consolidate-memory && \
      echo '[cron] Already installed' || \
      (crontab -l 2>/dev/null; echo \"\$CRON_CMD\") | crontab - && \
