@@ -161,18 +161,21 @@ jobs:
       - name: Verify connectivity
         run: ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 ${{ env.SSH_HOST }} "hostname && uptime"
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Build Hermes sandbox Docker image
         if: ${{ !inputs.skip_sandbox_build }}
-        env:
-          DOCKER_BUILDKIT: 1
-        run: |
-          IMAGE_TAG="toolset/hermes-sandbox:$(date -u +%Y%m%d)"
-          IMAGE_LATEST="toolset/hermes-sandbox:latest"
-          docker build \
-            -t "$IMAGE_TAG" \
-            -t "$IMAGE_LATEST" \
-            -f infrastructure/hermes-sandbox.Dockerfile \
-            infrastructure/
+        uses: docker/build-push-action@v6
+        with:
+          context: infrastructure/
+          file: infrastructure/hermes-sandbox.Dockerfile
+          tags: |
+            toolset/hermes-sandbox:latest
+            toolset/hermes-sandbox:${{ github.sha }}
+          load: true
+          cache-from: type=gha,scope=sandbox
+          cache-to: type=gha,mode=max,scope=sandbox
 
       - name: Deploy services
         env:
@@ -192,7 +195,7 @@ jobs:
           COMPOSIO_API_KEY: ${{ secrets.COMPOSIO_API_KEY }}
           COMPOSIO_MCP_KEY: ${{ secrets.COMPOSIO_MCP_KEY }}
           GH_CLI_TOKEN: ${{ secrets.GH_CLI_TOKEN }}
-          FUNNEL_DOMAIN: toolset-oci-1-1.tail2d4c18.ts.net
+          FUNNEL_DOMAIN: ${{ vars.FUNNEL_DOMAIN }}
         working-directory: ${{ env.INFRA_DIR }}
         run: chmod +x deploy.sh && ./deploy.sh
 
@@ -200,9 +203,9 @@ jobs:
         env:
           INFISICAL_TOKEN: ${{ secrets.INFISICAL_SERVICE_TOKEN }}
           INFISICAL_PID: ${{ secrets.INFISICAL_PID }}
-          INFISICAL_URL: https://toolset-oci-1-1.tail2d4c18.ts.net:8443
+          INFISICAL_URL: https://${{ vars.FUNNEL_DOMAIN }}:8443
           OPENCODE_GO_API_KEY: ${{ secrets.OPENCODE_GO_API_KEY }}
-          FUNNEL_DOMAIN: toolset-oci-1-1.tail2d4c18.ts.net
+          FUNNEL_DOMAIN: ${{ vars.FUNNEL_DOMAIN }}
           HERMES_LLM_PROVIDER: ${{ secrets.HERMES_LLM_PROVIDER }}
           HERMES_LLM_MODEL: ${{ secrets.HERMES_LLM_MODEL }}
           HERMES_WEBUI_PASSWORD: ${{ secrets.HERMES_WEBUI_PASSWORD }}
@@ -218,7 +221,7 @@ jobs:
         env:
           INFISICAL_TOKEN: ${{ secrets.INFISICAL_SERVICE_TOKEN }}
           INFISICAL_PID: ${{ secrets.INFISICAL_PID }}
-          INFISICAL_URL: https://toolset-oci-1-1.tail2d4c18.ts.net:8443
+          INFISICAL_URL: https://${{ vars.FUNNEL_DOMAIN }}:8443
           GH_TOKEN: ${{ secrets.GH_CLI_TOKEN }}
         run: python3 scripts/sync-infisical-secrets.py pull
 

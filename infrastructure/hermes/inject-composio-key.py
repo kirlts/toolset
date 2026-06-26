@@ -28,6 +28,8 @@ INFISICAL_ENV = "/opt/toolset/.env"
 HERMES_ENV = "/home/opc/.hermes/.env"
 CONFIG_YAML = "/home/opc/.hermes/config.yaml"
 SECRET_NAME = "COMPOSIO_MCP_KEY"
+FUNNEL_DOMAIN = os.environ.get("FUNNEL_DOMAIN", "toolset-oci-1-1.tail2d4c18.ts.net")
+HINDSIGHT_MCP_URL = f"https://{FUNNEL_DOMAIN}/hindsight/mcp/"
 
 
 def read_env_var(filepath, varname):
@@ -124,7 +126,7 @@ def write_config(composio_key):
         print("  [composio] WARNING: no key obtained — keeping existing config if any")
 
     cfg["mcp_servers"]["hindsight-selfhosted"] = {
-        "url": "https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/mcp/"
+        "url": HINDSIGHT_MCP_URL
     }
 
     with open(CONFIG_YAML, "w") as f:

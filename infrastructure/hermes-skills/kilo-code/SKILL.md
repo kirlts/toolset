@@ -1,74 +1,52 @@
 ---
 name: kilo-code
-description: "Delegate coding tasks to Kilo Code CLI (features, PRs, refactors, tests)."
+description: "Delegate heavy coding tasks to Kilo Code CLI autonomous mode."
 version: 1.0.0
-author: Toolset Personal
-license: MIT
 platforms: [linux]
 metadata:
   hermes:
-    tags: [Coding-Agent, Kilo, OpenCode, Code-Review, Refactoring, Automation]
-    related_skills: [claude-code, codex, hermes-agent, opencode]
+    tags: [Coding, Kilo, Automation, Subagent]
+    triggers: ["code", "implement", "feature", "fix bug", "refactor", "write test"]
 ---
 
-# Kilo Code — Hermes Orchestration Guide
+# Kilo Code CLI — Autonomous Coding Subagent
 
-Delegate coding tasks to [Kilo Code CLI](https://kilo.ai/docs/code-with-ai/platforms/cli) (`@kilocode/cli`) via the Hermes terminal. Uses the same `~/.config/kilo/kilo.jsonc` config as the local Kilo Code (VS Code extension).
+## Overview
 
-## Prerequisites
+Kilo Code CLI (`kilo run --auto`) is the preferred subagent for heavy coding tasks.
+It uses the same provider/model config as local Kilo (`~/.config/kilo/kilo.jsonc`).
 
-- **Install:** `npm install -g @kilocode/cli` (installed — v7.3.54)
-- **Auth:** uses `OPENCODE_GO_API_KEY` from .env. No additional login.
-- **Config:** `~/.config/kilo/kilo.jsonc` with OpenCode Go provider, models, MCPs.
-- **Verify:** `kilo --version`
+## Invocation
 
-## When to Delegate to Kilo Code
-
-| Situation | Delegate to Kilo? |
-|---|---|
-| Task producing >50 lines of code | YES — `kilo run --auto` |
-| Full module refactor | YES |
-| Tests for a feature | YES |
-| Simple bug fix (<50 lines) | NO — resolve directly or `delegate_task()` |
-| Read files, analyze code | NO — terminal/read_file directly |
-| Git operations (commit, push, PR) | NO — terminal/gh CLI directly |
-| Changes requiring PR + merge | YES — `kilo run --auto` + gh CLI for PR |
-
-General rule: if estimated output >50 lines or multi-file, delegate to `kilo run --auto`.
-
-## Autonomous Mode
-
-```
-terminal(command="kilo run 'Task description' --auto", workdir="/path/to/repo", timeout=180)
+```bash
+kilo run "TASK DESCRIPTION" --auto --dir /path/to/repo
 ```
 
-**Flags:**
-| Flag | Purpose |
-|---|---|
-| `--auto` | Autonomous mode. Exit 0 = success, 124 = timeout, 1 = error. |
-| `--model <name>` | Specify model (only `deepseek-v4-flash` available). |
-| `--continue` | Resume previous session. |
-| `--file <path>` | Pass file(s) as context. |
+The `--auto` flag enables autonomous non-interactive mode. The `--dir` flag sets the working directory.
 
-## Strategy
+## When to Delegate
 
-1. Analyze the requirement.
-2. If >50 lines or multi-file → `kilo run "task" --auto`.
-3. Monitor progress. If timeout (exit 124), split into smaller subtasks.
-4. Verify result and report.
+| Task Type | Threshold | Action |
+|---|---|---|
+| Simple (typo, comment, rename) | <5 lines | Edit directly |
+| Moderate (small feature, single function) | 5-50 lines | Edit directly |
+| Complex (multi-file, architecture change) | >50 lines | Delegate to `kilo run --auto` |
+| Test suite | Any | Delegate |
 
-## Quick Reference
+## Workflow
 
-```
-# Feature task
-kilo run "Implement GET /api/users endpoint in auth module, following existing pattern in src/auth/" --auto
+1. User requests code change
+2. If >50 lines expected: `kilo run "DESCRIPTION" --auto --dir /workspace/repo`
+3. Wait for exit code (0=success, 124=timeout, 1=error)
+4. Report summary to user — NOT the full kilo output
 
-# Refactor
-kilo run "Refactor src/processor.py: extract validation logic to separate module, add type hints" --auto
+## Rules (MASTER-SPEC §8)
 
-# Tests
-kilo run "Add unit tests for PaymentService class in tests/test_payment.py" --auto
+- **KILO-01**: Use repo workdir, pass context via `kilo run "task" --auto --dir <path>`
+- **KILO-02**: Never pipe Kilo output raw to user — summarize
 
-# Bug fix
-kilo run "Fix bug in src/inventory.py where stock does not update after return" --auto
-```
+## Anti-patterns
+
+❌ Delegating trivial changes (wastes time)
+❌ Showing Kilo's full tool-call log to user
+❌ Running `kilo` without `--auto` (blocks on prompts)

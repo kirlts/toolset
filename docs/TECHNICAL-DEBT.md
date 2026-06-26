@@ -58,3 +58,20 @@ El pipeline funciona actualmente con API key (`OCI_API_KEY`) como puente tempora
 
 **Remediation plan:** Corregir ENCRYPTION_KEY: usar `openssl rand -hex 16` (32 hex chars = 32 UTF-8 bytes) en lugar de base64. La función `$getBasicEncryptionKey()` en Infisical lee ENCRYPTION_KEY como UTF-8 buffer. Base64 produce 44+ bytes → ERR_CRYPTO_INVALID_KEYLEN. Hex 32 chars = 32 bytes = AES-256-GCM válido. También se corrigió DB_CONNECTION_URI para compatibilidad con Docker Compose v5.1.4 (usar variable simple en .env en lugar de multi-sustitución inline).
 **Status:** ✅ Resolved (2026-06-22)
+
+---
+
+## [DT-005] CI/CD Pipeline Hardening — Concurrencia, Rollback, Sync Bidireccional
+
+**Severity:** Critical (was blocking)
+**Origin:** audit (2026-06-26)
+**Description:** El pipeline CI/CD carecía de control de concurrencia (push paralelos corrompían remote state), rollback automático (fallo post-deploy dejaba servicios caídos) y sync bidireccional de secrets (reverse sync Infisical→GitHub no funcional). Además, inline Python en SSH heredocs causaba bugs de quoting.
+**Remediation plan:** Se implementaron:
+- `concurrency.group` en deploy.yml
+- `workflow_dispatch` con 4 skip-inputs
+- `scripts/sync-infisical-secrets.py` standalone (push|verify|pull)
+- Rollback: marker del compose anterior + restore on failure (service + preflight)
+- Preflight integrado en deploy.sh con auto-revert
+- `FUNNEL_DOMAIN` como GitHub variable, 36 referencias parametrizadas
+- Docker layer caching con `docker/build-push-action@v6` + cache GHA
+**Status:** ✅ Resolved (2026-06-26)

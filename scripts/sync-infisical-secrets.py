@@ -27,8 +27,9 @@ import sys
 import urllib.request
 import urllib.parse
 
-INFISICAL_URL = os.environ.get(
-    "INFISICAL_URL", "http://localhost:8081"
+FUNNEL_DOMAIN = os.environ.get("FUNNEL_DOMAIN", "")
+INFISICAL_URL = os.environ.get("INFISICAL_URL",
+    f"https://{FUNNEL_DOMAIN}:8443" if FUNNEL_DOMAIN else "http://localhost:8081"
 ).rstrip("/")
 
 SCOPED_SECRETS = {

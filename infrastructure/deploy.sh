@@ -737,10 +737,11 @@ fi
 
 # --- Ensure "hermes" bank exists in Hindsight ---
 echo "[DEPLOY] Ensuring 'hermes' bank exists in Hindsight..."
-HAS_HERMES_BANK=$(curl -s "https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/v1/default/banks" 2>/dev/null | python3 -c "import sys,json; print(any(b.get('bank_id')=='hermes' for b in json.load(sys.stdin).get('banks',[])))" 2>/dev/null || echo "False")
+HINDSIGHT_BANKS_URL="https://${CADDY_DOMAIN}/hindsight/v1/default/banks"
+HAS_HERMES_BANK=$(curl -s "${HINDSIGHT_BANKS_URL}" 2>/dev/null | python3 -c "import sys,json; print(any(b.get('bank_id')=='hermes' for b in json.load(sys.stdin).get('banks',[])))" 2>/dev/null || echo "False")
 if [ "$HAS_HERMES_BANK" = "False" ]; then
   echo "[DEPLOY] Creating 'hermes' bank..."
-  curl -s -X PUT "https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/v1/default/banks/hermes" \
+  curl -s -X PUT "${HINDSIGHT_BANKS_URL}/hermes" \
     -H "Content-Type: application/json" \
     -d '{"name":"hermes","mission":"Hermes Agent memory: identity, repo knowledge, task history, rules"}' 2>/dev/null | python3 -c "import sys,json; print(f'  Bank: {json.load(sys.stdin).get(\"bank_id\",\"error\")}')" 2>/dev/null || echo "  Bank hermes already exists"
 else
@@ -753,10 +754,10 @@ BANKS_DIR="$(dirname "${COMPOSE_FILE}")/hermes/banks"
 if [ -d "$BANKS_DIR" ]; then
   echo "[DEPLOY] Ensuring project banks exist in Hindsight..."
   for bank_id in $(ls "$BANKS_DIR"); do
-    HAS_BANK=$(curl -s "https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/v1/default/banks" 2>/dev/null | python3 -c "import sys,json; print(any(b.get('bank_id')=='$bank_id' for b in json.load(sys.stdin).get('banks',[])))" 2>/dev/null || echo "False")
+    HAS_BANK=$(curl -s "${HINDSIGHT_BANKS_URL}" 2>/dev/null | python3 -c "import sys,json; print(any(b.get('bank_id')=='$bank_id' for b in json.load(sys.stdin).get('banks',[])))" 2>/dev/null || echo "False")
     if [ "$HAS_BANK" = "False" ]; then
       echo "  Creating bank '$bank_id'..."
-      curl -s -X PUT "https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/v1/default/banks/$bank_id" \
+      curl -s -X PUT "${HINDSIGHT_BANKS_URL}/${bank_id}" \
         -H "Content-Type: application/json" \
         -d '{"name":"'"$bank_id"'"}' 2>/dev/null > /dev/null && echo "  Bank $bank_id created" || echo "  Bank $bank_id already exists or error"
     else
@@ -777,7 +778,7 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     chmod +x /tmp/inject-composio-key.py && \
     hermes config set terminal.backend local 2>/dev/null; \
     hermes config set memory.provider hindsight 2>/dev/null; \
-    hermes config set memory.hindsight.url 'https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/mcp/' 2>/dev/null; \
+    hermes config set memory.hindsight.url 'https://${CADDY_DOMAIN}/hindsight/mcp/' 2>/dev/null; \
     hermes config set memory.hindsight.bank 'hermes' 2>/dev/null; \
     hermes config set model.default 'opencodego/deepseek-v4-flash' 2>/dev/null; \
     hermes config set model.provider 'opencode-go' 2>/dev/null; \

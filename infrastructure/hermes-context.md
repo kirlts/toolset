@@ -9,7 +9,7 @@ Project context file loaded at session start. Contains operational configuration
 | MCP Hindsight | 37 tools | recall, retain, reflect, list_banks, get_bank, etc. Via gateway, no extra auth |
 | MCP Composio | 7 tools | SEARCH_TOOLS, MULTI_EXECUTE_TOOL, etc. Via gateway |
 | WhatsApp | Bot 56936414929 | User 56994172921. Via gateway |
-| WebUI | https://toolset-oci-1-1.tail2d4c18.ts.net/hermes/ | Via gateway + Caddy |
+| WebUI | https://${FUNNEL_DOMAIN:-toolset-oci-1-1.tail2d4c18.ts.net}/hermes/ | Via gateway + Caddy |
 | gh CLI | On host | Authenticated as kirlts |
 | git clone/push | On host | git clone git@github.com:kirlts/<repo> |
 | Kilo CLI | /usr/local/bin/kilo | kilo run "task" --auto. Same provider/model |

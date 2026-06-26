@@ -3,6 +3,8 @@
 set -euo pipefail
 
 SSH_HOST="${SSH_HOST:-opc@toolset-oci-1-1}"
+FUNNEL_DOMAIN="${FUNNEL_DOMAIN:-toolset-oci-1-1.tail2d4c18.ts.net}"
+HINDSIGHT_URL="https://${FUNNEL_DOMAIN}/hindsight"
 ERRORS=0
 
 check() {
@@ -52,7 +54,7 @@ echo "  -- MCP 3-Step Verification --"
 
 # Step 1: Health check
 GW_HEALTH=$(ssh -o StrictHostKeyChecking=no "${SSH_HOST}" \
-  "curl -sf https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/health 2>/dev/null && echo ok" 2>/dev/null)
+  "curl -sf ${HINDSIGHT_URL}/health 2>/dev/null && echo ok" 2>/dev/null)
 if [ -n "$GW_HEALTH" ]; then
   echo "    PASS MCP Step 1 (health endpoint)"
 else
@@ -61,7 +63,7 @@ else
 fi
 
 # Steps 2+3: MCP SSE handshake (initialize → session ID → tools/call)
-MCP_BASE="https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/mcp"
+MCP_BASE="${HINDSIGHT_URL}/mcp"
 MCP_INIT='{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"preflight","version":"1.0"}},"id":1}'
 
 MCP_SESSION=$(ssh -o StrictHostKeyChecking=no "${SSH_HOST}" \
@@ -107,7 +109,7 @@ fi
 
 # §5.4 — Hindsight bank
 check "Hindsight bank 'hermes'" \
-  "curl -sf https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/v1/default/banks | python3 -c \"import sys,json;print('ok' if any(b.get('bank_id')=='hermes' for b in json.load(sys.stdin).get('banks',[])) else '')\" "
+  "curl -sf ${HINDSIGHT_URL}/v1/default/banks | python3 -c \"import sys,json;print('ok' if any(b.get('bank_id')=='hermes' for b in json.load(sys.stdin).get('banks',[])) else '')\" "
 
 # Skills
 check "Skills directory populated" \
