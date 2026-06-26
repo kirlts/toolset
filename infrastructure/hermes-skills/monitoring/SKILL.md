@@ -12,30 +12,26 @@ metadata:
 
 ## Definition
 
-"Monitor" does NOT mean sending periodic messages to the user. It means:
+"Monitor" means state-transition reporting, not periodic messaging:
 
 1. Run health checks (see skill `toolset-ops`)
-2. Evaluate the result
-3. **Only report to user on failure or state change**
-4. If all OK, send NO message
+2. Evaluate result against previous state
+3. Report only on failure or state change
+4. Silence when all OK
 
-## Update Frequency
-
-Maximum one status update every 30 seconds per monitored service. If no state change, no message.
-
-## Messages
+## Message Rules
 
 | Situation | Action | Frequency |
 |---|---|---|
-| All OK | Silence. No report. | N/A |
-| Service down | Report immediately via WhatsApp: "[Service] is down. Status: [detail]" | Immediate, then max 1/30s |
-| Auto-recovery | Report: "[Service] recovered." | Immediate |
-| Persistent failure (>3 consecutive checks) | Report + suggest remediation action. | Once per state transition |
+| All OK | No message | Never |
+| Service down | "[Service] is down. Status: [detail]" via WhatsApp | Immediate, then max 1/30s |
+| Auto-recovery | "[Service] recovered." | Once per transition |
+| Persistent failure (>3 consecutive) | Report + suggest remediation | Once per transition |
 
 ## Anti-patterns
 
-- Periodic "all OK" messages when nothing changed — noise. Do not send.
-- "Everything is fine, I will keep monitoring" — noise. Do not send.
-- "Do you want me to keep monitoring?" — the user already gave the order.
-- Status updates faster than 30s per service — throttled.
-- Re-reporting the same failure state without a state change.
+- Periodic "all OK" messages when nothing changed
+- "Everything is fine, I will keep monitoring"
+- "Do you want me to keep monitoring?" — the order was already given
+- Re-reporting the same failure without a state change
+- Status updates faster than 30s per service
