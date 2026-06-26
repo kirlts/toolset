@@ -145,6 +145,7 @@
 - [x] Activar MCP self-hosted en Kilo Code y desactivar cloud (post-migración). 2026-06-22 [🤖 Changed in kilo.jsonc]
   - `hindsight-selfhosted`: activo, URL via Funnel.
   - `hindsight-toolset` + `hindsight-cl-concerts`: desactivados (`disabled: true`).
+- [x] [TASK-007]; 2026-06-26 12:15 [🤖🧑 Pre-verified + confirmed by user]
 
 ---
 
