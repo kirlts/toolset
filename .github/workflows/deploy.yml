@@ -200,7 +200,7 @@ jobs:
         env:
           INFISICAL_TOKEN: ${{ secrets.INFISICAL_SERVICE_TOKEN }}
           INFISICAL_PID: ${{ secrets.INFISICAL_PID }}
-          INFISICAL_URL: https://toolset-oci-1-1.tail2d4c18.ts.net
+          INFISICAL_URL: https://toolset-oci-1-1.tail2d4c18.ts.net:8443
           OPENCODE_GO_API_KEY: ${{ secrets.OPENCODE_GO_API_KEY }}
           FUNNEL_DOMAIN: toolset-oci-1-1.tail2d4c18.ts.net
           HERMES_LLM_PROVIDER: ${{ secrets.HERMES_LLM_PROVIDER }}
@@ -218,7 +218,7 @@ jobs:
         env:
           INFISICAL_TOKEN: ${{ secrets.INFISICAL_SERVICE_TOKEN }}
           INFISICAL_PID: ${{ secrets.INFISICAL_PID }}
-          INFISICAL_URL: https://toolset-oci-1-1.tail2d4c18.ts.net
+          INFISICAL_URL: https://toolset-oci-1-1.tail2d4c18.ts.net:8443
           GH_TOKEN: ${{ secrets.GH_CLI_TOKEN }}
         run: python3 scripts/sync-infisical-secrets.py pull
 
