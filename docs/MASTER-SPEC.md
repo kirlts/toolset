@@ -133,7 +133,16 @@
 **Memory bank:** hermes (Hindsight, 30 facts seedeados).
 **Bank discovery:** deploy.sh descubre banks desde `infrastructure/hermes/banks/` (versionado en repo) y los crea en Hindsight si no existen.
 **Modelo default:** deepseek-v4-flash via OpenCode Go.
-**SOUL.md:** Identidad completa + meta-reglas en ~/.hermes/SOUL.md.
+**SOUL.md:** Identidad/tono en ~/.hermes/SOUL.md (refactorizado). Contenido operacional movido a ~/.hermes/context.md.
+**AGENTS.md:** Contexto operacional del proyecto (capacidades, arquitectura, reglas, banks) cargado como context file de Hermes via auto-descubrimiento desde el repo clonado.
+**External skills:** Dos directorios vía `external_skills_dirs`: `/opt/toolset-repo/infrastructure/hermes-skills/` y `/opt/toolset-repo/.agents/skills/`.
+
+**MCP Lifecycle:**
+1. deploy.sh sincroniza SOUL.md, config.yaml, .env, y context.md al servidor.
+2. inject-composio-key.py actualiza config.yaml con MCP servers, approvals mode, y external_skills_dirs.
+3. Gateway se reinicia (`systemctl kill -s KILL` + `systemctl start`) para recoger cambios.
+4. Health check verifica que el gateway responda activamente.
+5. preflight.sh ejecuta validación post-deploy de invariantes MASTER-SPEC.
 
 **Dependencies:** Tailscale, Infisical, Docker (sandbox), Hindsight, Composio, OpenCode Go.
 

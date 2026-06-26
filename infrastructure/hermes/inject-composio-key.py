@@ -90,11 +90,27 @@ def write_config(composio_key):
     cfg.pop("default", None)
 
     cfg.setdefault("mcp_servers", {})
+
     cfg["model"] = {
         "default": "opencodego/deepseek-v4-flash",
         "provider": "opencode-go",
     }
+
     cfg["context_file_max_chars"] = 25000
+
+    cfg["approvals"] = {
+        "mode": "smart",
+        "timeout": 60,
+        "destructive_slash_confirm": False,
+        "mcp_reload_confirm": True,
+        "cron_mode": "deny",
+    }
+
+    cfg.setdefault("skills", {})
+    cfg["skills"]["external_dirs"] = [
+        "/opt/toolset-repo/infrastructure/hermes-skills",
+        "/opt/toolset-repo/.agents/skills",
+    ]
 
     if composio_key:
         cfg["mcp_servers"]["composio"] = {

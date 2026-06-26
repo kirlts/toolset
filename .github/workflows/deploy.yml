@@ -174,3 +174,7 @@ jobs:
           FUNNEL_DOMAIN: toolset-oci-1-1.tail2d4c18.ts.net
         working-directory: ${{ env.INFRA_DIR }}
         run: chmod +x deploy.sh && ./deploy.sh
+
+      - name: Post-deploy preflight checks
+        working-directory: ${{ env.INFRA_DIR }}
+        run: chmod +x preflight.sh && ./preflight.sh

@@ -1,11 +1,16 @@
 # MEMORY: Transferable Heuristics
 
 > Repositorio de patrones y lecciones aplicables a cualquier proyecto de software.
-> Archivo append-only. Prohibido reducir, borrar o resumir su contenido previo.
+> Archivo append-only.
 
-| Symbol | Meaning |
-|---|---|
-| 🧠 | Heuristica transferible aprendida |
+## Consolidation Protocol
+
+MEMORY.md is a working buffer. When it approaches capacity (~80% of 2200 chars):
+1. Run `reflect(bank="toolset")` to synthesize learnings into structured observations.
+2. Run `retain(bank="toolset")` to persist in Hindsight long-term memory.
+3. Clear this buffer.
+
+This prevents context saturation and ensures durable knowledge retention.
 
 ---
 

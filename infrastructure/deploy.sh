@@ -211,6 +211,17 @@ for svc in $CRITICAL; do
   if [ "$STATUS" = "healthy" ]; then echo "  ✅ $svc"; else echo "  ❌ $svc: $STATUS"; fi
 done
 
+# --- Clone toolset repo on server (idempotent) ---
+echo "[DEPLOY] Syncing toolset repo on server..."
+ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  "${SSH_HOST}" \
+  "if [ -d /opt/toolset-repo/.git ]; then \
+     cd /opt/toolset-repo && sudo git pull --ff-only 2>&1 | tail -1; \
+   else \
+     sudo git clone https://github.com/kirlts/toolset.git /opt/toolset-repo && \
+     sudo chown -R opc:opc /opt/toolset-repo; \
+   fi"
+
 # --- Bootstrap Infisical & setup project (idempotent) ---
 INFISICAL_ADMIN_EMAIL="${INFISICAL_ADMIN_EMAIL:-}"
 INFISICAL_ADMIN_PASSWORD="${INFISICAL_ADMIN_PASSWORD:-}"
@@ -468,6 +479,20 @@ if [ -f "$HERMES_CONFIG_SRC" ]; then
   echo "[DEPLOY] Hermes config.yaml synced."
 fi
 
+# --- Sync Hermes context file (AGENTS.md for auto-discovery) ---
+CONTEXT_FILE="$(dirname "${COMPOSE_FILE}")/hermes-context.md"
+if [ -f "$CONTEXT_FILE" ]; then
+  echo "[DEPLOY] Syncing Hermes context file..."
+  scp -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    "$CONTEXT_FILE" "${SSH_HOST}:/tmp/hermes-context.md"
+  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    "${SSH_HOST}" \
+    "sudo cp /tmp/hermes-context.md /home/opc/.hermes/context.md && \
+     sudo cp /tmp/hermes-context.md /opt/toolset-repo/AGENTS.md && \
+     sudo chown opc:opc /home/opc/.hermes/context.md /opt/toolset-repo/AGENTS.md"
+  echo "[DEPLOY] Hermes context file synced (context.md + AGENTS.md)."
+fi
+
 # --- Transfer Hermes memory files (MEMORY.md + USER.md) ---
 HERMES_MEMORY_SRC="$(dirname "${COMPOSE_FILE}")/hermes/memory"
 if [ -d "$HERMES_MEMORY_SRC" ]; then
@@ -510,26 +535,8 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   "sudo rm -f /usr/local/lib/hermes-agent/docker/SOUL.md && \
    echo '[hermes] Default SOUL.md template removed'"
 
-# --- Sync Hermes skills (from repo hermes/skills/) ---
-SKILLS_SRC="$(dirname "${COMPOSE_FILE}")/hermes/skills"
-if [ -d "$SKILLS_SRC" ]; then
-  echo "[DEPLOY] Syncing Hermes skills..."
-  tar czf /tmp/hermes-skills.tar.gz -C "$(dirname "$SKILLS_SRC")" "$(basename "$SKILLS_SRC")" && \
-  scp -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    /tmp/hermes-skills.tar.gz "${SSH_HOST}:/tmp/" && \
-  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    "${SSH_HOST}" \
-    "sudo mkdir -p /tmp/hermes-skills && \
-     sudo tar xzf /tmp/hermes-skills.tar.gz -C /tmp/hermes-skills --strip-components=1 && \
-     sudo cp -r /tmp/hermes-skills/. /home/opc/.hermes/skills/ && \
-     sudo chown -R opc:opc /home/opc/.hermes/skills/ && \
-     sudo rm -rf /tmp/hermes-skills /tmp/hermes-skills.tar.gz && \
-     echo '[hermes] Skills synced'" && \
-   rm -f /tmp/hermes-skills.tar.gz
-
-else
-  echo "[DEPLOY] WARNING: hermes-skills/ directory not found at $SKILLS_SRC"
-fi
+# --- Skills are loaded via external_skills_dirs from /opt/toolset-repo/ (set in inject-composio-key.py) ---
+echo "[DEPLOY] Skills directory sync disabled — using external_skills_dirs from cloned repo"
 
 # --- Write Hermes .env on remote (always overwrite — Hermes creates a default template) ---
 # Hermes systemd service runs as user 'opc', so .hermes dir is under /home/opc/
@@ -789,11 +796,50 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     hermes config set memory.hindsight.bank 'hermes' 2>/dev/null; \
     hermes config set model.default 'opencodego/deepseek-v4-flash' 2>/dev/null; \
     hermes config set model.provider 'opencode-go' 2>/dev/null; \
-    hermes config set context_file_max_chars 25000 2>/dev/null; \
     python3 /tmp/inject-composio-key.py 2>&1; \
     rm -f /tmp/inject-composio-key.py"
 
 echo "[DEPLOY] Hermes runtime configuration complete."
+
+# --- Set Hermes home to toolset repo (for context file resolution) ---
+echo "[DEPLOY] Setting Hermes home..."
+ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  "${SSH_HOST}" \
+  "hermes config set home /opt/toolset-repo 2>/dev/null || true"
+echo "[DEPLOY] Hermes home configured."
+
+# --- Restart hermes-gateway (post-config changes) ---
+echo "[DEPLOY] Restarting hermes-gateway..."
+ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  "${SSH_HOST}" \
+  "sudo systemctl kill -s KILL hermes-gateway 2>/dev/null || true; \
+   sleep 1; \
+   sudo systemctl reset-failed hermes-gateway 2>/dev/null || true; \
+   sudo systemctl start hermes-gateway --no-block 2>/dev/null || true"
+echo "[DEPLOY] hermes-gateway restart issued."
+
+# --- Verify hermes-gateway ---
+echo "[DEPLOY] Verifying hermes-gateway..."
+GW_STATUS="inactive"
+for i in 1 2 3 4 5; do
+  GW_STATUS=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    "${SSH_HOST}" "systemctl is-active hermes-gateway 2>/dev/null")
+  [ "$GW_STATUS" = "active" ] && break
+  sleep 5
+done
+echo "  Gateway: $GW_STATUS"
+
+# --- Install memory consolidation cron ---
+echo "[DEPLOY] Installing memory consolidation cron..."
+ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  "${SSH_HOST}" \
+  "CRON_CMD='*/30 * * * * /home/opc/.hermes/scripts/consolidate-memory.sh' && \
+   (crontab -l 2>/dev/null | grep -q consolidate-memory && \
+     echo '[cron] Already installed' || \
+     (crontab -l 2>/dev/null; echo \"\$CRON_CMD\") | crontab - && \
+     echo '[cron] Consolidation cron installed (every 30 min)')"
+echo "[DEPLOY] Memory consolidation cron configured."
+
 FUNNEL_TARGET="http://localhost:8080"
 echo "[DEPLOY] Ensuring Tailscale Funnel -> Caddy (${FUNNEL_TARGET})..."
 CURRENT_FUNNEL=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
