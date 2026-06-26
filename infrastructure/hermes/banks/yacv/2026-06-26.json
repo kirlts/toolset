@@ -1,0 +1,17 @@
+{
+  "items": [
+    {"id": "e0635352-e9b9-47be-bdba-87a979683004", "text": "No activity registered between 2026-06-23 and 2026-06-24.", "fact_type": "observation", "date": "2026-06-23T07:18:12.842058+00:00"},
+    {"id": "26485150-b1fb-45cd-8b09-f3f59cbd8202", "text": "Sin actividad registrada entre el 2026-06-23 y el 2026-06-24.", "fact_type": "experience", "date": "2026-06-23T07:18:12.842058+00:00"},
+    {"id": "ce8a0a8b-d33b-41ac-9977-f0c42b21899e", "text": "Proyecto YaCV: generador de CVs desde YAML con PDF instantáneo en navegador, sin cuentas ni tracking, ATS-friendly. Stack: Vite + TypeScript + Playwright. Repositorio: github.com/kirlts/YaCV.", "fact_type": "observation", "date": "2026-06-24T07:18:12.832058+00:00"},
+    {"id": "50d7609c-c450-4bd2-ad20-c0f7d079e8e6", "text": "Proyecto YaCV en estado seed inicial: generador de CVs desde YAML con PDF instantáneo en navegador, sin cuentas ni tracking, ATS-friendly. Stack: Vite + TypeScript + Playwright. Repositorio: github.com/kirlts/YaCV.", "fact_type": "experience", "date": "2026-06-24T07:18:12.832058+00:00"},
+    {"id": "0cfcd2d3-4c0c-46c3-8723-f2ff07f5864c", "text": "El repositorio de YaCV es público en github.com/kirlts/YaCV.", "fact_type": "observation", "date": "2026-06-24T05:45:53.966756+00:00"},
+    {"id": "8a830043-88c3-4450-8d38-246329e2de58", "text": "El repositorio de YaCV es público en github.com/kirlts/YaCV.", "fact_type": "experience", "date": "2026-06-24T05:45:53.966756+00:00"},
+    {"id": "f1a0d4e8-6629-4d96-abeb-14cbc679c454", "text": "El stack tecnológico de YaCV incluye Vite, TypeScript y Playwright para pruebas e2e.", "fact_type": "observation", "date": "2026-06-24T05:45:53.956756+00:00"},
+    {"id": "4d6cff16-186f-449d-a8af-ebb0429d744a", "text": "El stack tecnológico de YaCV incluye Vite, TypeScript y Playwright para pruebas e2e.", "fact_type": "experience", "date": "2026-06-24T05:45:53.956756+00:00"},
+    {"id": "4522810d-0781-4d56-98b9-4a2366210bbc", "text": "YaCV genera CVs desde archivos YAML, renderiza PDF instantáneo en el navegador, no requiere cuentas, no hace tracking, y es ATS-friendly.", "fact_type": "observation", "date": "2026-06-24T05:45:53.946756+00:00"},
+    {"id": "bd2408a9-5d77-4c6d-84c4-2f718fcf804a", "text": "YaCV es un generador de CVs desde YAML, con renderizado PDF instantáneo, 100% en el navegador, sin cuentas, sin tracking, y ATS-friendly.", "fact_type": "experience", "date": "2026-06-24T05:45:53.946756+00:00"}
+  ],
+  "total": 10,
+  "limit": 1000,
+  "offset": 0
+}

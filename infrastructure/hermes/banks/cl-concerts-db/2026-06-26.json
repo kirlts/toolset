@@ -1,0 +1,25 @@
+{
+  "items": [
+    {"id": "88b53e5e-f27e-4458-a58f-a88ba6cafc2e", "text": "El chatbot presenta vulnerabilidades reales no bloqueantes: SRI faltante en CDNs, jQuery 3.5.1 con CVE-2020-11023 y CVE-2020-11022, scripts cross-domain. Decisión: ningún hallazgo bloquea despliegue UAH; correcciones diferidas al próximo ciclo.", "fact_type": "observation", "date": "2026-06-24T07:17:44.051695+00:00"},
+    {"id": "2111c1ac-4ce3-48af-a9c2-d8817129fcbf", "text": "Vulnerabilidades reales no bloqueantes en chatbot: SRI faltante en CDNs, jQuery 3.5.1 con CVE-2020-11023 y CVE-2020-11022, scripts cross-domain. Decisión: ningún hallazgo bloquea despliegue UAH; correcciones diferidas al próximo ciclo.", "fact_type": "world", "date": "2026-06-24T07:17:44.051695+00:00"},
+    {"id": "07f569c6-1be6-49c8-b5a9-32535d9f7155", "text": "En el análisis ZAP a basedeconciertos-qa.uahurtado.cl se confirmaron como falsos positivos: SQL injection mitigado por whitelist, path traversal bloqueado por nginx, CSP configurado, cookie segura, HSTS.", "fact_type": "observation", "date": "2026-06-24T07:17:44.041695+00:00"},
+    {"id": "b09ca27a-5e40-4bdb-ad0b-4ea6748d6d82", "text": "En el análisis ZAP a basedeconciertos-qa.uahurtado.cl, se confirmaron como falsos positivos: SQL injection mitigado por whitelist, path traversal bloqueado por nginx, CSP configurado, cookie segura, HSTS.", "fact_type": "world", "date": "2026-06-24T07:17:44.041695+00:00"},
+    {"id": "1ddd9c09-8dfc-466f-8246-bf0a8c85bcf3", "text": "The repository at github.com/jpgil/cl-concerts-db is the main repository (collaborator), and github.com/kirlts/cl-concerts-db is a fork.", "fact_type": "observation", "date": "2026-06-24T05:45:57.471894+00:00"},
+    {"id": "dd1fa836-a069-46c7-987d-1697ce2a6af5", "text": "The master branch is protected for production.", "fact_type": "observation", "date": "2026-06-24T05:45:57.471894+00:00"},
+    {"id": "871de525-23c4-4463-96ac-f0f2f6298321", "text": "Staging environment at 172.16.8.58 uses user clconcert2, accessed via VPN, and is maintained by technician Óscar.", "fact_type": "observation", "date": "2026-06-24T05:45:57.471894+00:00"},
+    {"id": "67874d67-6049-43e5-9643-869776297187", "text": "cl-concerts-db is a Python/Flask platform for a catalog of classical music concerts in Chile, in collaboration with the Universidad Alberto Hurtado (UAH).", "fact_type": "observation", "date": "2026-06-24T05:45:57.471894+00:00"},
+    {"id": "059f2aa6-7f38-4795-873d-b2fb8be2eb64", "text": "cl-concerts-db es una plataforma Flask para catálogo de conciertos de música docta en Chile, en colaboración con la Universidad Alberto Hurtado (UAH).", "fact_type": "world", "date": "2026-06-24T05:45:57.471894+00:00"},
+    {"id": "03b8305a-60ad-4482-adbb-90103ffdb95c", "text": "Real non-blocking issues: SRI missing on chatbot CDNs, jQuery 3.5.1 vulnerable (CVE-2020-11023), cross-domain JS. None block UAH deployment.", "fact_type": "world", "date": "2026-06-23T21:17:25.134072+00:00"},
+    {"id": "7a3d75cd-077f-47ac-88de-0793b6125d57", "text": "Análisis ZAP sobre basedeconciertos-qa.uahurtado.cl concluyó que ningún hallazgo bloquea despliegue UAH.", "fact_type": "observation", "date": "2026-06-23T00:00:00.020000+00:00"},
+    {"id": "e8020d43-c4c5-49fc-9bbe-581dfce0a206", "text": "Chatbot vulnerabilities: falta SRI en CDNs, jQuery 3.5.1 con CVEs, scripts cross-domain.", "fact_type": "observation", "date": "2026-06-23T21:12:18.873506+00:00"},
+    {"id": "8adbc984-e781-469c-b44d-1c8fbc10565f", "text": "False positives: SQL injection, path traversal, CSP, cookie Secure, HSTS.", "fact_type": "world", "date": "2026-06-23T21:17:25.124072+00:00"},
+    {"id": "dc252e0a-bc18-4d7a-bc19-70b24a970df1", "text": "Mitigaciones arquitectónicas confirmadas como falsos positivos.", "fact_type": "observation", "date": "2026-06-23T21:12:18.863506+00:00"},
+    {"id": "e6cee49c-fa72-4fad-9957-7a5b529283f8", "text": "ZAP security report analysis performed on basedeconciertos-qa.uahurtado.cl on 2026-06-23.", "fact_type": "world", "date": "2026-06-23T21:17:25.114072+00:00"},
+    {"id": "f1b141cf-7201-4888-bb6b-4c6eb32d4691", "text": "Ningún hallazgo bloquea despliegue UAH, problemas de chatbot son media/baja.", "fact_type": "world", "date": "2026-06-23T00:00:00.020000+00:00"},
+    {"id": "b6d5537a-be77-4f79-8474-db326fe60aa7", "text": "Chatbot vulnerabilidades: SRI faltante, jQuery CVE, cross-domain.", "fact_type": "world", "date": "2026-06-23T21:12:18.873506+00:00"},
+    {"id": "fbd739f5-324d-4bd2-b925-7bfd8e6bf1bd", "text": "Mitigaciones: SQL whitelist, path traversal nginx, CSP, cookie, HSTS.", "fact_type": "world", "date": "2026-06-23T21:12:18.863506+00:00"}
+  ],
+  "total": 18,
+  "limit": 1000,
+  "offset": 0
+}

@@ -1,0 +1,17 @@
+{
+  "items": [
+    {"id": "1d223ccf-5e48-47a8-8ef9-fabe06074e6b", "text": "evidencia-zero has a public repository at github.com/kirlts/evidenciaZero containing EvidenciaZero_MASTER_PLAN.md.", "fact_type": "observation", "date": "2026-06-24T07:17:25.723198+00:00"},
+    {"id": "322356b2-f918-468b-a9f5-975359afe920", "text": "evidencia-zero uses a frontend web + wasm-core (Rust/WASM) stack.", "fact_type": "observation", "date": "2026-06-24T07:17:25.723198+00:00"},
+    {"id": "92a2fafd-96a9-47de-b5ab-a9d2ec91442d", "text": "evidencia-zero is a seed-stage project: 100% local tool for cleaning hidden data under Ley Karin.", "fact_type": "observation", "date": "2026-06-24T07:17:25.723198+00:00"},
+    {"id": "d6aecde3-7369-4024-9a5b-b4617c056f2d", "text": "Proyecto seed inicial: herramienta 100% local de limpieza de datos ocultos bajo Ley Karin. Stack: frontend web + wasm-core (Rust/WASM). Repo: github.com/kirlts/evidenciaZero.", "fact_type": "experience", "date": "2026-06-24T07:17:25.723198+00:00"},
+    {"id": "ab01cf09-1306-4669-b7bb-d1f9605c4610", "text": "EvidenciaZero tiene repositorio público en github.com/kirlts/evidenciaZero y documento rector EvidenciaZero_MASTER_PLAN.md.", "fact_type": "observation", "date": "2026-06-24T05:45:54.974901+00:00"},
+    {"id": "cf0b7451-3d74-4a79-8967-eb58fcf25125", "text": "Repositorio público en github.com/kirlts/evidenciaZero y documento rector EvidenciaZero_MASTER_PLAN.md.", "fact_type": "experience", "date": "2026-06-24T05:45:54.974901+00:00"},
+    {"id": "200c5baf-5fae-421c-98e9-b65931d23c31", "text": "El stack de EvidenciaZero incluye frontend web y wasm-core (Rust/WASM para procesamiento).", "fact_type": "observation", "date": "2026-06-24T05:45:54.964901+00:00"},
+    {"id": "9d49f490-f4ac-4479-b288-e914de6394c7", "text": "El stack incluye frontend web y wasm-core (Rust/WASM para procesamiento).", "fact_type": "experience", "date": "2026-06-24T05:45:54.964901+00:00"},
+    {"id": "4f3c91d7-04bc-4ffd-997d-c0edc1293b9c", "text": "EvidenciaZero: herramienta 100% local de limpieza de datos ocultos, diseñada para evidencia en procesos laborales bajo Ley Karin.", "fact_type": "observation", "date": "2026-06-24T05:45:54.954901+00:00"},
+    {"id": "f3a6faf4-bb3b-4664-8bdc-1c61b22d4c3b", "text": "EvidenciaZero: herramienta 100% local de limpieza de datos ocultos, diseñada para evidencia bajo Ley Karin.", "fact_type": "experience", "date": "2026-06-24T05:45:54.954901+00:00"}
+  ],
+  "total": 10,
+  "limit": 1000,
+  "offset": 0
+}

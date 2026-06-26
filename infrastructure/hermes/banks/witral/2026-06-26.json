@@ -1,0 +1,31 @@
+{
+  "items": [
+    {
+      "id": "16f00980-cbe1-4953-bbaa-4962a81ca9e4",
+      "text": "Witral is a project in seed stage; a plugin-based system for routing data from messaging apps to local/cloud storage, with motto 'Infrastructure for your mind', repository at github.com/kirlts/witral.",
+      "fact_type": "observation",
+      "date": "2026-06-24T07:18:35.729655+00:00"
+    },
+    {
+      "id": "881395ed-6d47-4266-9889-ae37aa9a92b1",
+      "text": "Proyecto en estado seed inicial: sistema basado en plugins para enrutar datos desde apps de mensajería a almacenamiento local/cloud. Lema: 'Infrastructure for your mind'. Repositorio: github.com/kirlts/witral.",
+      "fact_type": "experience",
+      "date": "2026-06-24T07:18:35.729655+00:00"
+    },
+    {
+      "id": "8c96b5e6-4163-4120-afaf-834ff7f6654a",
+      "text": "Witral is a plugin-based system for routing data from messaging apps to local/cloud storage, with a public repository at github.com/kirlts/witral and motto 'Infrastructure for your mind'.",
+      "fact_type": "observation",
+      "date": "2026-06-24T05:45:55.962830+00:00"
+    },
+    {
+      "id": "12c9626a-1892-42e4-a745-7141091f1e08",
+      "text": "Witral es un sistema basado en plugins para enrutar datos desde apps de mensajería a almacenamiento local/cloud. Repositorio público en github.com/kirlts/witral. Lema: 'Infrastructure for your mind'.",
+      "fact_type": "world",
+      "date": "2026-06-24T05:45:55.962830+00:00"
+    }
+  ],
+  "total": 4,
+  "limit": 1000,
+  "offset": 0
+}
