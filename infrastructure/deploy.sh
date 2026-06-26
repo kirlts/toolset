@@ -823,7 +823,7 @@ echo "[DEPLOY] Verifying hermes-gateway..."
 GW_STATUS="inactive"
 for i in 1 2 3 4 5; do
   GW_STATUS=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    "${SSH_HOST}" "systemctl is-active hermes-gateway 2>/dev/null")
+    "${SSH_HOST}" "systemctl is-active hermes-gateway 2>/dev/null || echo inactive")
   [ "$GW_STATUS" = "active" ] && break
   sleep 5
 done
