@@ -79,6 +79,7 @@ Para CADA proyecto nuevo o clonado, Hermes DEBE:
 - **Timeout vs error**: Exit code 124 = time-out (dividir tarea en subtareas más pequeñas). Exit code 1 = error real (revisar API key, sintaxis del prompt, .agents/).
 - **`set -a` obligatorio**: Sin `set -a` antes de `source .env`, las variables de entorno no llegan a procesos hijo (Kilo, Python) y fallan con 401 o "Missing API key".
 - **Non-interactive**: NO usar `kilo run` con `pty=true`. `--auto` es suficiente. No hay TUI que necesite pty.
+- **Composio REMOTE_WORKBENCH no tiene acceso al filesystem local**: El sandbox del workbench NO puede leer archivos del VPS. Soluciones: Google Drive (subir directo), GitHub Releases (gh release create + URL pública), Base64 inline solo para < 50KB.
 
 ## Prompts Complejos con Kilo
 
@@ -100,6 +101,66 @@ kilo run --file /tmp/kilo-prompt.txt --auto
 set -a && source /home/opc/.hermes/.env && set +a && \
   kilo run 'tarea simple sin caracteres especiales' --auto
 ```
+
+## Monitoreo de Kilo en Background
+
+**⚠️ REGLA ABSOLUTA:** El usuario exige updates CADA 3 MINUTOS durante ejecuciones largas. Textual: "necesito que me avises cada tres minutos qué es lo que está haciendo Kilo y necesito saber inmediatamente si es que ocurre algún problema o si es que se detiene abruptamente el proceso. Es inaceptable que no hables durante el proceso."
+
+**Esto es OBLIGATORIO, no opcional.** Si han pasado 3 minutos desde tu último update y la tarea sigue corriendo, manda un update aunque sea para decir que no hay cambios.
+
+Cuando Kilo corre en background (especialmente para tareas largas como análisis multi-fase):
+
+1. **Lanzar con notify_on_complete:** `terminal(background=true, notify_on_complete=true)` para saber exactamente cuándo termina.
+2. **Update IMMEDIATO al lanzar:** Apenas lanzas Kilo, di "Kilo lanzado (PID XXXX) para [tarea]."
+3. **Estructura de updates CADA 3 MINUTOS:** "Update N (~X min desde inicio) — Kilo lleva Ns ejecutándose. [qué está haciendo, qué fase/falta, qué señales de progreso]. Próximo update en 3 min."
+4. **Verificar archivos de salida periódicamente:** Si Kilo debe escribir archivos como deliverable, revisa `ls -la` de los directorios de salida entre polls.
+5. **Alertar inmediatamente si el proceso muere:** Si el proceso ya no está (PID gone), avisar al usuario de inmediato con el último output disponible.
+6. **Si hay output parcial:** Aunque Kilo no haya terminado, si produce stdout temprano, reportalo al usuario como señal de progreso.
+7. **Si Kilo se traba/atasca:** No esperes a que termine. Detecta que el preview no cambia por >30s, mata el proceso, y escala al usuario con el diagnóstico. Relanza con un approach diferente si aplica.
+
+## Multi-Phase Analysis Pattern
+
+Para tareas complejas de análisis que requieren múltiples fases (ej: leer informe → sintetizar causas raíz → contrastar contra documentación → generar diagnóstico → generar PDF):
+
+**Estructura del prompt:**
+```
+INSTRUCCIÓN PERMANENTE: Sigue .agents/ y reglas kairos.
+Usa recall/retain en Hindsight con bank_id del repo activo.
+
+## MISIÓN: [Nombre del análisis]
+
+Tienes N fases que ejecutar SECUENCIALMENTE. Cada fase produce un archivo markdown.
+
+### INSUMOS:
+- Ruta al archivo 1
+- Ruta a la documentación
+
+### FASE 1: [nombre]
+Instrucciones específicas para la fase 1.
+Escribe el resultado en: /path/to/output-1.md
+
+### FASE 2: [nombre]
+Instrucciones específicas para la fase 2.
+Escribe el resultado en: /path/to/output-2.md
+
+### REPORTE FINAL
+Al terminar todas las fases, imprime en stdout:
+1. Ruta de cada archivo generado
+2. Métricas clave (hallazgos, discrepancias, etc.)
+3. Resumen de una línea
+```
+
+**Beneficios:**
+- Kilo maneja la secuencia sin intervención de Hermes
+- Cada fase produce un artifact tangible
+- El stdout final da las métricas para reportar al usuario
+- Se puede monitorear progreso verificando la existencia de cada archivo de salida
+
+**Cuándo usarlo:**
+- Análisis forense post-incidente
+- Auditorías multi-documento
+- Investigaciones que requieren síntesis + contraste + recomendaciones
+- Cualquier tarea donde el resultado sea un conjunto de documentos relacionados
 
 ## Flags Importantes
 

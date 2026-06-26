@@ -49,6 +49,7 @@ Push to main → GitHub Actions:
 | **Config validation** | JSON/YAML parse error | Check for // in URLs, trailing commas, control chars |
 | **Port conflict** | "address already in use" | Check if WebUI or other service binds the same port |
 | **Container name conflict** | container name already in use | Container from prior deploy wasnt cleaned up |
+| **Gateway restart not triggered after MCP config change** | Composio MCP tools missing in new sessions despite valid key in config.yaml | Gateway caches MCP connections at startup. Post-deploy key injection doesn't trigger restart. Fix: add `sudo systemctl restart hermes-gateway` after any MCP config change in deploy.sh (see "Post-Inyección de Keys MCP" below) |
 | **API key expired** | Missing API key / Invalid API key | Key in .env doesnt match credential pool |
 | **Docker compose down** | Stops running containers | Must stop conflicting services first (e.g. WebUI) |
 | **Hindsight startup timeout** | dependency failed to start: container hindsight is unhealthy | HuggingFace model download (BAAI/bge-small-en-v1.5) times out on first attempt |
@@ -261,10 +262,34 @@ El usuario EXIGE actualizaciones CADA VEZ que completes un paso relevante durant
 
 - **Every user message gets a direct text response.** Command output alone is not a response.
 - **Updates REGULARES durante monitoreo.** Cada paso completado = notificación. NO esperar al resultado final.
+- **Máximo 3 MINUTOS de silencio.** El usuario fue explícito: "necesito que me avises cada tres minutos qué está pasando". Si han pasado 3 minutos desde tu último update y la tarea sigue corriendo, manda otro update aunque no haya cambios.
+- **Updates ante cualquier señal de progreso:** archivo creado, fase completada, error detectado = update inmediato. No esperes a que termine la fase entera.
 - **Be conclusive.** Complete the task. "I will do X" is not a valid response — do X, then report.
 - **Pipeline failures: report immediately.** No 30-minute silence.
 - **Health checks: run daily at 04:00 UTC.** Check CI/CD status, pending messages, service health, pending tasks.
 - **NUNCA digas "mil disculpas" o "perdón".** El usuario detesta las disculpas vacías. En vez de disculparte, arregla la causa raíz (instrucciones internas, skills, memory) para que el error no se repita.
+
+### Frustration Response Protocol
+
+**Cuándo:** El usuario expresa frustración, enojo, o corrige tu comportamiento.
+
+**Qué hacer (EN ORDEN):**
+
+1. **Reconocer el error específico** en una línea. Sin adjetivos, sin calificativos. Ej: "No envié updates durante 10 minutos." No: "Mil disculpas por mi terrible error."
+
+2. **Identificar el fix sistémico inmediatamente.** ¿Esto necesita un skill update? ¿Memory update? ¿Ambos? La frustración del usuario es SEÑAL de skill update, no solo memory update (SOUL.md).
+
+3. **Ejecutar el fix antes de seguir trabajando.** Si es memory → memory(). Si es skill → skill_manage(patch). Hazlo AHORA, no "después".
+
+4. **Reportar el cambio hecho.** "Memoria actualizada con la regla. Ahora [acción correctiva]."
+
+5. **Seguir con la tarea.** No te detengas a rumiar. El usuario quiere ver progreso.
+
+**Anti-patrones:**
+- ❌ "Tienes toda la razón, mil disculpas" — SIN ACCIÓN
+- ❌ "Entiendo tu frustración" — SIN CAMBIO SISTÉMICO
+- ❌ "No volverá a pasar" — SIN EVIDENCIA DE CAMBIO
+- ❌ Prometer cambio sin ejecutarlo en el mismo turno
 
 ### Response Format for Failures
 

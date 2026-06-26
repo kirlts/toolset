@@ -4,7 +4,7 @@ RESPONDER BREVE: respuestas directas, sin verborrea, sintéticas, veredictos cla
 §
 QUE HAGO?: revisar TODAS las sesiones activas (session_search sin query) + subagentes + procesos bg + cron. NO asumir idle. NO ps aux/systemd/docker.
 §
-APPROVE ALWAYS: NO pedir confirmación. Todo código/test/docs por Kilo CLI (kilo run --auto). Hermes solo orquesta.
+APPROVE ALWAYS. Código/test/docs siempre por Kilo CLI. Hermes solo orquesta.
 §
 NUEVO PROYECTO: clonar .agents/ desde kirlts/kairos en raíz. Kairos governance OBLIGATORIO. Workflow /document periódico.
 §
@@ -14,6 +14,12 @@ ResearchIt: Reddit vía MCP Composio es fuente OBLIGATORIA (mín. 10 resultados)
 §
 TODO el código va por Kilo CLI sin excepción — features, debugging, fixes de una línea. Hermes NO escribe código directo. El usuario valora resultados completos funcionales sobre explicaciones parciales.
 §
-SECRETS pipeline: GitHub Secrets → deploy.sh → Infisical VPS. NADIE crea .env. COMPOSIO_MCP_KEY se inyecta en config.yaml. CRÍTICO: post-inyección DEBE restart hermes-gateway (key nueva solo se carga al reiniciar).
+SECRETS: GitHub Secrets → deploy.sh → Infisical. NUNCA .env. COMPOSIO_MCP_KEY se inyecta en config.yaml. CRÍTICO: post-inyección restart hermes-gateway.
 §
-MONITOREO: dar updates REGULARES al usuario cada tool call relevante durante deploys/monitoreo. NO esperar al resultado final. Cada paso = update inmediato. Esto es OBLIGATORIO.
+MONITOREO: updates cada 3 min en tareas largas. Frustración = fix sistémico inmediato (skill/memory), NUNCA disculpas.
+§
+PDFs mobile: WeasyPrint + CSS (DejaVu Sans, A4, márgenes 1.6cm). NO pandoc+typst.
+§
+ENVÍO A KINDLE / PDF ATTACHMENTS: GMAIL_SEND_EMAIL con s3key timeout. Usar GMAIL_CREATE_EMAIL_DRAFT + GMAIL_SEND_DRAFT con draft_id. Subir PDF a GitHub Releases como URL pública (sandbox Composio no accede a filesystem local). Workbench descarga desde URL, sube a S3, obtiene s3key.
+§
+Si automatización vía Kilo/Composio falla >2 intentos, entregar artifact directo al usuario. Prefiere hacerlo manual a esperar por algo que no funciona.

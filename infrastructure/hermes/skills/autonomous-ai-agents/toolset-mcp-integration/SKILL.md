@@ -127,6 +127,90 @@ GitHub Secrets → CI/CD (deploy.yml) → deploy.sh → Infisical → .env at ru
 
 Never hardcode secrets in configs, skills, or scripts.
 
+## MCP Connectivity Verification Procedure
+
+**Problema detectado (25 Jun 2026):** Testear Composio MCP con `curl -H "x-consumer-api-key: ..."` al endpoint HTTP da un **falso positivo**. El curl prueba conectividad HTTP, no disponibilidad de tools MCP desde el gateway.
+
+### Protocolo de Verificación Correcto (3 niveles)
+
+```
+Nivel 1: Gateway tiene el MCP server configurado?
+  → grep -A5 'composio:' /home/opc/.hermes/config.yaml
+  → Debe mostrar url + headers con key
+
+Nivel 2: Gateway pudo conectarse al MCP server?
+  → journalctl -u hermes-gateway --no-pager | grep -i "composio"
+  → Debe mostrar "connected successfully" o similar. NO debe mostrar 401.
+
+Nivel 3: MCP tools están disponibles en la sesión?
+  → Listar las tools disponibles (revisar my tool list en el system prompt)
+  → Si hay tools prefijadas "mcp_composio_*" → disponibles
+  → Si solo hay "mcp_hindsight_selfhosted_*" y NO "mcp_composio_*" → no disponibles
+```
+
+**Tres escenarios:**
+
+| Nivel 1 | Nivel 2 | Nivel 3 | Diagnóstico |
+|---------|---------|---------|-------------|
+| ✅ Config OK | ✅ Connected | ✅ Tools presentes | Todo funcional |
+| ✅ Config OK | ❌ 401 | ❌ Tools ausentes | **Key inválida o gateway no se reinició post-inyección** |
+| ❌ Sin config | — | ❌ Tools ausentes | MCP server no configurado en config.yaml |
+
+**⚠️ NO confundir:** Un test de curl que devuelve 200 NO significa que el MCP funcione. El gateway usa un cliente MCP (JSON-RPC sobre SSE) que es independiente del REST. La verificación real es Nivel 2 + Nivel 3.
+
+### Diagnóstico Rápido de Tools MCP Ausentes
+
+```bash
+# 1. Verificar config en disco
+grep -A5 'composio:' /home/opc/.hermes/config.yaml | grep 'x-consumer-api-key'
+
+# 2. Verificar logs del gateway
+journalctl -u hermes-gateway --no-pager | grep -i "composio" | tail -5
+
+# 3. Si hay 401 pero la key en disco es válida → gateway necesita restart
+#    (no se puede hacer desde dentro: ver references/gateway-restart-requirement.md)
+```
+
+## Composio Gmail File Attachment via Google Drive (Workaround)
+
+**Problema:** La tool `GMAIL_SEND_EMAIL` de Composio requiere un `s3key` para adjuntar archivos. El `s3key` se obtiene subiendo el archivo al S3 de Composio, típicamente vía `COMPOSIO_REMOTE_WORKBENCH`. Pero el sandbox del workbench NO tiene acceso a archivos locales del VPS, y pasar 128KB+ de base64 inline en el código Python es inviable.
+
+**Solución (validada 25 Jun 2026):** Subir el archivo a Google Drive primero (Composio tiene acceso a Drive) y adjuntarlo desde Drive en el email de Gmail.
+
+### Flujo
+
+```
+1. Kilo CLI → COMPOSIO_SEARCH_TOOLS → encuentra tool de Google Drive para upload
+2. Kilo CLI → sube archivo local a Google Drive → obtiene fileId
+3. Kilo CLI → tool GMAIL_SEND_EMAIL con attachment desde Drive (fileId o URL)
+```
+
+### Requisitos
+
+- Composio debe tener la integración de Google Drive autenticada (misma cuenta Google que Gmail)
+- La conexión de Drive se autoriza igual que Gmail (link de OAuth de Composio)
+
+### Fallback: GitHub Releases como File Host
+
+Si Google Drive no está disponible o el enfoque Drive falla, se puede usar GitHub Releases
+como host temporal para el archivo. **Esto funciona** porque:
+- `gh release create` es inmediato y no requiere auth adicional
+- La URL de descarga es pública y accesible desde el sandbox de Composio
+- Se puede eliminar después de usado
+
+**Flujo:** Ver `references/github-releases-file-host.md` para el comando exacto.
+
+### Ventajas sobre s3key/Workbench
+
+| Aspecto | s3key via Workbench | Drive approach |
+|---------|-------------------|----------------|
+| Acceso a archivos locales | ❌ Sandbox no tiene acceso | ✅ Kilo lee el archivo local |
+| Tamaño de archivo | ❌ Base64 inline > 100KB es inviable | ✅ Sin límite práctico |
+| Pasos | 3 (base64 → workbench → s3key → email) | 2 (Drive upload → email) |
+| Confiabilidad | ❌ REMOTE_WORKBENCH propenso a timeout | ✅ API directa de Google Drive |
+
+**⚠️ Nota:** El link de autorización de OAuth expira (~10 min). Si el usuario no autoriza a tiempo, Kilo falla con timeout. En ese caso, relanzar Kilo con la conexión ya autorizada (el usuario ya aceptó el permiso).
+
 ## Pitfalls
 
 1. **Confusing `memory()` with `retain()`/`recall()`** — The most common error. `memory()` is a 2KB profile tool for the `hermes` bank only. `retain`/`recall` are the MCP tools for full bank access across all repos.
