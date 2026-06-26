@@ -29,6 +29,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Hindsight usa OpenCode Go (DeepSeek V4 Flash) como proveedor LLM.
 - MCP self-hosted activado en Kilo Code, cloud desactivado.
 
+## [0.3.0] - 2026-06-26
+
+### Added
+- SOUL.md refactorizado: reducido de 210 a 21 líneas (solo identidad/tono).
+- hermes-context.md con contenido operacional extraído de SOUL.md (capacidades, arquitectura, banks, reglas).
+- AGENTS.md en repo root para auto-descubrimiento de contexto por Hermes.
+- preflight.sh: verificación post-deploy de invariantes MASTER-SPEC + MCP 3-Step con SSE handshake correcto.
+- pre-commit hook: bloquea .env y secrets en commits.
+- INFRA-04 en RULES.md: restart obligatorio de MCP gateway post-deploy.
+- Skills externas via `external_skills_dirs`: toolset-ops, monitoring, kilo-code.
+- MCP Lifecycle documentado en MASTER-SPEC §7.1.
+- Script de consolidación de memoria (cron cada 30min).
+- approvals.mode: smart configurado en inject-composio-key.py.
+
+### Changed
+- deploy.sh: toolset repo clone, context file sync, gateway restart dedicado + health check, memory cron.
+- deploy.sh: Infisical sync batch en un solo SSH Python call.
+- deploy.sh: eliminado `--force-recreate` en docker compose (usa change detection nativo).
+- deploy.sh: reducidos sleeps de verificación (10→5s, 30→15s).
+- deploy.sh: gateway health check reducido (3×3s).
+- deploy.sh: Hindsight backup condicional (<1hr skip).
+- inject-composio-key.py: approvals.mode smart, skills.external_dirs configurados.
+- MASTER-SPEC.md §7.1: documentado MCP Lifecycle.
+- MEMORY.md: Consolidation Protocol agregado como header.
+
+### Fixed
+- Gateway health check: corrige exit code 3 de systemctl (gateway inactivo cortaba el script).
+- Cron path: consolidate-memory.sh ubicado correctamente tras extracción tar con --strip-components.
+- AGENTS.md symlink en ~opc para auto-descubrimiento Hermes desde systemd.
+- preflight.sh MCP 3-Step: ahora usa initialize SSE → session ID → tools/call (antes daba falso positivo).
+- Landing page: actualizada referencia MCP.
+
+### Removed
+- Skills tar/scp block en deploy.sh (reemplazado por external_skills_dirs).
+- autonomous-ai-agents/ directory (skills a estructura flat).
+- `context_file_max_chars` duplicado en deploy.sh.
+- MCP proxy revertido (no necesario — MCP servers ya estaban bien configurados).
+
 ## [Unreleased]
 
 ### Fixed
