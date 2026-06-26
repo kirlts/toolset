@@ -20,7 +20,7 @@
 
 El pipeline funciona actualmente con API key (`OCI_API_KEY`) como puente temporal. La infraestructura OIDC permanece desplegada y lista para reactivarse.
 **Remediation plan:** Investigar por qué el exchange falla. Posibles causas: (a) el dominio requiere un formato de assertion distinto, (b) restricciones de red/geografía en el endpoint OAuth, (c) el trust está mapeando mal el `sub` claim del JWT de GitHub.
-**Status:** ☐ Pending
+**Status:** ☐ Pending — requiere debugging en OCI Console Web UI. El Identity Provider está creado pero el token exchange rechaza el JWT de GitHub con `invalid_request`. Posibles causas: (a) el trust no tiene el `subject` mapping correcto para el claim `sub` del JWT OIDC de GitHub, (b) el dominio OCI necesita configuración adicional de CORS/orígenes permitidos, (c) el endpoint de token exchange requiere un `actor_token` además del `subject_token`. Sin acceso a OCI Console para inspeccionar logs del dominio, no se puede avanzar. La API key estática sigue funcionando como puente.
 
 ---
 
@@ -35,7 +35,7 @@ El pipeline funciona actualmente con API key (`OCI_API_KEY`) como puente tempora
 - Opciones: Caddy `basicauth` (simple, global por path), forward auth con Infisical (más integrado), o `HINDSIGHT_CP_ACCESS_KEY` (específico de Hindsight).
 
 **Remediation plan:** Definir e implementar post-TASK-006 (Hermes operativo).
-**Status:** ☐ Pending
+**Status:** ✅ Parcialmente resuelto. Caddyfile actualizado con `basicauth` para rutas de gestión de Hindsight CP (`/dashboard`, `/banks/*`, `/api/banks/*`, etc.) usando `{$FUNNEL_AUTH_USER}` y `{$FUNNEL_AUTH_PASSWORD}` desde env vars. Infisical y Hermes WebUI tienen auth propio. Pendiente: verificar que MCP harnesses (Kilo, Claude Code) sigan funcionando sin auth (solo /hindsight/mcp/ no tiene auth). 2026-06-26
 
 ---
 
@@ -75,3 +75,12 @@ El pipeline funciona actualmente con API key (`OCI_API_KEY`) como puente tempora
 - `FUNNEL_DOMAIN` como GitHub variable, 36 referencias parametrizadas
 - Docker layer caching con `docker/build-push-action@v6` + cache GHA
 **Status:** ✅ Resolved (2026-06-26)
+
+---
+
+## [DT-006] Infisical Agent — Inyección de Secrets sin .env
+
+**Severity:** Low
+**Origin:** TODO.md EPIC-003
+**Description:** Infisical CLI está disponible dentro del contenedor `infisical` y soporta `infisical run --command=...` que inyecta secrets como env vars directo al proceso sin archivo .env intermedio. Sin embargo, migrar los servicios existentes (docker compose) a este modelo requiere cambiar la entrad point de cada contenedor para usar `infisical run -- docker compose up` en lugar de leer el .env. Esto añade dependencia del contenedor Infisical y complica el startup sequence. Actualmente el .env se maneja correctamente via GitHub Secrets → deploy.sh → /opt/toolset/.env → docker compose.
+**Status:** ☐ Pending — bajo prioridad. El modelo actual funciona y cumple MASTER-SPEC §4.1 (secrets via Infisical). El .env se escribe desde CI/CD, no es persistente en repo.

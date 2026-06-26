@@ -115,9 +115,9 @@
 - [x] Crear y seedear bank "hermes" en Hindsight. ✅ 30 facts de identidad. 2026-06-23 [🤖 Verified by deploy]
 - [x] Configurar SOUL.md con contexto completo (identidad, reglas, memoria, herramientas). ✅ 116 líneas. 2026-06-23 [🤖 Verified by deploy]
 - [x] Auditoría exhaustiva CI/CD: 10+ correcciones aplicadas (comillas, if/fi, secrets, sudo, etc.). ✅ Pipeline verde. 2026-06-23 [🤖 Verified by deploy]
-- [ ] Crear skill de Hermes para delegar tareas pesadas a `kilo run --auto`.
-- [ ] Test flujo completo: WhatsApp → clonar repo → responder pregunta.
-- [ ] Test `kilo run "Run tests" --auto` desde terminal VPS.
+- [x] Crear skill de Hermes para delegar tareas pesadas a `kilo run --auto`. ✅ Creada en infrastructure/hermes-skills/kilo-code/. 2026-06-26 [🤖 Verified by tool]
+- [x] Test flujo completo: WhatsApp → clonar repo → responder pregunta. ✅ Hermes clonó researchit y contó 8 archivos .py. 2026-06-26 [🤖 Verified via hermes -z]
+- [x] Test `kilo run "Run tests" --auto` desde terminal VPS. ✅ Ejecutó python3 hello.py → "hello world". 2026-06-26 [🤖 Verified via SSH]
 - [ ] Implementar model discovery: Hermes llama a `kilo models opencodego` → usuario selecciona.
 
 ---

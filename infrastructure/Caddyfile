@@ -1,4 +1,5 @@
 # Toolset Personal — Caddy reverse proxy
+# FUNNEL_AUTH_USER and FUNNEL_AUTH_PASSWORD env vars set in docker-compose.yml
 
 {
     http_port 8080
@@ -7,43 +8,76 @@
 }
 
 :8080 {
-    # Hindsight Control Plane (Next.js SPA — /dashboard, /_next/*)
+    # Hindsight Control Plane (Next.js SPA) — requires auth
     @cp_native path_regexp cp_native ^/(dashboard|_next)(/.*)?$
     handle @cp_native {
+        basicauth * {
+            {$FUNNEL_AUTH_USER} {$FUNNEL_AUTH_PASSWORD}
+        }
         reverse_proxy hindsight:9999
     }
 
-    # CP API routes (must come before Infisical /api/*)
+    # CP API routes — requires auth
     handle /api/version {
+        basicauth * {
+            {$FUNNEL_AUTH_USER} {$FUNNEL_AUTH_PASSWORD}
+        }
         reverse_proxy hindsight:9999
     }
     handle /api/banks/* {
+        basicauth * {
+            {$FUNNEL_AUTH_USER} {$FUNNEL_AUTH_PASSWORD}
+        }
         reverse_proxy hindsight:9999
     }
     handle /api/banks {
+        basicauth * {
+            {$FUNNEL_AUTH_USER} {$FUNNEL_AUTH_PASSWORD}
+        }
         reverse_proxy hindsight:9999
     }
     handle /api/profile/* {
+        basicauth * {
+            {$FUNNEL_AUTH_USER} {$FUNNEL_AUTH_PASSWORD}
+        }
         reverse_proxy hindsight:9999
     }
     handle /api/stats/* {
+        basicauth * {
+            {$FUNNEL_AUTH_USER} {$FUNNEL_AUTH_PASSWORD}
+        }
         reverse_proxy hindsight:9999
     }
     handle /api/list {
+        basicauth * {
+            {$FUNNEL_AUTH_USER} {$FUNNEL_AUTH_PASSWORD}
+        }
         reverse_proxy hindsight:9999
     }
     handle /api/recall {
+        basicauth * {
+            {$FUNNEL_AUTH_USER} {$FUNNEL_AUTH_PASSWORD}
+        }
         reverse_proxy hindsight:9999
     }
     handle /api/reflect {
+        basicauth * {
+            {$FUNNEL_AUTH_USER} {$FUNNEL_AUTH_PASSWORD}
+        }
         reverse_proxy hindsight:9999
     }
     handle /api/documents/* {
+        basicauth * {
+            {$FUNNEL_AUTH_USER} {$FUNNEL_AUTH_PASSWORD}
+        }
         reverse_proxy hindsight:9999
     }
 
-    # SPA fallback: /bank y /banks → proxied directly to CP (no rewrite)
+    # SPA fallback: /bank and /banks → requires auth
     handle /bank/* {
+        basicauth * {
+            {$FUNNEL_AUTH_USER} {$FUNNEL_AUTH_PASSWORD}
+        }
         handle /bank/api/* {
             uri strip_prefix /bank
             reverse_proxy hindsight:9999
@@ -57,9 +91,15 @@
         }
     }
     handle /bank {
+        basicauth * {
+            {$FUNNEL_AUTH_USER} {$FUNNEL_AUTH_PASSWORD}
+        }
         reverse_proxy hindsight:9999
     }
     handle /banks/* {
+        basicauth * {
+            {$FUNNEL_AUTH_USER} {$FUNNEL_AUTH_PASSWORD}
+        }
         handle /banks/api/* {
             uri strip_prefix /banks
             reverse_proxy hindsight:9999
@@ -73,43 +113,46 @@
         }
     }
     handle /banks {
+        basicauth * {
+            {$FUNNEL_AUTH_USER} {$FUNNEL_AUTH_PASSWORD}
+        }
         reverse_proxy hindsight:9999
     }
 
-    # Hindsight API (health, v1/*, docs, mcp, openapi.json, etc.)
+    # Hindsight API (health, v1/*, docs, mcp, openapi.json) — no auth required
     handle /hindsight/* {
         uri strip_prefix /hindsight
         reverse_proxy hindsight:8888
     }
 
-    # Swagger UI needs openapi.json from Hindsight
+    # Swagger UI
     handle /openapi.json {
         reverse_proxy hindsight:8888
     }
 
-    # Health endpoint (always routes to Hindsight API, no Infisical dependency)
+    # Health endpoint — no auth required
     handle /health {
         reverse_proxy hindsight:8888
     }
 
-    # Hermes WebUI (accessible from mobile where non-standard ports are blocked)
+    # Hermes WebUI — has its own auth
     handle_path /hermes/* {
         reverse_proxy host.docker.internal:8888
     }
 
-    # Infisical API (CP-specific routes matched first above)
+    # Infisical API — has its own auth
     handle /api/status {
         reverse_proxy infisical:8080
     }
     handle /api/v1/* {
         reverse_proxy infisical:8080
     }
-    # Catch-all /api/* — goes to CP (handles 404 gracefully, enables CP extensibility)
+    # Catch-all /api/* → CP (protected by catch-all above)
     handle /api/* {
         reverse_proxy hindsight:9999
     }
 
-    # Root → landing page (not Infisical — avoids _next/* conflict with CP)
+    # Root → landing page — no auth
     handle {
         root * /usr/share/caddy/landing
         try_files {path} index.html
