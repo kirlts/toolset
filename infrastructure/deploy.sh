@@ -803,6 +803,7 @@ scp -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   "${SSH_HOST}" \
   "export PATH=/usr/local/bin:/home/opc/.local/bin:\$PATH; \
+    sudo chattr -i /home/opc/.hermes/config.yaml 2>/dev/null || true; \
     chmod +x /tmp/inject-composio-key.py && \
     hermes config set terminal.backend local 2>/dev/null; \
     hermes config set memory.provider hindsight 2>/dev/null; \
@@ -811,6 +812,7 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     hermes config set model.default 'opencodego/deepseek-v4-flash' 2>/dev/null; \
     hermes config set model.provider 'opencode-go' 2>/dev/null; \
     python3 /tmp/inject-composio-key.py 2>&1; \
+    sudo chattr +i /home/opc/.hermes/config.yaml 2>/dev/null || true; \
     rm -f /tmp/inject-composio-key.py"
 
 echo "[DEPLOY] Hermes runtime configuration complete."
