@@ -119,7 +119,8 @@ jobs:
         id: changes
         run: |
           CHANGED=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "all")
-          echo "changed=$CHANGED" >> $GITHUB_OUTPUT
+          CHANGED_JSON=$(echo "$CHANGED" | jq -R -s 'split("\n") | map(select(length > 0))')
+          echo "changed=$CHANGED_JSON" >> $GITHUB_OUTPUT
           echo "build_sandbox=false" >> $GITHUB_OUTPUT
           echo "pull_images=false" >> $GITHUB_OUTPUT
           if echo "$CHANGED" | grep -q "hermes-sandbox.Dockerfile"; then
@@ -128,7 +129,7 @@ jobs:
           if echo "$CHANGED" | grep -q "docker-compose.yml"; then
             echo "pull_images=true" >> $GITHUB_OUTPUT
           fi
-          echo "changed files: $(echo $CHANGED | tr '\n' ' ')"
+          echo "changed files: $(echo "$CHANGED" | tr '\n' ' ')"
 
       - run: curl -fsSL https://tailscale.com/install.sh | sh
       - name: Tailscale up
