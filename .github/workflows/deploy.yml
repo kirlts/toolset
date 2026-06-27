@@ -219,6 +219,7 @@ jobs:
     needs: deploy-services
     if: ${{ always() && github.ref == 'refs/heads/main' && needs.deploy-services.result == 'success' }}
     runs-on: ubuntu-latest
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - name: Tailscale
