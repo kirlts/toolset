@@ -202,21 +202,21 @@ DEPLOY_FAILED=false
 
 # --- Verify critical services ---
 echo "[DEPLOY] Verifying critical services..."
-sleep 5
+sleep 10
 CRITICAL="caddy hindsight infisical"
-for attempt in 1 2 3; do
+for attempt in 1 2 3 4 5; do
   ALL_OK=true
   for svc in $CRITICAL; do
     STATUS=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
       "${SSH_HOST}" \
       "sudo docker inspect $svc --format '{{.State.Health.Status}}' 2>/dev/null || echo missing")
     if [ "$STATUS" != "healthy" ]; then
-      echo "  ⏳ $svc: $STATUS (attempt $attempt/3)"
+      echo "  ⏳ $svc: $STATUS (attempt $attempt/5)"
       ALL_OK=false
     fi
   done
   $ALL_OK && break
-  [ "$attempt" -lt 3 ] && sleep 15
+  [ "$attempt" -lt 5 ] && sleep 20
 done
 for svc in $CRITICAL; do
   STATUS=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
