@@ -177,7 +177,7 @@ jobs:
           COMPOSIO_API_KEY: ${{ secrets.COMPOSIO_API_KEY }}
           COMPOSIO_MCP_KEY: ${{ secrets.COMPOSIO_MCP_KEY }}
           GH_CLI_TOKEN: ${{ secrets.GH_CLI_TOKEN }}
-          FUNNEL_DOMAIN: toolset-oci-1-1.tail2d4c18.ts.net
+          FUNNEL_DOMAIN: ${{ secrets.FUNNEL_DOMAIN }}
         working-directory: ${{ env.INFRA_DIR }}
         run: chmod +x deploy.sh && ./deploy.sh
 
@@ -185,9 +185,9 @@ jobs:
         env:
           INFISICAL_TOKEN: ${{ secrets.INFISICAL_SERVICE_TOKEN }}
           INFISICAL_PID: ${{ secrets.INFISICAL_PID }}
-          INFISICAL_URL: https://toolset-oci-1-1.tail2d4c18.ts.net:8443
+          INFISICAL_URL: https://${{ secrets.FUNNEL_DOMAIN }}:8443
           OPENCODE_GO_API_KEY: ${{ secrets.OPENCODE_GO_API_KEY }}
-          FUNNEL_DOMAIN: toolset-oci-1-1.tail2d4c18.ts.net
+          FUNNEL_DOMAIN: ${{ secrets.FUNNEL_DOMAIN }}
           HERMES_LLM_PROVIDER: ${{ secrets.HERMES_LLM_PROVIDER }}
           HERMES_LLM_MODEL: ${{ secrets.HERMES_LLM_MODEL }}
           HERMES_WEBUI_PASSWORD: ${{ secrets.HERMES_WEBUI_PASSWORD }}
@@ -203,7 +203,7 @@ jobs:
         env:
           INFISICAL_TOKEN: ${{ secrets.INFISICAL_SERVICE_TOKEN }}
           INFISICAL_PID: ${{ secrets.INFISICAL_PID }}
-          INFISICAL_URL: https://toolset-oci-1-1.tail2d4c18.ts.net:8443
+          INFISICAL_URL: https://${{ secrets.FUNNEL_DOMAIN }}:8443
           GH_TOKEN: ${{ secrets.GH_CLI_TOKEN }}
         run: python3 scripts/sync-infisical-secrets.py pull
 
