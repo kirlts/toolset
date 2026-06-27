@@ -156,16 +156,45 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   "${SSH_HOST}" \
   "cd ${REMOTE_DIR} && sudo docker compose pull 2>&1" | sed 's/^/  [PULL] /'
 
+# --- Port cleanup (prevent "address already in use" from zombie processes) ---
+echo "[DEPLOY] Cleaning up ports..."
+ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  "${SSH_HOST}" \
+  "sudo fuser -k 8888/tcp 2>/dev/null || true; \
+   sudo fuser -k 9999/tcp 2>/dev/null || true; \
+   sudo fuser -k 8080/tcp 2>/dev/null || true; \
+   sleep 3"
+echo "[DEPLOY] Ports cleaned."
+
 # --- Recreate changed services ---
 echo "[DEPLOY] Recreating services..."
 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   "${SSH_HOST}" \
-   "sudo systemctl stop hermes-webui 2>/dev/null || true && \
-    cd ${REMOTE_DIR} && \
-    sudo env FUNNEL_AUTH_USER='${FUNNEL_AUTH_USER:-toolset-admin}' \
-         FUNNEL_AUTH_PASSWORD='${FUNNEL_AUTH_PASSWORD:-changeme}' \
+    "sudo systemctl stop hermes-webui 2>/dev/null || true && \
+     cd ${REMOTE_DIR} && \
     docker compose up -d --remove-orphans 2>&1 && \
-   sudo systemctl start hermes-webui 2>/dev/null || true" | sed 's/^/  [UP] /'
+    sudo systemctl start hermes-webui 2>/dev/null || true" | sed 's/^/  [UP] /'
+
+# --- Verify Caddy port binding (docker-proxy often drops it) ---
+echo "[DEPLOY] Verifying Caddy port binding..."
+PORT_OK=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  "${SSH_HOST}" \
+  "curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://localhost:8080/health 2>/dev/null || echo '000'" 2>/dev/null || echo "000")
+if [ "$PORT_OK" != "200" ] && [ "$PORT_OK" != "502" ]; then
+  echo "  Port 8080 not responding (HTTP $PORT_OK). Force-restarting Caddy..."
+  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    "${SSH_HOST}" \
+    "sudo fuser -k 8080/tcp 2>/dev/null || true; \
+     sleep 2; \
+     cd ${REMOTE_DIR} && sudo docker compose up -d --force-recreate caddy 2>&1" | sed 's/^/  [FIX] /'
+  sleep 5
+  PORT_RETRY=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    "${SSH_HOST}" \
+    "curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://localhost:8080/health 2>/dev/null || echo '000'" 2>/dev/null || echo "000")
+  echo "  Port after fix: HTTP $PORT_RETRY"
+else
+  echo "  ✅ Caddy port binding OK (HTTP $PORT_OK)"
+fi
 
 # --- Save compose state for rollback ---
 echo "[DEPLOY] Saving compose state for rollback..."
@@ -201,6 +230,20 @@ for svc in $CRITICAL; do
     "sudo docker inspect $svc --format '{{.State.Health.Status}}' 2>/dev/null || echo missing")
   if [ "$STATUS" = "healthy" ]; then echo "  ✅ $svc"; else echo "  ❌ $svc: $STATUS"; DEPLOY_FAILED=true; fi
 done
+
+# --- MCP connectivity check (critical: must survive deploys) ---
+echo "[DEPLOY] Verifying MCP connectivity..."
+MCP_INIT=$(curl -sf -X POST \
+  "https://${CADDY_DOMAIN}/hindsight/mcp/" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","method":"tools/call","params":{"name":"list_banks","arguments":{}},"id":1}' 2>/dev/null || echo "")
+if echo "$MCP_INIT" | grep -q "bank_id"; then
+  echo "  ✅ MCP connectivity verified (list_banks OK)"
+else
+  echo "  ❌ MCP connectivity failed"
+  DEPLOY_FAILED=true
+fi
 
 # --- Clone toolset repo on server (idempotent) ---
 echo "[DEPLOY] Syncing toolset repo on server..."
@@ -959,6 +1002,29 @@ if [ -f "$PREFLIGHT_SCRIPT" ]; then
        fi"
   fi
 fi
+
+# --- Verify all public URLs respond correctly (mandatory) ---
+echo "[DEPLOY] Verifying public URLs..."
+FUNNEL="https://${CADDY_DOMAIN}"
+URLS=(
+  "/:Landing page"
+  "/health:Health check"
+  "/hindsight/health:Hindsight API"
+  "/hindsight/mcp/:MCP endpoint"
+  "/dashboard:Hindsight CP"
+  "/api/v1/:Infisical API"
+)
+for entry in "${URLS[@]}"; do
+  path="${entry%%:*}"
+  name="${entry##*:}"
+  CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "${FUNNEL}${path}" 2>/dev/null || echo "000")
+  if [ "$CODE" = "200" ] || [ "$CODE" = "302" ] || [ "$CODE" = "404" ]; then
+    echo "  ✅ ${name} (${path}) → ${CODE}"
+  else
+    echo "  ❌ ${name} (${path}) → ${CODE}"
+    DEPLOY_FAILED=true
+  fi
+done
 
 # --- Exit with error if deploy failed ---
 if [ "$DEPLOY_FAILED" = "true" ]; then
