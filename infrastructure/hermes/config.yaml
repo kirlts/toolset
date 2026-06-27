@@ -22,7 +22,7 @@ approvals:
   cron_mode: deny
   destructive_slash_confirm: false
   mcp_reload_confirm: true
-  mode: manual
+  mode: smart
   timeout: 60
 auxiliary:
   approval:
@@ -446,6 +446,10 @@ signal:
   enabled: false
   mode: normal
   number: ''
+skills:
+  external_dirs:
+  - /opt/toolset-repo/infrastructure/hermes-skills
+  - /opt/toolset-repo/.agents/skills
 slack:
   enabled: false
   token: ''
@@ -576,3 +580,4 @@ x_search:
 youtube:
   api_key: ''
   fetch_transcripts: true
+home: /opt/toolset-repo

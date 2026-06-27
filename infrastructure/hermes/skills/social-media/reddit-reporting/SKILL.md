@@ -1,6 +1,6 @@
 ---
 name: reddit-reporting
-description: "Use when generating scheduled PDF reports from Reddit subreddits via Composio Reddit tools (REDDIT_GET_R_TOP, REDDIT_RETRIEVE_POST_COMMENTS) and fpdf2. Covers fetching posts, computing engagement, extracting top comments, and producing single-page landscape PDFs."
+description: "Use when generating scheduled PDF reports from Reddit subreddits via Composio Reddit tools (REDDIT_GET_R_TOP, REDDIT_RETRIEVE_POST_COMMENTS) and fpdf2. Covers fetching posts, computing engagement, extracting top comments, and producing single-page PDFs (landscape or portrait)."
 version: 1.1.0
 author: Hermes Agent (user-local)
 license: MIT
@@ -14,7 +14,7 @@ metadata:
 
 ## Overview
 
-Generate daily/scheduled PDF reports from Reddit subreddits by fetching top posts via Composio Reddit tools, computing engagement scores (score * num_comments), extracting top comments, and rendering a compact single-page landscape PDF with fpdf2.
+Generate daily/scheduled PDF reports from Reddit subreddits by fetching top posts via Composio Reddit tools, computing engagement scores (score * num_comments), extracting top comments, and rendering a compact single-page PDF (landscape or portrait) with fpdf2.
 
 The workflow is designed for cron jobs: fully autonomous, no user interaction needed.
 
@@ -114,6 +114,8 @@ def extract_comments(result_data, min_body_length=3):
 
 Call COMPOSIO_MULTI_EXECUTE_TOOL with one REDDIT_GET_R_TOP per subreddit. Batch them in a single call for parallelism. Use `t="day"` and `limit=10`.
 
+**Important**: Set `sync_response_to_workbench=true` on the MULTI_EXECUTE_TOOL call. Without it, the full response is truncated inline and unavailable for workbench processing. With it, the complete JSON lands at `/mnt/files/mex/rich.json` for workbench parsing.
+
 ```
 multi_execute(tools=[
   {tool_slug: "REDDIT_GET_R_TOP", arguments: {subreddit: "chile", t: "day", limit: 10}},
@@ -138,16 +140,33 @@ Collapse into a compact format:
 
 ### 5. Generate PDF
 
-Use fpdf2 with these settings for single-page landscape:
+Two layout options exist — choose based on content volume:
 
+**Landscape (L)** — use for 10+ posts across 4+ subreddits, or when comment bodies are long (~60 lines capacity):
 ```python
-pdf = FPDF(orientation='L', unit='mm', format='A4')  # Landscape
+pdf = FPDF(orientation='L', unit='mm', format='A4')
 pdf.set_left_margin(10)
 pdf.set_right_margin(10)
 pdf.set_top_margin(8)
 ```
 
-Font sizing (for ~50 lines of content):
+**Portrait (P)** — use for 3-4 subreddits with 3 posts each and short comments (~50 lines capacity). Disable auto_page_break and manage space manually:
+```python
+pdf = FPDF(orientation='P', unit='mm', format='A4')
+pdf.set_auto_page_break(auto=False, margin=8)
+pdf.set_left_margin(10)
+pdf.set_right_margin(10)
+```
+
+Font sizing for portrait with tight spacing:
+- Title: Bold 14-15pt
+- Section headers (r/...): Bold 10-11pt
+- Post lines: 7.5pt title, 6.5pt metadata
+- Comments: 6pt quote header, 5.5-6pt body
+- Separator lines: light gray at 50% opacity
+- Footer: 5.5-6pt
+
+Font sizing for landscape:
 - Title: Bold 12-14pt
 - Section headers (r/...): Bold 8-9pt
 - Post lines: 5.5-6pt
@@ -172,7 +191,22 @@ In cron mode, `execute_code` is blocked. Use this two-phase approach:
 
 **Phase 1 - COMPOSIO_REMOTE_WORKBENCH**: Fetch posts (via COMPOSIO_MULTI_EXECUTE_TOOL), then in the workbench parse the saved JSON and extract post metadata + top comments. Save a compact JSON report file to the sandbox (`/mnt/files/report_data.json`). Print a summary of the extracted data to stdout for debugging.
 
-**Phase 2 - Terminal heredoc**: Use `terminal` with a Python heredoc (`python3 << 'PYEOF' ... PYEOF`) to read the report data (inline as a Python dict), generate the PDF with fpdf2, and save it to `/tmp/reddit-chile-report-YYYY-MM-DD.pdf`. Run `ls -la` on the output to verify.
+**Phase 2 - Terminal heredoc OR write_file+run**: Use `terminal` to generate the PDF. Two approaches:
+
+*Approach A - Heredoc (for compact scripts ~30 lines)*:
+```
+terminal(command="python3 << 'PYEOF'\\n...\\nPYEOF")
+```
+
+*Approach B - write_file + terminal (for complex scripts 40+ lines)*:
+```
+write_file(path="/tmp/gen_report.py", content="...")
+terminal(command="python3 /tmp/gen_report.py")
+```
+
+Approach B is preferred when the PDF generation logic is involved (multi-section layout, font registration, conditional page breaks) because it avoids shell escaping issues and allows linting before execution. Remember to add `add_font('D', 'B', ...)` without the deprecated `uni=True` parameter in fpdf2 v2.5+.
+
+Run `ls -la /tmp/reddit-chile-report-YYYY-MM-DD.pdf` and `file /tmp/reddit-chile-report-YYYY-MM-DD.pdf` to verify the output is a valid PDF before delivering.
 
 ### 6. Output
 
