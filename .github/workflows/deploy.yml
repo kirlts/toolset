@@ -137,34 +137,47 @@ jobs:
 
       - name: DT-001 Diagnóstico OIDC
         if: github.ref == 'refs/heads/main'
+        env:
+          TF_VAR_compartment_id: ${{ secrets.OCI_TENANCY_OCID }}
         run: |
-          echo "=== Identity Providers ==="
-          oci iam identity-provider list --all 2>&1 || echo "API not available"
+          CID="${{ secrets.OCI_TENANCY_OCID }}"
+          echo "=== Identity Providers (protocol=OIDC) ==="
+          oci iam identity-provider list --protocol OIDC --compartment-id "$CID" 2>&1 || echo "No OIDC providers"
           echo ""
           echo "=== Domains ==="
-          oci iam domain list --all --query 'data[*].{Name:"display-name",Type:"type",State:"lifecycle-state",ID:"id"}' 2>&1 || echo "No domains"
+          oci iam domain list --compartment-id "$CID" --all --query 'data[*].{Name:"display-name",Type:"type",State:"lifecycle-state"}' 2>&1 || echo "No domains"
           echo ""
-          echo "=== OIDC Test: request OCI token with GitHub OIDC ==="
+          echo "=== OIDC Token Exchange Test ==="
           OIDC_TOKEN=$(curl -s -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
             "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=oci" 2>/dev/null)
           if [ -n "$OIDC_TOKEN" ]; then
-            echo "OIDC token obtained from GitHub (length: ${#OIDC_TOKEN})"
+            echo "Token obtained (length: ${#OIDC_TOKEN})"
             DOMAIN_URL="${{ secrets.OCI_DOMAIN_URL }}"
             if [ -n "$DOMAIN_URL" ]; then
-              echo "Testing token exchange against ${DOMAIN_URL}..."
-              EXCHANGE=$(curl -s -X POST "${DOMAIN_URL}/oauth2/v1/token" \
-                -H "Content-Type: application/x-www-form-urlencoded" \
-                -d "grant_type=urn:ietf:params:oauth:grant-type:token-exchange" \
-                -d "subject_token_type=urn:ietf:params:oauth:token-type:id_token" \
-                -d "subject_token=$OIDC_TOKEN" \
-                -d "scope=https://identity.oraclecloud.com/.default" 2>&1)
-              echo "Exchange response:"
-              echo "$EXCHANGE" | python3 -m json.tool 2>/dev/null || echo "$EXCHANGE"
+              for GRANT in "urn:ietf:params:oauth:grant-type:token-exchange" "urn:ietf:params:oauth:grant-type:jwt-bearer"; do
+                for TOKEN_TYPE in "urn:ietf:params:oauth:token-type:id_token" "urn:ietf:params:oauth:token-type:access_token" "urn:ietf:params:oauth:token-type:jwt"; do
+                  echo "  Trying grant=$GRANT token_type=$TOKEN_TYPE..."
+                  RESP=$(curl -s -X POST "${DOMAIN_URL}/oauth2/v1/token" \
+                    -H "Content-Type: application/x-www-form-urlencoded" \
+                    -d "grant_type=$GRANT" \
+                    -d "subject_token_type=$TOKEN_TYPE" \
+                    -d "subject_token=$OIDC_TOKEN" \
+                    -d "scope=https://identity.oraclecloud.com/.default" 2>&1)
+                  if echo "$RESP" | grep -q "access_token"; then
+                    echo "  ✅ SUCCESS! Grant=$GRANT Type=$TOKEN_TYPE"
+                    echo "$RESP" | python3 -c "import sys,json;d=json.load(sys.stdin);print(f'    Token: {d.get(\"access_token\",\"\")[:40]}...')" 2>/dev/null
+                    break 2
+                  else
+                    ERR=$(echo "$RESP" | python3 -c "import sys,json;print(json.load(sys.stdin).get('error_description','unknown'))" 2>/dev/null)
+                    echo "    → $ERR"
+                  fi
+                done
+              done
             else
-              echo "OCI_DOMAIN_URL not configured — skipping exchange test"
+              echo "OCI_DOMAIN_URL not configured — skipping exchange"
             fi
           else
-            echo "No OIDC token available (not a GitHub Actions run with id-token: write)"
+            echo "No OIDC token available"
           fi
 
   deploy-services:
