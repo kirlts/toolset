@@ -954,7 +954,7 @@ with open(sp, "w") as f: json.dump(d, f, indent=2)
 print("WebUI default model set")' 2>/dev/null || true
     echo '[hermes-webui] Default model configured'"
 
-# --- Ensure Hermes WebUI Funnel on :8787 -> localhost:8888 ---
+# --- Ensure Hermes WebUI Funnel on :8787 -> localhost:8877 ---
 HERMES_PORT="8787"
 HERMES_BACKEND="8877"
 echo "[DEPLOY] Ensuring Hermes WebUI Funnel on :${HERMES_PORT} -> localhost:${HERMES_BACKEND}..."
@@ -963,6 +963,10 @@ HAS_HERMES=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
 if [ "$HAS_HERMES" -gt 0 ]; then
   echo "[DEPLOY] Hermes WebUI Funnel already configured on :${HERMES_PORT}"
 else
+  # Turn off any existing foreground listener first (from manual tests)
+  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    "${SSH_HOST}" "sudo tailscale funnel --https=${HERMES_PORT} off 2>/dev/null; sudo tailscale serve --https=${HERMES_PORT} off 2>/dev/null" || true
+  sleep 2
   ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     "${SSH_HOST}" "sudo tailscale funnel --bg --https=${HERMES_PORT} http://localhost:${HERMES_BACKEND} 2>&1" | sed 's/^/  /'
   echo "[DEPLOY] Hermes WebUI Funnel configured on :${HERMES_PORT} -> :${HERMES_BACKEND}"
