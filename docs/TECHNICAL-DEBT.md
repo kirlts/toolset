@@ -20,7 +20,7 @@
 
 El pipeline funciona actualmente con API key (`OCI_API_KEY`) como puente temporal. La infraestructura OIDC permanece desplegada y lista para reactivarse.
 **Remediation plan:** Investigar por qué el exchange falla. Posibles causas: (a) el dominio requiere un formato de assertion distinto, (b) restricciones de red/geografía en el endpoint OAuth, (c) el trust está mapeando mal el `sub` claim del JWT de GitHub.
-**Status:** ☐ Pending — requiere debugging en OCI Console Web UI. El Identity Provider está creado pero el token exchange rechaza el JWT de GitHub con `invalid_request`. Posibles causas: (a) el trust no tiene el `subject` mapping correcto para el claim `sub` del JWT OIDC de GitHub, (b) el dominio OCI necesita configuración adicional de CORS/orígenes permitidos, (c) el endpoint de token exchange requiere un `actor_token` además del `subject_token`. Sin acceso a OCI Console para inspeccionar logs del dominio, no se puede avanzar. La API key estática sigue funcionando como puente.
+**Status:** ☐ Pending — Se agregó paso de diagnóstico en deploy.yml (DT-001 Diagnóstico OIDC) que se ejecuta en el runner de GitHub Actions con OCI CLI configurado. Intenta obtener el token OIDC de GitHub con audience=oci y hacer el exchange contra el dominio. El resultado se ve en los logs del pipeline. Si el exchange sigue fallando, las causas posibles son: (a) la Confidential App `GitHubActions-OpenTofu` no tiene el trust configurado correctamente, (b) el claim `sub` del JWT de GitHub no matchea el mapping esperado por el Identity Propagation Trust. La API key estática sigue funcionando como puente.
 
 ---
 

@@ -95,20 +95,11 @@ HINDSIGHT_API_LLM_PROVIDER=openai
 HINDSIGHT_API_LLM_MODEL=deepseek-v4-flash
 HINDSIGHT_API_LLM_BASE_URL=https://opencode.ai/zen/go/v1
 FUNNEL_DOMAIN=${FUNNEL_DOMAIN:-toolset-oci-1-1.tail2d4c18.ts.net}
-FUNNEL_AUTH_USER=${FUNNEL_AUTH_USER:-toolset-admin}
-FUNNEL_AUTH_PASSWORD=${FUNNEL_AUTH_PASSWORD:-changeme}
 INFISICAL_PID=${INFISICAL_PID:-}
 INFISICAL_SERVICE_TOKEN=${INFISICAL_SERVICE_TOKEN:-}
 ENVEOF
 else
   echo "[DEPLOY] .env exists. Skipping rewrite."
-  # Ensure auth vars exist even in existing .env
-  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    "${SSH_HOST}" \
-    "sudo sh -c '
-      grep -q \"^FUNNEL_AUTH_USER=\" ${REMOTE_DIR}/.env || echo \"FUNNEL_AUTH_USER=${FUNNEL_AUTH_USER:-toolset-admin}\" >> ${REMOTE_DIR}/.env
-      grep -q \"^FUNNEL_AUTH_PASSWORD=\" ${REMOTE_DIR}/.env || echo \"FUNNEL_AUTH_PASSWORD=${FUNNEL_AUTH_PASSWORD:-changeme}\" >> ${REMOTE_DIR}/.env
-    '" 2>&1
 fi
 
 # --- Transfer Caddyfile (must precede compose up) ---
@@ -191,7 +182,10 @@ echo "[DEPLOY] Recreating services..."
 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   "${SSH_HOST}" \
    "sudo systemctl stop hermes-webui 2>/dev/null || true && \
-    cd ${REMOTE_DIR} && sudo docker compose up -d --remove-orphans 2>&1 && \
+    cd ${REMOTE_DIR} && \
+    FUNNEL_AUTH_USER='${FUNNEL_AUTH_USER:-toolset-admin}' \
+    FUNNEL_AUTH_PASSWORD='${FUNNEL_AUTH_PASSWORD:-changeme}' \
+    sudo docker compose up -d --remove-orphans 2>&1 && \
    sudo systemctl start hermes-webui 2>/dev/null || true" | sed 's/^/  [UP] /'
 
 # --- Save compose state for rollback ---
@@ -741,25 +735,6 @@ else
     fi
   else
     echo "[DEPLOY][backup] No Hindsight data running and no backup found — skipping restore"
-  fi
-fi
-
-# --- Upload latest Hindsight backup to OCI Object Storage ---
-LATEST_BACKUP=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-  "${SSH_HOST}" "ls -1t ${BACKUP_DIR}/*.tar.gz 2>/dev/null | head -1" 2>/dev/null || echo "")
-OCI_BUCKET="toolset-opentofu-state"
-OCI_OBJECT_PREFIX="hindsight-backups"
-if [ -n "$LATEST_BACKUP" ] && command -v oci &>/dev/null; then
-  BACKUP_NAME=$(basename "$LATEST_BACKUP")
-  echo "[DEPLOY][backup] Uploading ${BACKUP_NAME} to OCI (${OCI_BUCKET}/${OCI_OBJECT_PREFIX}/)..."
-  # OCI CLI configured via API key in GitHub runner; on server, try with configured creds
-  UPLOADED=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    "${SSH_HOST}" \
-    "oci os object put -bn ${OCI_BUCKET} --name ${OCI_OBJECT_PREFIX}/${BACKUP_NAME} --file ${LATEST_BACKUP} --force 2>&1" 2>/dev/null || echo "")
-  if echo "$UPLOADED" | grep -q "etag"; then
-    echo "[DEPLOY][backup] Uploaded to OCI"
-  else
-    echo "[DEPLOY][backup] OCI upload skipped (CLI not configured on server — backup kept locally at ${BACKUP_DIR})"
   fi
 fi
 

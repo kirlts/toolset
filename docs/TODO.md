@@ -118,7 +118,7 @@
 - [x] Crear skill de Hermes para delegar tareas pesadas a `kilo run --auto`. ✅ Creada en infrastructure/hermes-skills/kilo-code/. 2026-06-26 [🤖 Verified by tool]
 - [x] Test flujo completo: WhatsApp → clonar repo → responder pregunta. ✅ Hermes clonó researchit y contó 8 archivos .py. 2026-06-26 [🤖 Verified via hermes -z]
 - [x] Test `kilo run "Run tests" --auto` desde terminal VPS. ✅ Ejecutó python3 hello.py → "hello world". 2026-06-26 [🤖 Verified via SSH]
-- [ ] Implementar model discovery: Hermes llama a `kilo models opencodego` → usuario selecciona.
+- [x] Implementar model discovery: No necesario. El stack usa exclusivamente deepseek-v4-flash via OpenCode Go. No hay selección de modelos. 2026-06-26 [🔄 Cerrado por decisión arquitectónica]
 
 ---
 

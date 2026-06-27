@@ -24,6 +24,10 @@ on:
         type: boolean
         default: false
 
+permissions:
+  id-token: write
+  contents: read
+
 concurrency:
   group: deploy-${{ github.ref_name }}
   cancel-in-progress: false
@@ -130,6 +134,38 @@ jobs:
             --name infrastructure/terraform.tfstate \
             --file terraform.tfstate \
             --force
+
+      - name: DT-001 Diagnóstico OIDC
+        if: github.ref == 'refs/heads/main'
+        run: |
+          echo "=== Identity Providers ==="
+          oci iam identity-provider list --all 2>&1 || echo "API not available"
+          echo ""
+          echo "=== Domains ==="
+          oci iam domain list --all --query 'data[*].{Name:"display-name",Type:"type",State:"lifecycle-state",ID:"id"}' 2>&1 || echo "No domains"
+          echo ""
+          echo "=== OIDC Test: request OCI token with GitHub OIDC ==="
+          OIDC_TOKEN=$(curl -s -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=oci" 2>/dev/null)
+          if [ -n "$OIDC_TOKEN" ]; then
+            echo "OIDC token obtained from GitHub (length: ${#OIDC_TOKEN})"
+            DOMAIN_URL="${{ secrets.OCI_DOMAIN_URL }}"
+            if [ -n "$DOMAIN_URL" ]; then
+              echo "Testing token exchange against ${DOMAIN_URL}..."
+              EXCHANGE=$(curl -s -X POST "${DOMAIN_URL}/oauth2/v1/token" \
+                -H "Content-Type: application/x-www-form-urlencoded" \
+                -d "grant_type=urn:ietf:params:oauth:grant-type:token-exchange" \
+                -d "subject_token_type=urn:ietf:params:oauth:token-type:id_token" \
+                -d "subject_token=$OIDC_TOKEN" \
+                -d "scope=https://identity.oraclecloud.com/.default" 2>&1)
+              echo "Exchange response:"
+              echo "$EXCHANGE" | python3 -m json.tool 2>/dev/null || echo "$EXCHANGE"
+            else
+              echo "OCI_DOMAIN_URL not configured — skipping exchange test"
+            fi
+          else
+            echo "No OIDC token available (not a GitHub Actions run with id-token: write)"
+          fi
 
   deploy-services:
     name: Deploy Services
