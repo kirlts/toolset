@@ -141,8 +141,14 @@ jobs:
           TF_VAR_compartment_id: ${{ secrets.OCI_TENANCY_OCID }}
         run: |
           CID="${{ secrets.OCI_TENANCY_OCID }}"
-          echo "=== Identity Providers (protocol=OIDC) ==="
-          oci iam identity-provider list --protocol OIDC --compartment-id "$CID" 2>&1 || echo "No OIDC providers"
+          echo "=== All Identity Providers ==="
+          oci iam identity-provider list --all --compartment-id "$CID" 2>&1 || echo "No identity providers"
+          echo ""
+          echo "=== IdP by protocol ==="
+          for PROTO in SAML2 IDCS; do
+            echo "  Protocol=$PROTO:"
+            oci iam identity-provider list --protocol "$PROTO" --compartment-id "$CID" 2>&1 | grep -E "display-name|protocol|description" | head -5 || echo "    none"
+          done
           echo ""
           echo "=== Domains ==="
           oci iam domain list --compartment-id "$CID" --all --query 'data[*].{Name:"display-name",Type:"type",State:"lifecycle-state"}' 2>&1 || echo "No domains"
