@@ -877,7 +877,7 @@ Wants=hermes-gateway.service
 Type=simple
 User=opc
 WorkingDirectory=/opt/hermes-webui
-Environment=HERMES_WEBUI_PORT=8899
+Environment=HERMES_WEBUI_PORT=8877
 Environment=HERMES_WEBUI_HOST=0.0.0.0
 Environment=HERMES_WEBUI_SKIP_ONBOARDING=1
 ExecStart=/usr/local/lib/hermes-agent/venv/bin/python /opt/hermes-webui/server.py
@@ -911,7 +911,7 @@ print("WebUI default model set")' 2>/dev/null || true
 
 # --- Ensure Hermes WebUI Funnel on :8787 -> localhost:8888 ---
 HERMES_PORT="8787"
-HERMES_BACKEND="8888"
+HERMES_BACKEND="8877"
 echo "[DEPLOY] Ensuring Hermes WebUI Funnel on :${HERMES_PORT} -> localhost:${HERMES_BACKEND}..."
 HAS_HERMES=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   "${SSH_HOST}" "sudo tailscale funnel status 2>&1" | grep -c ":${HERMES_PORT}" || true)
