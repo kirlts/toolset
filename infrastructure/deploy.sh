@@ -853,6 +853,21 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
      echo '[cron] Consolidation cron installed (every 5 min)')"
 echo "[DEPLOY] Memory consolidation cron configured."
 
+# --- Install Caddy self-heal cron ---
+echo "[DEPLOY] Installing Caddy self-heal cron..."
+scp -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  "$(dirname "$0")/hermes-skills/toolset-ops/scripts/caddy-selfheal.sh" \
+  "${SSH_HOST}:/home/opc/.hermes/caddy-selfheal.sh"
+ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  "${SSH_HOST}" \
+  "chmod +x /home/opc/.hermes/caddy-selfheal.sh && \
+   CRON_CMD='*/5 * * * * /home/opc/.hermes/caddy-selfheal.sh' && \
+   (crontab -l 2>/dev/null | grep -q caddy-selfheal && \
+     echo '[cron] Caddy self-heal already installed' || \
+     (crontab -l 2>/dev/null; echo \"\$CRON_CMD\") | crontab - && \
+     echo '[cron] Caddy self-heal installed (every 5 min)')"
+echo "[DEPLOY] Caddy self-heal cron configured."
+
 FUNNEL_TARGET="http://localhost:8080"
 echo "[DEPLOY] Ensuring Tailscale Funnel -> Caddy (${FUNNEL_TARGET})..."
 CURRENT_FUNNEL=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
