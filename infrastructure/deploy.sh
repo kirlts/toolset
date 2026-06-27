@@ -156,6 +156,16 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   "${SSH_HOST}" \
   "cd ${REMOTE_DIR} && sudo docker compose pull 2>&1" | sed 's/^/  [PULL] /'
 
+# --- Port cleanup (prevent "address already in use" from zombie processes) ---
+echo "[DEPLOY] Cleaning up ports..."
+ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  "${SSH_HOST}" \
+  "sudo fuser -k 8888/tcp 2>/dev/null || true; \
+   sudo fuser -k 9999/tcp 2>/dev/null || true; \
+   sudo fuser -k 8080/tcp 2>/dev/null || true; \
+   sleep 3"
+echo "[DEPLOY] Ports cleaned."
+
 # --- Recreate changed services ---
 echo "[DEPLOY] Recreating services..."
 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
@@ -201,6 +211,20 @@ for svc in $CRITICAL; do
     "sudo docker inspect $svc --format '{{.State.Health.Status}}' 2>/dev/null || echo missing")
   if [ "$STATUS" = "healthy" ]; then echo "  ✅ $svc"; else echo "  ❌ $svc: $STATUS"; DEPLOY_FAILED=true; fi
 done
+
+# --- MCP connectivity check (critical: must survive deploys) ---
+echo "[DEPLOY] Verifying MCP connectivity..."
+MCP_INIT=$(curl -sf -X POST \
+  "https://${CADDY_DOMAIN}/hindsight/mcp/" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","method":"tools/call","params":{"name":"list_banks","arguments":{}},"id":1}' 2>/dev/null || echo "")
+if echo "$MCP_INIT" | grep -q "bank_id"; then
+  echo "  ✅ MCP connectivity verified (list_banks OK)"
+else
+  echo "  ❌ MCP connectivity failed"
+  DEPLOY_FAILED=true
+fi
 
 # --- Clone toolset repo on server (idempotent) ---
 echo "[DEPLOY] Syncing toolset repo on server..."
