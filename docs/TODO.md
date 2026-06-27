@@ -189,9 +189,9 @@
 
 > Ref: DT-002. Una vez Hermes esté operativo (TASK-006), definir e implementar autenticación.
 
-- [ ] Definir qué URLs requieren auth (gestión: Infisical, Hindsight CP, Hermes) y cuáles quedan públicas (observabilidad: health, API, MCP).
-- [ ] Implementar auth: Caddy `basicauth` por path o forward auth con Infisical.
-- [ ] Verificar que harnesses (Kilo Code, Claude Code) puedan conectar a MCP sin auth.
+- [x] Definir qué URLs requieren auth: decidido — Hindsight CP (/dashboard, /banks/*, /api/banks/*) requiere auth; /health, /hindsight/*, MCP quedan públicos. 2026-06-26 [🤖 Implementado]
+- [x] Implementar auth: Caddy basicauth con {$FUNNEL_AUTH_USER}/{$FUNNEL_AUTH_PASSWORD} via env vars. Password generada y almacenada en GH Secrets. 2026-06-26 [🤖 Verificado: /dashboard → 401, /health → 200]
+- [x] Verificar que harnesses conecten a MCP sin auth: curl /hindsight/mcp/ → 200, /hindsight/health → 200. Sin auth requerido. 2026-06-26 [🤖 Verificado]
 
 ---
 
