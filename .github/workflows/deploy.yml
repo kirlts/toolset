@@ -4,6 +4,14 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
+      - 'README.md'
+      - '.gitignore'
+      - '.env.example'
+      - 'kairos-version.txt'
+      - 'README-KAIROS.md'
   pull_request:
   workflow_dispatch:
     inputs:
@@ -32,6 +40,7 @@ env:
   INFRA_DIR: ./infrastructure
   SSH_HOST: opc@toolset-oci-1-1
   REMOTE_DIR: /opt/toolset
+  SSH_OPTS: -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ControlMaster=auto -o ControlPath=~/.ssh/cm-%r@%h:%p -o ControlPersist=600
 
 jobs:
   validate-configs:
@@ -39,69 +48,40 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install validation tools
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq yamllint jq 2>/dev/null
-
-      - name: Validate deploy.sh syntax
-        run: bash -n infrastructure/deploy.sh
-
-      - name: Validate config.yaml
-        run: python3 -c "import yaml; yaml.safe_load(open('infrastructure/hermes/config.yaml')); print('config.yaml OK')"
-
-      - name: Validate kilo.jsonc
-        run: python3 scripts/validate-kilo-config.py infrastructure/kilo.jsonc
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq yamllint jq 2>/dev/null
+      - run: bash -n infrastructure/deploy.sh
+      - run: python3 -c "import yaml; yaml.safe_load(open('infrastructure/hermes/config.yaml')); print('OK')"
+      - run: python3 scripts/validate-kilo-config.py infrastructure/kilo.jsonc
 
   opentofu:
-    name: OpenTofu Infrastructure
+    name: OpenTofu
     needs: validate-configs
     if: ${{ !inputs.skip_opentofu }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Configurar API Key de OCI
-        run: |
+      - run: |
           mkdir -p ~/.oci
           echo "${{ secrets.OCI_API_KEY }}" > ~/.oci/gh_key.pem
           chmod 600 ~/.oci/gh_key.pem
-          {
-            echo "[DEFAULT]"
-            echo "user=${{ secrets.OCI_USER_OCID }}"
-            echo "fingerprint=${{ secrets.OCI_FINGERPRINT }}"
-            echo "tenancy=${{ secrets.OCI_TENANCY_OCID }}"
-            echo "region=sa-valparaiso-1"
-            echo "key_file=$HOME/.oci/gh_key.pem"
-          } > ~/.oci/config
-
-      - name: Instalar OCI CLI
-        run: |
-          python3 -m pip install --user oci-cli 2>/dev/null || true
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
-
-      - name: Descargar State Remoto (OCI Object Storage)
+          printf "[DEFAULT]\nuser=%s\nfingerprint=%s\ntenancy=%s\nregion=sa-valparaiso-1\nkey_file=%s\n" \
+            "${{ secrets.OCI_USER_OCID }}" "${{ secrets.OCI_FINGERPRINT }}" \
+            "${{ secrets.OCI_TENANCY_OCID }}" "$HOME/.oci/gh_key.pem" > ~/.oci/config
+      - run: python3 -m pip install --user oci-cli 2>/dev/null || true
+      - run: echo "$HOME/.local/bin" >> $GITHUB_PATH
+      - name: Download remote state
         working-directory: ${{ env.INFRA_DIR }}
+        run: oci os object get -bn toolset-opentofu-state --name infrastructure/terraform.tfstate --file terraform.tfstate 2>/dev/null || true
+      - uses: opentofu/setup-opentofu@v1
+      - name: Derive SSH key
         run: |
-          oci os object get \
-            -bn toolset-opentofu-state \
-            --name infrastructure/terraform.tfstate \
-            --file terraform.tfstate 2>/dev/null || echo "No remote state yet (first run)"
-
-      - name: Instalar OpenTofu
-        uses: opentofu/setup-opentofu@v1
-
-      - name: Derivar SSH public key
-        run: |
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > /tmp/ssh_key
-          chmod 600 /tmp/ssh_key
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > /tmp/ssh_key && chmod 600 /tmp/ssh_key
           ssh-keygen -y -f /tmp/ssh_key > /tmp/ssh_key.pub
           echo "SSH_PUBLIC_KEY=$(cat /tmp/ssh_key.pub)" >> "$GITHUB_ENV"
-
-      - name: Init OpenTofu
+      - name: Init
         working-directory: ${{ env.INFRA_DIR }}
         run: tofu init
-
-      - name: Tofu Plan
+      - name: Plan
         if: github.event_name == 'pull_request'
         working-directory: ${{ env.INFRA_DIR }}
         env:
@@ -110,8 +90,7 @@ jobs:
           TF_VAR_infisical_auth_secret: ${{ secrets.INFISICAL_AUTH_SECRET }}
           TF_VAR_ssh_public_key: ${{ env.SSH_PUBLIC_KEY }}
         run: tofu plan
-
-      - name: Tofu Apply
+      - name: Apply
         if: github.ref == 'refs/heads/main'
         working-directory: ${{ env.INFRA_DIR }}
         env:
@@ -120,69 +99,68 @@ jobs:
           TF_VAR_infisical_auth_secret: ${{ secrets.INFISICAL_AUTH_SECRET }}
           TF_VAR_ssh_public_key: ${{ env.SSH_PUBLIC_KEY }}
         run: tofu apply -auto-approve
-
-      - name: Subir State Remoto
+      - name: Upload state
         if: github.ref == 'refs/heads/main'
         working-directory: ${{ env.INFRA_DIR }}
-        run: |
-          oci os object put \
-            -bn toolset-opentofu-state \
-            --name infrastructure/terraform.tfstate \
-            --file terraform.tfstate \
-            --force
+        run: oci os object put -bn toolset-opentofu-state --name infrastructure/terraform.tfstate --file terraform.tfstate --force
 
   deploy-services:
-    name: Deploy Services
+    name: Deploy
     needs: validate-configs
     if: ${{ !inputs.skip_deploy && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
 
-      - name: Install Tailscale
-        run: curl -fsSL https://tailscale.com/install.sh | sh
-
-      - name: Connect to Tailnet
+      # Detect what changed
+      - name: Check changes
+        id: changes
         run: |
-          sudo tailscale up \
-            --auth-key=${{ secrets.TAILSCALE_AUTH_KEY }} \
-            --hostname=gh-deploy \
-            --accept-routes
+          CHANGED=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "all")
+          echo "changed=$CHANGED" >> $GITHUB_OUTPUT
+          echo "build_sandbox=false" >> $GITHUB_OUTPUT
+          echo "pull_images=false" >> $GITHUB_OUTPUT
+          if echo "$CHANGED" | grep -q "hermes-sandbox.Dockerfile"; then
+            echo "build_sandbox=true" >> $GITHUB_OUTPUT
+          fi
+          if echo "$CHANGED" | grep -q "docker-compose.yml"; then
+            echo "pull_images=true" >> $GITHUB_OUTPUT
+          fi
+          echo "changed files: $(echo $CHANGED | tr '\n' ' ')"
 
-      - name: Disable Tailscale SSH interception
-        run: sudo tailscale set --ssh=false
-
-      - name: Setup SSH key
-        run: |
+      - run: curl -fsSL https://tailscale.com/install.sh | sh
+      - name: Tailscale up
+        run: sudo tailscale up --auth-key=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname=gh-deploy --accept-routes
+      - run: sudo tailscale set --ssh=false
+      - run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-
-      - name: Verify connectivity (3 attempts)
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
+      - name: SSH connectivity + multiplex
         run: |
-          for i in 1 2 3; do
-            ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 ${{ env.SSH_HOST }} "hostname && uptime" && break
-            echo "  SSH attempt $i failed, retrying..." && sleep 5
-          done
+          ssh ${{ env.SSH_OPTS }} ${{ env.SSH_HOST }} "hostname && uptime"
+          echo "SSH multiplex established"
 
-      - name: Set up Docker Buildx
+      - name: Build sandbox Docker
+        if: ${{ steps.changes.outputs.build_sandbox == 'true' && !inputs.skip_sandbox_build }}
         uses: docker/setup-buildx-action@v3
-
-      - name: Build Hermes sandbox Docker image
-        if: ${{ !inputs.skip_sandbox_build }}
+        with:
+          buildkitd-flags: --debug
+      - name: Build sandbox image
+        if: ${{ steps.changes.outputs.build_sandbox == 'true' && !inputs.skip_sandbox_build }}
         uses: docker/build-push-action@v6
         with:
           context: infrastructure/
           file: infrastructure/hermes-sandbox.Dockerfile
-          tags: |
-            toolset/hermes-sandbox:latest
-            toolset/hermes-sandbox:${{ github.sha }}
+          tags: toolset/hermes-sandbox:latest
           load: true
           cache-from: type=gha,scope=sandbox
           cache-to: type=gha,mode=max,scope=sandbox
 
-      - name: Deploy services
+      - name: Deploy
         env:
+          SSH_OPTS: ${{ env.SSH_OPTS }}
           SSH_HOST: ${{ env.SSH_HOST }}
           INFISICAL_ENCRYPTION_KEY: ${{ secrets.INFISICAL_ENCRYPTION_KEY }}
           INFISICAL_AUTH_SECRET: ${{ secrets.INFISICAL_AUTH_SECRET }}
@@ -200,12 +178,10 @@ jobs:
           COMPOSIO_MCP_KEY: ${{ secrets.COMPOSIO_MCP_KEY }}
           GH_CLI_TOKEN: ${{ secrets.GH_CLI_TOKEN }}
           FUNNEL_DOMAIN: ${{ vars.FUNNEL_DOMAIN }}
-          FUNNEL_AUTH_USER: ${{ vars.FUNNEL_AUTH_USER }}
-          FUNNEL_AUTH_PASSWORD: ${{ secrets.FUNNEL_AUTH_PASSWORD }}
         working-directory: ${{ env.INFRA_DIR }}
         run: chmod +x deploy.sh && ./deploy.sh
 
-      - name: Sync secrets to Infisical (standalone script, verifiable)
+      - name: Sync secrets
         env:
           INFISICAL_TOKEN: ${{ secrets.INFISICAL_SERVICE_TOKEN }}
           INFISICAL_PID: ${{ secrets.INFISICAL_PID }}
@@ -223,7 +199,7 @@ jobs:
           python3 scripts/sync-infisical-secrets.py push
           python3 scripts/sync-infisical-secrets.py verify
 
-      - name: Reverse sync (Infisical → GitHub Secrets)
+      - name: Reverse sync
         env:
           INFISICAL_TOKEN: ${{ secrets.INFISICAL_SERVICE_TOKEN }}
           INFISICAL_PID: ${{ secrets.INFISICAL_PID }}
@@ -231,17 +207,26 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_CLI_TOKEN }}
         run: python3 scripts/sync-infisical-secrets.py pull
 
-      - name: Post-deploy preflight checks
-        if: ${{ !inputs.skip_preflight }}
-        working-directory: ${{ env.INFRA_DIR }}
-        run: chmod +x preflight.sh && ./preflight.sh
-
       - name: Notify failure
         if: failure()
         run: |
-          echo "::error::Deploy failed! https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          echo "Pipeline falló: $RUN_URL"
-          # Try WhatsApp notification via Hermes
-          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 ${{ env.SSH_HOST }} \
-            "hermes -z 'Envía por WhatsApp: Pipeline CI/CD falló en toolset. Revisa $RUN_URL'" 2>/dev/null || true
+          ssh ${{ env.SSH_OPTS }} ${{ env.SSH_HOST }} \
+            "hermes -z 'Notifica por WhatsApp: Pipeline falló en toolset. $RUN_URL'" 2>/dev/null || true
+
+  preflight:
+    name: Preflight Checks
+    needs: deploy-services
+    if: ${{ always() && github.ref == 'refs/heads/main' && needs.deploy-services.result == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: curl -fsSL https://tailscale.com/install.sh | sh
+      - run: sudo tailscale up --auth-key=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname=gh-deploy --accept-routes
+      - run: sudo tailscale set --ssh=false
+      - run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
+      - name: Run preflight
+        working-directory: ${{ env.INFRA_DIR }}
+        run: chmod +x preflight.sh && ./preflight.sh

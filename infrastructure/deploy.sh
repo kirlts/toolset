@@ -2,37 +2,16 @@
 set -euo pipefail
 
 # deploy.sh — Toolset Personal CI/CD Deploy
-#
-# Edge cases handled:
-#   - Fresh OCI instance (cloud-init ran) → .env missing, creates from scratch
-#   - Existing instance (incremental deploy) → .env preserved, services updated
-#   - Partial failure → non-dependent steps still run (no early exit on optional steps)
-#   - Idempotent: safe to re-run any number of times
-#   - Hermes gateway restart graceful: uses kill -s KILL + start to avoid 90s drain timeout
-#   - LVM extend on both fresh (cloud-init) and existing (deploy.sh) instances
-#   - Composio MCP: static x-api-key deprecated; SDK session URL generated per deploy
-#   - Secrets always flow GitHub → deploy.sh → .env + Infisical
-#   - Reverse sync: Infisical → GitHub for Hermes-created secrets
+set -euo pipefail
 
-# ============================================================
-# deploy.sh — Toolset Personal CI/CD Deploy
-#
-# Transfers docker-compose.yml and deploys services to the OCI
-# server via SSH over Tailscale.
-#
-# Usage:
-#   SSH_HOST=opc@100.77.183.125 \
-#     INFISICAL_ENCRYPTION_KEY=... \
-#     INFISICAL_AUTH_SECRET=... \
-#     INFISICAL_DB_PASSWORD=... \
-#     OPENCODE_GO_API_KEY=... \
-#     ./deploy.sh
-#
-# Optional:
-#   COMPOSE_FILE=./docker-compose.yml   (default: ./docker-compose.yml)
-#   REMOTE_DIR=/opt/toolset             (default: /opt/toolset)
-#   SSH_KEY_PATH=/path/to/key           (uses default SSH key discovery)
-# ============================================================
+# SSH multiplexing: reuse single connection for all SSH/SCP calls
+SSH_OPTS="${SSH_OPTS:--o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null}"
+SSH_MUX="-o ControlMaster=auto -o ControlPath=/tmp/ssh-mux-%r@%h:%p -o ControlPersist=600"
+SSH_BASE="$SSH_OPTS $SSH_MUX"
+
+# Override ssh/scp to always use ControlMaster multiplexing
+ssh() { command ssh $SSH_BASE "$@"; }
+scp() { command scp $SSH_BASE "$@"; }
 
 COMPOSE_FILE="${COMPOSE_FILE:-$(dirname "$0")/docker-compose.yml}"
 REMOTE_DIR="${REMOTE_DIR:-/opt/toolset}"
@@ -204,23 +183,21 @@ DEPLOY_FAILED=false
 echo "[DEPLOY] Verifying critical services..."
 sleep 10
 CRITICAL="caddy hindsight infisical"
-for attempt in 1 2 3 4 5; do
+for attempt in 1 2 3; do
   ALL_OK=true
   for svc in $CRITICAL; do
-    STATUS=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-      "${SSH_HOST}" \
+    STATUS=$(ssh "${SSH_HOST}" \
       "sudo docker inspect $svc --format '{{.State.Health.Status}}' 2>/dev/null || echo missing")
     if [ "$STATUS" != "healthy" ]; then
-      echo "  ⏳ $svc: $STATUS (attempt $attempt/5)"
+      echo "  ⏳ $svc: $STATUS (attempt $attempt/3)"
       ALL_OK=false
     fi
   done
   $ALL_OK && break
-  [ "$attempt" -lt 5 ] && sleep 20
+  [ "$attempt" -lt 3 ] && sleep 10
 done
 for svc in $CRITICAL; do
-  STATUS=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    "${SSH_HOST}" \
+  STATUS=$(ssh "${SSH_HOST}" \
     "sudo docker inspect $svc --format '{{.State.Health.Status}}' 2>/dev/null || echo missing")
   if [ "$STATUS" = "healthy" ]; then echo "  ✅ $svc"; else echo "  ❌ $svc: $STATUS"; DEPLOY_FAILED=true; fi
 done
