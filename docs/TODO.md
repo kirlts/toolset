@@ -157,6 +157,29 @@
 
 **Covered checks:** `[DEV.CR.09.LLM]`
 
+---
+
+## [EPIC-007] Pipeline CI/CD Hardening
+
+> Ref: MASTER-SPEC §7
+
+### [TASK-012] Robustecimiento integral del pipeline
+
+**Covered checks:** `[DEV.CR.14.LLM]`, `[DEV.CR.15.LLM]`, `[DEV.CR.16.LLM]`, `[DEV.CR.17.LLM]`, `[DEV.CR.18.LLM]`, `[DEV.CR.19.LLM]`, `[DEV.CR.20.LLM]`
+
+- [x] Concurrency group para evitar deploys paralelos 2026-06-26 [🤖 Verified by tool]
+- [x] Rollback automático en deploy.sh 2026-06-26 [🤖 Verified by tool]
+- [x] Infisical sync standalone script (push|verify|pull) 2026-06-26 [🤖 Verified by tool]
+- [x] Reverse sync desde runner con GH_TOKEN 2026-06-26 [🤖 Verified by tool]
+- [x] FUNNEL_DOMAIN como GitHub variable 2026-06-26 [🤖 Verified by tool]
+- [x] Caddy basicauth para management URLs 2026-06-26 [🤖 Verified by tool]
+- [x] Preflight checks no bloqueantes 2026-06-26 [🤖 Verified by tool]
+- [x] Deploy <5min (optimizaciones condicionales) 2026-06-26 [🤖 Verified by tool]
+- [x] Notificación de fallo via Hermes/WhatsApp 2026-06-26 [🤖 Verified by tool]
+- [x] config.yaml protegido (chattr +i) 2026-06-26 [🤖 Verified by tool]
+
+---
+
 - [x] Investigar cómo configurar Tailscale Funnel para recepción de webhooks desde GitHub y otras plataformas. 2026-06-22 [🤖 Verified by tool]
 - [x] Habilitar Funnel en Tailscale admin console. 2026-06-22 [🧑 Habilitado por usuario]
 - [x] Configurar Funnel en OCI: apunta a Caddy (`http://localhost:8080`) que enruta por path a cada servicio. 2026-06-22 [🤖 Verified by tool]
@@ -201,8 +224,9 @@
 | --- | --- | --- | --- | --- | --- | --- |
 | EPIC-001 | TASK-001 a TASK-003 | Completed | 4 | 1 | 0 | 5 |
 | EPIC-002 | TASK-004 | Completed | 1 | 1 | 0 | 2 |
-| EPIC-003 | TASK-005 | In Progress | 1 | 0 | 0 | 1 |
-| EPIC-004 | TASK-006 | In Progress | 3 | 1 | 0 | 4 |
+| EPIC-003 | TASK-005 | Completed | 1 | 0 | 0 | 1 |
+| EPIC-004 | TASK-006 | Completed | 4 | 1 | 0 | 5 |
 | EPIC-005 | TASK-007 | Completed | 0 | 0 | 1 | 1 |
 | EPIC-006 | TASK-008 a TASK-011 | In Progress | 4 | 0 | 0 | 4 |
-| **TOTAL** | | | **13** | **3** | **1** | **17** |
+| EPIC-007 | TASK-012 | Completed | 7 | 0 | 0 | 7 |
+| **TOTAL** | | | **21** | **3** | **1** | **25** |

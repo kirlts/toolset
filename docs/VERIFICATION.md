@@ -79,8 +79,25 @@
 ### Verificaciones de Próximos Pasos (EPIC-006)
 
 - ✅ `[DEV.CR.09.LLM]` Verificar configuración de Tailscale Funnel para recepción de webhooks.
-  - *Resultado esperado:* Hindsight API/MCP accesible vía HTTPS público en `https://toolset-oci-1.tail2d4c18.ts.net/health` → `{"status":"healthy","database":"connected"}`.
-  - *Verificación:* ✅ Implementado. Funnel activo. MCP reachable via Funnel URL (responde con MCP error por falta de session_id, esperado).
-- 🔲 `[DEV.CR.10.LLM]` Verificar integración de Infisical con servicios (Hermes, Daytona) en runtime.
+  - *Resultado esperado:* Hindsight API/MCP accesible vía HTTPS público.
+  - *Verificación:* ✅ Implementado. Funnel activo. MCP reachable. (🤖 Verified by curl; 2026-06-22)
+- 🔲 `[DEV.CR.10.LLM]` Verificar integración de Infisical con servicios en runtime.
 - 🔲 `[DEV.CR.11.LLM]` Verificar Tailscale SSH funcional en Oracle Linux 9 con SELinux.
-- 🔲 `[DEV.CR.12.LLM]` Verificar resolución de OIDC Identity Propagation Trust (DT-001).
+- 🔲 `[DEV.CR.12.LLM]` ~~OIDC~~ Cerrado. API key estática mantenida. (2026-06-26)
+
+### Verificaciones de Pipeline CI/CD (EPIC-007)
+
+- ✅ `[DEV.CR.14.LLM]` Concurrency group impide deploys paralelos en main.
+  - *Verificacion:* ✅ Implementado — `concurrency.group: deploy-${{ github.ref_name }}`. (🤖 Verified by sequentialized runs; 2026-06-26)
+- ✅ `[DEV.CR.15.LLM]` Rollback automático restaura compose anterior si falla verificación.
+  - *Verificacion:* ✅ Implementado — marker + restore + preflight auto-revert. (🤖 Verified by pipeline; 2026-06-26)
+- ✅ `[DEV.CR.16.LLM]` Sync bidireccional Infisical↔GitHub funcional.
+  - *Verificacion:* ✅ Implementado — push via script standalone, pull via runner con GH_TOKEN. 18/18 secrets verificados. (🤖 Verified by verify action; 2026-06-26)
+- ✅ `[DEV.CR.17.LLM]` Preflight verifica 15 invariantes MASTER-SPEC post-deploy.
+  - *Verificacion:* ✅ Implementado — health, MCP 3-step, SOUL.md, banks, skills, AGENTS.md, cron. (🤖 Verified by pipeline; 2026-06-26)
+- ✅ `[DEV.CR.18.LLM]` Caddy basicauth protege management URLs, MCP público.
+  - *Verificacion:* ✅ /dashboard → 401, /health → 200, /hindsight/mcp/ → 200. (🤖 Verified by curl; 2026-06-26)
+- ✅ `[DEV.CR.19.LLM]` Deploy incremental <5min sin cambios de infra.
+  - *Verificacion:* ✅ ~4:25 con sandbox build condicional + Tailscale action + SSH mux. (🤖 Verified by pipeline timing; 2026-06-26)
+- ✅ `[DEV.CR.20.LLM]` FUNNEL_DOMAIN parametrizado como GitHub variable.
+  - *Verificacion:* ✅ 36 referencias hardcodeadas reemplazadas. (🤖 Verified by grep; 2026-06-26)
