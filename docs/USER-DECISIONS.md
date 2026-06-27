@@ -273,3 +273,40 @@
 - Para un volumen completamente fresco, el primer deploy crea admin + org; el service token falla hasta que se cree el proyecto manualmente.
 
 **Reversion conditions:** Cambiar a OIDC para auth de CI/CD o a machine identities cuando Infisical madure el soporte.
+
+---
+
+## [UD-014] Remoción OIDC — DT-001 cerrado, API key estática permanente
+
+**Date:** 2026-06-26
+**Context:** El Identity Propagation Trust "GitHub Actions Toolset Trust" en OCI rechazó el JWT OIDC de GitHub para las 6 combinaciones de grant_type x token_type probadas.
+**Decision:** Cerrar DT-001 como no resoluble sin OCI Console. Mantener API key estática como mecanismo permanente. Eliminar secrets OIDC (OCI_DOMAIN_URL, OCI_OAUTH_CLIENT_ID/SECRET) de GitHub Secrets.
+**Consequences:** API key estática requiere rotación manual. No hay SSO para CI/CD.
+**Discarded alternatives:** Debug en OCI Console (requiere intervención del usuario).
+
+---
+
+## [UD-015] GitHub Secrets como única fuente de verdad — sin variables, sin hardcodeo
+
+**Date:** 2026-06-27
+**Context:** Tras auditoría CI/CD, se determinó que usar GitHub Variables para FUNNEL_DOMAIN y hardcodear valores inconsistentemente causaba fractura en la fuente de verdad.
+**Decision:** GitHub Secrets son la única fuente de verdad. FUNNEL_DOMAIN migrado de variable a secret. No hay ${{ vars.* }} en deploy.yml.
+**Consequences:** Todos los valores sensibles y de configuración están en un solo lugar. Rotación consistente.
+
+---
+
+## [UD-016] Sin auth en rutas de Caddy/Hindsight CP
+
+**Date:** 2026-06-27
+**Context:** Caddy basicauth implementado inicialmente para Hindsight CP pero el usuario prefirió sin auth.
+**Decision:** Eliminar todos los bloques basicauth del Caddyfile. Hindsight CP, dashboard y APIs son públicos.
+**Consequences:** Menos overhead de deploy. Riesgo aceptado: solo accesible vía Tailscale Funnel (no indexado).
+
+---
+
+## [UD-017] Hermes WebUI puerto 8877 (no 8888) para evitar conflicto con Hindsight
+
+**Date:** 2026-06-27
+**Context:** Hindsight API (Docker) bindea 127.0.0.1:8888, conflicto con Hermes WebUI (systemd) que usaba mismo puerto.
+**Decision:** Cambiar HERMES_WEBUI_PORT a 8877. Actualizar Funnel :8787 → localhost:8877.
+**Consequences:** Hermes WebUI no compite con Hindsight por el puerto. Funnel actualizado.
