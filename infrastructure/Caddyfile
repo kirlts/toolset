@@ -1,65 +1,130 @@
 # Toolset Personal — Caddy reverse proxy
+# FUNNEL_AUTH_USER and FUNNEL_AUTH_PASSWORD env vars set in docker-compose.yml
 
 {
     http_port 8080
     auto_https off
     admin off
-    servers {
-        timeouts {
-            idle 0
-        }
-    }
 }
 
 :8080 {
-    # Hindsight CP (Next.js SPA) — no auth
-    handle_path /dashboard/* {
-        reverse_proxy hindsight:9999
-    }
-    handle_path /banks/* {
-        reverse_proxy hindsight:9999
-    }
-    handle_path /bank/* {
-        reverse_proxy hindsight:9999
-    }
-    handle /_next/* {
+    # Hindsight Control Plane (Next.js SPA) — requires auth
+    @cp_native path_regexp cp_native ^/(dashboard|_next)(/.*)?$
+    handle @cp_native {
+        basicauth * {
+            {$FUNNEL_AUTH_USER} {$FUNNEL_AUTH_PASSWORD}
+        }
         reverse_proxy hindsight:9999
     }
 
-    # CP API routes — no auth
+    # CP API routes — requires auth
     handle /api/version {
+        basicauth * {
+            {$FUNNEL_AUTH_USER} {$FUNNEL_AUTH_PASSWORD}
+        }
         reverse_proxy hindsight:9999
     }
     handle /api/banks/* {
+        basicauth * {
+            {$FUNNEL_AUTH_USER} {$FUNNEL_AUTH_PASSWORD}
+        }
         reverse_proxy hindsight:9999
     }
     handle /api/banks {
+        basicauth * {
+            {$FUNNEL_AUTH_USER} {$FUNNEL_AUTH_PASSWORD}
+        }
         reverse_proxy hindsight:9999
     }
     handle /api/profile/* {
+        basicauth * {
+            {$FUNNEL_AUTH_USER} {$FUNNEL_AUTH_PASSWORD}
+        }
         reverse_proxy hindsight:9999
     }
     handle /api/stats/* {
+        basicauth * {
+            {$FUNNEL_AUTH_USER} {$FUNNEL_AUTH_PASSWORD}
+        }
         reverse_proxy hindsight:9999
     }
     handle /api/list {
+        basicauth * {
+            {$FUNNEL_AUTH_USER} {$FUNNEL_AUTH_PASSWORD}
+        }
         reverse_proxy hindsight:9999
     }
     handle /api/recall {
+        basicauth * {
+            {$FUNNEL_AUTH_USER} {$FUNNEL_AUTH_PASSWORD}
+        }
         reverse_proxy hindsight:9999
     }
     handle /api/reflect {
+        basicauth * {
+            {$FUNNEL_AUTH_USER} {$FUNNEL_AUTH_PASSWORD}
+        }
         reverse_proxy hindsight:9999
     }
     handle /api/documents/* {
+        basicauth * {
+            {$FUNNEL_AUTH_USER} {$FUNNEL_AUTH_PASSWORD}
+        }
         reverse_proxy hindsight:9999
     }
 
-    # Hindsight API — no auth, flush_interval -1 for SSE streaming
+    # SPA fallback: /bank and /banks → requires auth
+    handle /bank/* {
+        basicauth * {
+            {$FUNNEL_AUTH_USER} {$FUNNEL_AUTH_PASSWORD}
+        }
+        handle /bank/api/* {
+            uri strip_prefix /bank
+            reverse_proxy hindsight:9999
+        }
+        handle /bank/_next/* {
+            uri strip_prefix /bank
+            reverse_proxy hindsight:9999
+        }
+        handle {
+            reverse_proxy hindsight:9999
+        }
+    }
+    handle /bank {
+        basicauth * {
+            {$FUNNEL_AUTH_USER} {$FUNNEL_AUTH_PASSWORD}
+        }
+        reverse_proxy hindsight:9999
+    }
+    handle /banks/* {
+        basicauth * {
+            {$FUNNEL_AUTH_USER} {$FUNNEL_AUTH_PASSWORD}
+        }
+        handle /banks/api/* {
+            uri strip_prefix /banks
+            reverse_proxy hindsight:9999
+        }
+        handle /banks/_next/* {
+            uri strip_prefix /banks
+            reverse_proxy hindsight:9999
+        }
+        handle {
+            reverse_proxy hindsight:9999
+        }
+    }
+    handle /banks {
+        basicauth * {
+            {$FUNNEL_AUTH_USER} {$FUNNEL_AUTH_PASSWORD}
+        }
+        reverse_proxy hindsight:9999
+    }
+
+    # Hindsight API (health, v1/*, docs, mcp, openapi.json) — no auth required
+    # flush_interval=0 disables response buffering needed for MCP Streamable HTTP + SSE
     handle /hindsight/* {
         uri strip_prefix /hindsight
         reverse_proxy hindsight:8888 {
-            flush_interval -1
+            flush_interval 0
         }
     }
 
@@ -68,7 +133,7 @@
         reverse_proxy hindsight:8888
     }
 
-    # Health endpoint
+    # Health endpoint — no auth required
     handle /health {
         reverse_proxy hindsight:8888
     }
@@ -85,12 +150,12 @@
     handle /api/v1/* {
         reverse_proxy infisical:8080
     }
-    # Catch-all /api/* → CP
+    # Catch-all /api/* → CP (protected by catch-all above)
     handle /api/* {
         reverse_proxy hindsight:9999
     }
 
-    # Root → landing page
+    # Root → landing page — no auth
     handle {
         root * /usr/share/caddy/landing
         try_files {path} index.html

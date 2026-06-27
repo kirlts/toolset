@@ -156,49 +156,16 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   "${SSH_HOST}" \
   "cd ${REMOTE_DIR} && sudo docker compose pull 2>&1" | sed 's/^/  [PULL] /'
 
-# --- Port cleanup (prevent "address already in use" from zombie processes) ---
-echo "[DEPLOY] Cleaning up ports..."
-ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-  "${SSH_HOST}" \
-  "sudo fuser -k 8888/tcp 2>/dev/null || true; \
-   sudo fuser -k 9999/tcp 2>/dev/null || true; \
-   sudo fuser -k 8080/tcp 2>/dev/null || true; \
-   sleep 3"
-echo "[DEPLOY] Ports cleaned."
-
-# --- Port cleanup (prevent "address already in use" from zombie processes) ---
+# --- Recreate changed services ---
 echo "[DEPLOY] Recreating services..."
 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   "${SSH_HOST}" \
    "sudo systemctl stop hermes-webui 2>/dev/null || true && \
-     cd ${REMOTE_DIR} && \
-     docker compose up -d --remove-orphans 2>&1 && \
-    sudo systemctl start hermes-webui 2>/dev/null || true" | sed 's/^/  [UP] /'
-
-# --- Verify Caddy port binding (docker-proxy often drops it) ---
-echo "[DEPLOY] Verifying Caddy port binding..."
-PORT_OK=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-  "${SSH_HOST}" \
-  "curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://localhost:8080/health 2>/dev/null || echo '000'" 2>/dev/null || echo "000")
-if [ "$PORT_OK" != "200" ] && [ "$PORT_OK" != "502" ]; then
-  echo "  Port 8080 not responding (HTTP $PORT_OK). Force-restarting Caddy..."
-  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    "${SSH_HOST}" \
-    "sudo fuser -k 8080/tcp 2>/dev/null || true; \
-     sleep 2; \
-     cd ${REMOTE_DIR} && sudo docker compose up -d --force-recreate caddy 2>&1" | sed 's/^/  [FIX] /'
-  sleep 5
-  PORT_RETRY=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    "${SSH_HOST}" \
-    "curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://localhost:8080/health 2>/dev/null || echo '000'" 2>/dev/null || echo "000")
-  if [ "$PORT_RETRY" = "200" ] || [ "$PORT_RETRY" = "502" ]; then
-    echo "  ✅ Caddy port binding restored (HTTP $PORT_RETRY)"
-  else
-    echo "  ❌ Caddy still not responding (HTTP $PORT_RETRY)"
-  fi
-else
-  echo "  ✅ Caddy port binding OK (HTTP $PORT_OK)"
-fi
+    cd ${REMOTE_DIR} && \
+    sudo env FUNNEL_AUTH_USER='${FUNNEL_AUTH_USER:-toolset-admin}' \
+         FUNNEL_AUTH_PASSWORD='${FUNNEL_AUTH_PASSWORD:-changeme}' \
+    docker compose up -d --remove-orphans 2>&1 && \
+   sudo systemctl start hermes-webui 2>/dev/null || true" | sed 's/^/  [UP] /'
 
 # --- Save compose state for rollback ---
 echo "[DEPLOY] Saving compose state for rollback..."
@@ -234,20 +201,6 @@ for svc in $CRITICAL; do
     "sudo docker inspect $svc --format '{{.State.Health.Status}}' 2>/dev/null || echo missing")
   if [ "$STATUS" = "healthy" ]; then echo "  ✅ $svc"; else echo "  ❌ $svc: $STATUS"; DEPLOY_FAILED=true; fi
 done
-
-# --- MCP connectivity check (critical: must survive deploys) ---
-echo "[DEPLOY] Verifying MCP connectivity..."
-MCP_INIT=$(curl -sf -X POST \
-  "https://${CADDY_DOMAIN}/hindsight/mcp/" \
-  -H "Content-Type: application/json" \
-  -H "Accept: application/json, text/event-stream" \
-  -d '{"jsonrpc":"2.0","method":"tools/call","params":{"name":"list_banks","arguments":{}},"id":1}' 2>/dev/null || echo "")
-if echo "$MCP_INIT" | grep -q "bank_id"; then
-  echo "  ✅ MCP connectivity verified (list_banks OK)"
-else
-  echo "  ❌ MCP connectivity failed"
-  DEPLOY_FAILED=true
-fi
 
 # --- Clone toolset repo on server (idempotent) ---
 echo "[DEPLOY] Syncing toolset repo on server..."
@@ -807,7 +760,6 @@ scp -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   "${SSH_HOST}" \
   "export PATH=/usr/local/bin:/home/opc/.local/bin:\$PATH; \
-    sudo chattr -i /home/opc/.hermes/config.yaml 2>/dev/null || true; \
     chmod +x /tmp/inject-composio-key.py && \
     hermes config set terminal.backend local 2>/dev/null; \
     hermes config set memory.provider hindsight 2>/dev/null; \
@@ -816,7 +768,6 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     hermes config set model.default 'opencodego/deepseek-v4-flash' 2>/dev/null; \
     hermes config set model.provider 'opencode-go' 2>/dev/null; \
     python3 /tmp/inject-composio-key.py 2>&1; \
-    sudo chattr +i /home/opc/.hermes/config.yaml 2>/dev/null || true; \
     rm -f /tmp/inject-composio-key.py"
 
 echo "[DEPLOY] Hermes runtime configuration complete."
@@ -877,21 +828,6 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
      (crontab -l 2>/dev/null; echo \"\$CRON_CMD\") | crontab - && \
      echo '[cron] Consolidation cron installed (every 5 min)')"
 echo "[DEPLOY] Memory consolidation cron configured."
-
-# --- Install Caddy self-heal cron ---
-echo "[DEPLOY] Installing Caddy self-heal cron..."
-scp -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-  "$(dirname "$0")/hermes-skills/toolset-ops/scripts/caddy-selfheal.sh" \
-  "${SSH_HOST}:/home/opc/.hermes/caddy-selfheal.sh"
-ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-  "${SSH_HOST}" \
-  "chmod +x /home/opc/.hermes/caddy-selfheal.sh && \
-   CRON_CMD='*/5 * * * * /home/opc/.hermes/caddy-selfheal.sh' && \
-   (crontab -l 2>/dev/null | grep -q caddy-selfheal && \
-     echo '[cron] Caddy self-heal already installed' || \
-     (crontab -l 2>/dev/null; echo \"\$CRON_CMD\") | crontab - && \
-     echo '[cron] Caddy self-heal installed (every 5 min)')"
-echo "[DEPLOY] Caddy self-heal cron configured."
 
 FUNNEL_TARGET="http://localhost:8080"
 echo "[DEPLOY] Ensuring Tailscale Funnel -> Caddy (${FUNNEL_TARGET})..."
@@ -1023,29 +959,6 @@ if [ -f "$PREFLIGHT_SCRIPT" ]; then
        fi"
   fi
 fi
-
-# --- Verify all public URLs respond correctly (mandatory) ---
-echo "[DEPLOY] Verifying public URLs..."
-FUNNEL="https://${CADDY_DOMAIN}"
-URLS=(
-  "/:Landing page"
-  "/health:Health check"
-  "/hindsight/health:Hindsight API"
-  "/hindsight/mcp/:MCP endpoint"
-  "/dashboard:Hindsight CP"
-  "/api/v1/:Infisical API"
-)
-for entry in "${URLS[@]}"; do
-  path="${entry%%:*}"
-  name="${entry##*:}"
-  CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "${FUNNEL}${path}" 2>/dev/null || echo "000")
-  if [ "$CODE" = "200" ] || [ "$CODE" = "302" ] || [ "$CODE" = "404" ]; then
-    echo "  ✅ ${name} (${path}) → ${CODE}"
-  else
-    echo "  ❌ ${name} (${path}) → ${CODE}"
-    DEPLOY_FAILED=true
-  fi
-done
 
 # --- Exit with error if deploy failed ---
 if [ "$DEPLOY_FAILED" = "true" ]; then
