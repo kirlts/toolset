@@ -62,48 +62,19 @@ else
   ERRORS=$((ERRORS + 1))
 fi
 
-# Steps 2+3: MCP SSE handshake (initialize → session ID → tools/call)
+# Steps 2+3: MCP call (stateless HTTP — no session needed)
 MCP_BASE="${HINDSIGHT_URL}/mcp"
-MCP_INIT='{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"preflight","version":"1.0"}},"id":1}'
 
-MCP_SESSION=$(ssh -o StrictHostKeyChecking=no "${SSH_HOST}" \
-  "curl -s -D - --max-time 15 -X POST '${MCP_BASE}/' \
+MCP_CALL=$(ssh -o StrictHostKeyChecking=no "${SSH_HOST}" \
+  "curl -s --max-time 15 -X POST '${MCP_BASE}/' \
     -H 'Content-Type: application/json' \
-    -d '${MCP_INIT}' 2>/dev/null | head -10 | grep -oP 'mcp-session-id: \K\S+' 2>/dev/null || echo ''")
+    -H 'Accept: application/json, text/event-stream' \
+    -d '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"list_banks\",\"arguments\":{}}}' 2>/dev/null")
 
-if [ -n "$MCP_SESSION" ]; then
-  echo "    PASS MCP Step 2 (SSE session): $MCP_SESSION"
-
-  MCP_CALL=$(ssh -o StrictHostKeyChecking=no "${SSH_HOST}" \
-    "curl -s --max-time 15 -X POST '${MCP_BASE}/' \
-      -H 'Content-Type: application/json' \
-      -H 'Mcp-Session-Id: ${MCP_SESSION}' \
-      -d '{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"list_banks\",\"arguments\":{}}}' 2>/dev/null")
-
-  if echo "$MCP_CALL" | grep -q 'result'; then
-    BANKS=$(echo "$MCP_CALL" | python3 -c "
-import sys,json
-for line in sys.stdin:
-    if line.startswith('data: '):
-        d=json.loads(line[6:])
-        r=d.get('result',{})
-        c=r.get('content',[])
-        for item in c:
-            txt=item.get('text','')
-            try:
-                b=json.loads(txt)
-                banks=b.get('banks',[])
-                print(f'ok ({len(banks)} banks)')
-            except:
-                pass
-" 2>/dev/null || echo "ok (executed)")
-    echo "    PASS MCP Step 3 (list_banks): $BANKS"
-  else
-    echo "    FAIL MCP Step 3 (list_banks)"
-    ERRORS=$((ERRORS + 1))
-  fi
+if echo "$MCP_CALL" | grep -q 'bank_id'; then
+  echo "    PASS MCP list_banks"
 else
-  echo "    FAIL MCP Step 2 (SSE session init)"
+  echo "    FAIL MCP list_banks"
   ERRORS=$((ERRORS + 1))
 fi
 
