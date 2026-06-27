@@ -120,9 +120,12 @@
     }
 
     # Hindsight API (health, v1/*, docs, mcp, openapi.json) — no auth required
+    # flush_interval=0 disables response buffering needed for MCP Streamable HTTP + SSE
     handle /hindsight/* {
         uri strip_prefix /hindsight
-        reverse_proxy hindsight:8888
+        reverse_proxy hindsight:8888 {
+            flush_interval 0
+        }
     }
 
     # Swagger UI
