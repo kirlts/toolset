@@ -119,14 +119,12 @@ jobs:
         id: changes
         run: |
           CHANGED=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "all")
-          CHANGED_JSON=$(echo "$CHANGED" | jq -R -s 'split("\n") | map(select(length > 0))')
-          echo "changed=$CHANGED_JSON" >> $GITHUB_OUTPUT
           echo "build_sandbox=false" >> $GITHUB_OUTPUT
           echo "pull_images=false" >> $GITHUB_OUTPUT
-          if echo "$CHANGED" | grep -q "hermes-sandbox.Dockerfile"; then
+          if echo "$CHANGED" | tr ' ' '\n' | grep -q "hermes-sandbox.Dockerfile"; then
             echo "build_sandbox=true" >> $GITHUB_OUTPUT
           fi
-          if echo "$CHANGED" | grep -q "docker-compose.yml"; then
+          if echo "$CHANGED" | tr ' ' '\n' | grep -q "docker-compose.yml"; then
             echo "pull_images=true" >> $GITHUB_OUTPUT
           fi
           echo "changed files: $(echo "$CHANGED" | tr '\n' ' ')"
