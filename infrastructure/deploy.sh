@@ -170,10 +170,39 @@ echo "[DEPLOY] Ports cleaned."
 echo "[DEPLOY] Recreating services..."
 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   "${SSH_HOST}" \
-    "sudo systemctl stop hermes-webui 2>/dev/null || true && \
+# --- Recreate changed services (with port binding verification) ---
+echo "[DEPLOY] Recreating services..."
+ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  "${SSH_HOST}" \
+   "sudo systemctl stop hermes-webui 2>/dev/null || true && \
      cd ${REMOTE_DIR} && \
-    docker compose up -d --remove-orphans 2>&1 && \
-   sudo systemctl start hermes-webui 2>/dev/null || true" | sed 's/^/  [UP] /'
+     docker compose up -d --remove-orphans 2>&1 && \
+    sudo systemctl start hermes-webui 2>/dev/null || true" | sed 's/^/  [UP] /'
+
+# --- Verify Caddy port binding (docker-proxy often drops it) ---
+echo "[DEPLOY] Verifying Caddy port binding..."
+PORT_OK=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  "${SSH_HOST}" \
+  "curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://localhost:8080/health 2>/dev/null || echo '000'" 2>/dev/null || echo "000")
+if [ "$PORT_OK" != "200" ] && [ "$PORT_OK" != "502" ]; then
+  echo "  Port 8080 not responding (HTTP $PORT_OK). Force-restarting Caddy..."
+  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    "${SSH_HOST}" \
+    "sudo fuser -k 8080/tcp 2>/dev/null || true; \
+     sleep 2; \
+     cd ${REMOTE_DIR} && sudo docker compose up -d --force-recreate caddy 2>&1" | sed 's/^/  [FIX] /'
+  sleep 5
+  PORT_RETRY=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    "${SSH_HOST}" \
+    "curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://localhost:8080/health 2>/dev/null || echo '000'" 2>/dev/null || echo "000")
+  if [ "$PORT_RETRY" = "200" ] || [ "$PORT_RETRY" = "502" ]; then
+    echo "  ✅ Caddy port binding restored (HTTP $PORT_RETRY)"
+  else
+    echo "  ❌ Caddy still not responding (HTTP $PORT_RETRY)"
+  fi
+else
+  echo "  ✅ Caddy port binding OK (HTTP $PORT_OK)"
+fi
 
 # --- Save compose state for rollback ---
 echo "[DEPLOY] Saving compose state for rollback..."
