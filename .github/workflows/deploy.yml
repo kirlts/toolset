@@ -129,10 +129,11 @@ jobs:
           fi
           echo "changed files: $(echo "$CHANGED" | tr '\n' ' ')"
 
-      - run: curl -fsSL https://tailscale.com/install.sh | sh
-      - name: Tailscale up
-        run: sudo tailscale up --auth-key=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname=gh-deploy --accept-routes
-      - run: sudo tailscale set --ssh=false
+      - name: Tailscale
+        uses: tailscale/github-action@v3
+        with:
+          authkey: ${{ secrets.TAILSCALE_AUTH_KEY }}
+          hostname: gh-deploy
       - run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
@@ -220,9 +221,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: curl -fsSL https://tailscale.com/install.sh | sh
-      - run: sudo tailscale up --auth-key=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname=gh-deploy --accept-routes
-      - run: sudo tailscale set --ssh=false
+      - name: Tailscale
+        uses: tailscale/github-action@v3
+        with:
+          authkey: ${{ secrets.TAILSCALE_AUTH_KEY }}
+          hostname: gh-deploy
       - run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
