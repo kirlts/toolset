@@ -60,7 +60,7 @@
 **Covered checks:** `[DEV.CR.04.LLM]`, `[USER.FN.03.HUM]`
 
 - [x] Investigar requisitos técnicos exactos y generar configuración (ej. OpenTofu) para OCI. 2026-06-22 05:40:00 [🤖 Verified by tool]
-- [⚠️] Configurar Workload Identity Federation (Identity Propagation Trust) para GitHub Actions. Trust creado pero token exchange no funcional — ver TECHNICAL-DEBT.md. 2026-06-22 06:30:00 [🤖 Verified by tool]
+- [x] Workload Identity Federation cerrada. Token exchange no funcional. Se eliminaron secrets OIDC. API key estática mantenida. 2026-06-26 [🔄 Cerrado]
 - [x] Desplegar red base (VCN y Subnet) usando OpenTofu. 2026-06-22 05:40:00 [🤖 Verified by tool]
 - [x] Pipeline CI/CD funcional con autenticación API key (puente temporal). 2026-06-22 06:36:00 [🤖 Verified by tool]
 - [x] Desplegar instancia de cómputo VM.Standard.A1.Flex (2 OCPU, 12 GB RAM, 100 GB boot, OL9 ARM64) usando OpenTofu + cloud-init. 2026-06-22 [🤖 Verified by tool]
@@ -179,8 +179,7 @@
 **Covered checks:** `[DEV.CR.11.LLM]`, `[DEV.CR.12.LLM]`
 
 - [ ] Investigar cómo habilitar Tailscale SSH en Oracle Linux 9 con SELinux activo.
-- [ ] Resolver DT-001: Token Exchange OIDC Identity Propagation Trust para GitHub Actions.
-- [ ] Eliminar API key estática del pipeline CI/CD (reemplazar por OIDC).
+- [x] DT-001 cerrado. OIDC removido. API key estática es permanente. 2026-06-26 [🔄 Cerrado]
 
 ---
 

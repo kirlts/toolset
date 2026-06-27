@@ -24,9 +24,6 @@ on:
         type: boolean
         default: false
 
-permissions:
-  contents: read
-
 concurrency:
   group: deploy-${{ github.ref_name }}
   cancel-in-progress: false
@@ -133,10 +130,6 @@ jobs:
             --name infrastructure/terraform.tfstate \
             --file terraform.tfstate \
             --force
-
-      - name: DT-001 Resumen OIDC
-        if: github.ref == 'refs/heads/main'
-        run: echo "DT-001: OIDC token exchange falló (invalid_request para 6 combinaciones). API key estática activa. Requiere debug en OCI Console."
 
   deploy-services:
     name: Deploy Services
