@@ -493,7 +493,7 @@ HERMES_DIR="/home/opc/.hermes"
 echo "[DEPLOY] Writing Hermes .env with CI/CD secrets..."
 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   "${SSH_HOST}" \
-  "sudo mkdir -p ${HERMES_DIR} && sudo tee ${HERMES_DIR}/.env > /dev/null && sudo chown -R opc:opc ${HERMES_DIR}" <<HERMESENV
+  "sudo mkdir -p ${HERMES_DIR} && sudo chattr -i ${HERMES_DIR}/config.yaml 2>/dev/null; sudo tee ${HERMES_DIR}/.env > /dev/null && sudo chown -R opc:opc ${HERMES_DIR} && sudo chattr +i ${HERMES_DIR}/config.yaml 2>/dev/null" <<HERMESENV
 # Hermes .env — managed by deploy.sh (CI/CD). DO NOT EDIT MANUALLY.
 OPENCODE_GO_API_KEY=${OPENCODE_GO_API_KEY}
 OPENCODE_GO_BASE_URL=https://opencode.ai/zen/go/v1
