@@ -1,0 +1,175 @@
+{
+  "bank_id": "evidencia-zero",
+  "exported_at": "2026-06-27T00:00:00Z",
+  "fact_count": 14,
+  "facts": [
+    {
+      "id": "7d640955-5eb6-4306-9464-3fd254d4ba54",
+      "text": "EvidenciaZero is an early-stage seed project: a 100% local tool for cleaning hidden data in labor evidence under Ley Karin, using a frontend web and WASM core (Rust/WASM), hosted at github.com/kirlts/evidenciaZero, with a guiding document EvidenciaZero_MASTER_PLAN.md.",
+      "context": "",
+      "date": "2026-06-26T02:19:49.278063+00:00",
+      "fact_type": "observation",
+      "tags": [
+        "2026-06-26",
+        "evidencia-zero",
+        "daily-summary"
+      ]
+    },
+    {
+      "id": "8752ae79-1047-45e7-927e-8ad1c7fd291a",
+      "text": "El proyecto EvidenciaZero en estado seed inicial: herramienta 100% local de limpieza de datos ocultos para evidencia laboral bajo Ley Karin, stack frontend web + wasm-core (Rust/WASM), repositorio github.com/kirlts/evidenciaZero y documento rector EvidenciaZero_MASTER_PLAN.md.",
+      "context": "general",
+      "date": "2026-06-26T02:19:49.278063+00:00",
+      "fact_type": "experience",
+      "tags": [
+        "2026-06-26",
+        "evidencia-zero",
+        "daily-summary"
+      ]
+    },
+    {
+      "id": "9d156690-688d-4602-8a28-78b91a4bb0ed",
+      "text": "No activity was detected from June 25 to June 26, 2026.",
+      "context": "",
+      "date": "2026-06-25T02:19:49+00:00",
+      "fact_type": "observation",
+      "tags": [
+        "2026-06-26",
+        "evidencia-zero",
+        "daily-summary"
+      ]
+    },
+    {
+      "id": "3ebced6c-e1de-41fe-9d1a-97ffc7fc760a",
+      "text": "No se registró actividad, cambios, commits ni decisiones en las últimas 24 horas hasta el 26 de junio de 2026.",
+      "context": "general",
+      "date": "2026-06-25T02:19:49+00:00",
+      "fact_type": "experience",
+      "tags": [
+        "2026-06-26",
+        "evidencia-zero",
+        "daily-summary"
+      ]
+    },
+    {
+      "id": "1d223ccf-5e48-47a8-8ef9-fabe06074e6b",
+      "text": "evidencia-zero has a public repository at github.com/kirlts/evidenciaZero containing the governing document EvidenciaZero_MASTER_PLAN.md.",
+      "context": "",
+      "date": "2026-06-24T07:17:25.723198+00:00",
+      "fact_type": "observation",
+      "tags": [
+        "evidencia-zero",
+        "2026-06-24",
+        "daily-summary"
+      ]
+    },
+    {
+      "id": "322356b2-f918-468b-a9f5-975359afe920",
+      "text": "evidencia-zero uses a frontend web + wasm-core (Rust/WASM) stack.",
+      "context": "",
+      "date": "2026-06-24T07:17:25.723198+00:00",
+      "fact_type": "observation",
+      "tags": [
+        "evidencia-zero",
+        "2026-06-24",
+        "daily-summary"
+      ]
+    },
+    {
+      "id": "92a2fafd-96a9-47de-b5ab-a9d2ec91442d",
+      "text": "evidencia-zero is a seed-stage project with the purpose of being a 100% local tool for cleaning hidden data under Ley Karin.",
+      "context": "",
+      "date": "2026-06-24T07:17:25.723198+00:00",
+      "fact_type": "observation",
+      "tags": [
+        "evidencia-zero",
+        "2026-06-24",
+        "daily-summary"
+      ]
+    },
+    {
+      "id": "d6aecde3-7369-4024-9a5b-b4617c056f2d",
+      "text": "El proyecto evidencia-zero se encuentra en etapa de semilla inicial, con el propósito de ser una herramienta 100% local de limpieza de datos ocultos bajo la Ley Karin, utilizando un stack de frontend web + wasm-core (Rust/WASM), y tiene un repositorio público en github.com/kirlts/evidenciaZero con el documento rector EvidenciaZero_MASTER_PLAN.md.",
+      "context": "general",
+      "date": "2026-06-24T07:17:25.723198+00:00",
+      "fact_type": "experience",
+      "tags": [
+        "evidencia-zero",
+        "2026-06-24",
+        "daily-summary"
+      ]
+    },
+    {
+      "id": "ab01cf09-1306-4669-b7bb-d1f9605c4610",
+      "text": "EvidenciaZero tiene repositorio público en github.com/kirlts/evidenciaZero y documento rector EvidenciaZero_MASTER_PLAN.md.",
+      "context": "",
+      "date": "2026-06-24T05:45:54.974901+00:00",
+      "fact_type": "observation",
+      "tags": [
+        "seed",
+        "evidencia-zero",
+        "stack"
+      ]
+    },
+    {
+      "id": "cf0b7451-3d74-4a79-8967-eb58fcf25125",
+      "text": "Repositorio público en github.com/kirlts/evidenciaZero y documento rector EvidenciaZero_MASTER_PLAN.md.",
+      "context": "general",
+      "date": "2026-06-24T05:45:54.974901+00:00",
+      "fact_type": "experience",
+      "tags": [
+        "seed",
+        "evidencia-zero",
+        "stack"
+      ]
+    },
+    {
+      "id": "200c5baf-5fae-421c-98e9-b65931d23c31",
+      "text": "El stack de EvidenciaZero incluye frontend web y wasm-core (Rust/WASM para procesamiento).",
+      "context": "",
+      "date": "2026-06-24T05:45:54.964901+00:00",
+      "fact_type": "observation",
+      "tags": [
+        "seed",
+        "evidencia-zero",
+        "stack"
+      ]
+    },
+    {
+      "id": "9d49f490-f4ac-4479-b288-e914de6394c7",
+      "text": "El stack incluye frontend web y wasm-core (Rust/WASM para procesamiento).",
+      "context": "general",
+      "date": "2026-06-24T05:45:54.964901+00:00",
+      "fact_type": "experience",
+      "tags": [
+        "seed",
+        "evidencia-zero",
+        "stack"
+      ]
+    },
+    {
+      "id": "4f3c91d7-04bc-4ffd-997d-c0edc1293b9c",
+      "text": "EvidenciaZero es una herramienta 100% local de limpieza de datos ocultos en archivos digitales, diseñada para compartir evidencia en procesos laborales bajo Ley Karin.",
+      "context": "",
+      "date": "2026-06-24T05:45:54.954901+00:00",
+      "fact_type": "observation",
+      "tags": [
+        "seed",
+        "evidencia-zero",
+        "stack"
+      ]
+    },
+    {
+      "id": "f3a6faf4-bb3b-4664-8bdc-1c61b22d4c3b",
+      "text": "EvidenciaZero es una herramienta 100% local de limpieza de datos ocultos en archivos digitales, diseñada para compartir evidencia en procesos laborales bajo Ley Karin.",
+      "context": "general",
+      "date": "2026-06-24T05:45:54.954901+00:00",
+      "fact_type": "experience",
+      "tags": [
+        "seed",
+        "evidencia-zero",
+        "stack"
+      ]
+    }
+  ]
+}

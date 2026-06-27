@@ -1,0 +1,187 @@
+{
+  "bank_id": "yacv",
+  "exported_at": "2026-06-27T00:00:00Z",
+  "fact_count": 15,
+  "facts": [
+    {
+      "id": "694a2faf",
+      "text": "YaCV está en estado seed inicial.",
+      "context": "",
+      "date": "2026-06-26T02:13:09.675997+00:00",
+      "fact_type": "observation",
+      "tags": [
+        "2026-06-26",
+        "daily-summary",
+        "yacv"
+      ]
+    },
+    {
+      "id": "e3e76c24",
+      "text": "El repositorio de YaCV está en github.com/kirlts/YaCV.",
+      "context": "",
+      "date": "2026-06-26T02:13:09.675997+00:00",
+      "fact_type": "observation",
+      "tags": [
+        "2026-06-26",
+        "daily-summary",
+        "yacv"
+      ]
+    },
+    {
+      "id": "c20082b4",
+      "text": "El stack de YaCV incluye Vite, TypeScript y Playwright.",
+      "context": "",
+      "date": "2026-06-26T02:13:09.675997+00:00",
+      "fact_type": "observation",
+      "tags": [
+        "2026-06-26",
+        "daily-summary",
+        "yacv"
+      ]
+    },
+    {
+      "id": "5e49f496",
+      "text": "YaCV: generador de CVs desde YAML con PDF instantáneo en navegador. Sin cuentas, sin tracking, ATS-friendly.",
+      "context": "",
+      "date": "2026-06-26T02:13:09.675997+00:00",
+      "fact_type": "observation",
+      "tags": [
+        "2026-06-26",
+        "daily-summary",
+        "yacv"
+      ]
+    },
+    {
+      "id": "c3ee77fa",
+      "text": "YaCV: YAML→PDF, sin cuentas, ATS-friendly. Stack: Vite, TypeScript, Playwright. Seed inicial.",
+      "context": "general",
+      "date": "2026-06-26T02:13:09.675997+00:00",
+      "fact_type": "experience",
+      "tags": [
+        "2026-06-26",
+        "daily-summary",
+        "yacv"
+      ]
+    },
+    {
+      "id": "e0635352",
+      "text": "No activity registered between 2026-06-23 and 2026-06-24.",
+      "context": "",
+      "date": "2026-06-23T07:18:12.842058+00:00",
+      "fact_type": "observation",
+      "tags": [
+        "2026-06-24",
+        "daily-summary",
+        "yacv"
+      ]
+    },
+    {
+      "id": "26485150",
+      "text": "Sin actividad registrada entre 2026-06-23 y 2026-06-24.",
+      "context": "general",
+      "date": "2026-06-23T07:18:12.842058+00:00",
+      "fact_type": "experience",
+      "tags": [
+        "2026-06-24",
+        "daily-summary",
+        "yacv"
+      ]
+    },
+    {
+      "id": "ce8a0a8b",
+      "text": "YaCV: YAML→PDF, sin cuentas, ATS-friendly. Stack: Vite+TypeScript+Playwright. github.com/kirlts/YaCV.",
+      "context": "",
+      "date": "2026-06-24T07:18:12.832058+00:00",
+      "fact_type": "observation",
+      "tags": [
+        "2026-06-24",
+        "daily-summary",
+        "yacv"
+      ]
+    },
+    {
+      "id": "50d7609c",
+      "text": "YaCV seed: generador CVs YAML→PDF, sin cuentas, ATS-friendly. Vite+TypeScript+Playwright.",
+      "context": "general",
+      "date": "2026-06-24T07:18:12.832058+00:00",
+      "fact_type": "experience",
+      "tags": [
+        "2026-06-24",
+        "daily-summary",
+        "yacv"
+      ]
+    },
+    {
+      "id": "0cfcd2d3",
+      "text": "Repositorio público: github.com/kirlts/YaCV.",
+      "context": "",
+      "date": "2026-06-24T05:45:53.966756+00:00",
+      "fact_type": "observation",
+      "tags": [
+        "seed",
+        "stack",
+        "yacv"
+      ]
+    },
+    {
+      "id": "8a830043",
+      "text": "Repositorio público en github.com/kirlts/YaCV.",
+      "context": "general",
+      "date": "2026-06-24T05:45:53.966756+00:00",
+      "fact_type": "experience",
+      "tags": [
+        "seed",
+        "stack",
+        "yacv"
+      ]
+    },
+    {
+      "id": "f1a0d4e8",
+      "text": "Stack: Vite, TypeScript, Playwright.",
+      "context": "",
+      "date": "2026-06-24T05:45:53.956756+00:00",
+      "fact_type": "observation",
+      "tags": [
+        "seed",
+        "stack",
+        "yacv"
+      ]
+    },
+    {
+      "id": "4d6cff16",
+      "text": "Stack: Vite, TypeScript, Playwright para e2e.",
+      "context": "general",
+      "date": "2026-06-24T05:45:53.956756+00:00",
+      "fact_type": "experience",
+      "tags": [
+        "seed",
+        "stack",
+        "yacv"
+      ]
+    },
+    {
+      "id": "4522810d",
+      "text": "YaCV: YAML→PDF, sin cuentas, sin tracking, ATS-friendly.",
+      "context": "",
+      "date": "2026-06-24T05:45:53.946756+00:00",
+      "fact_type": "observation",
+      "tags": [
+        "seed",
+        "stack",
+        "yacv"
+      ]
+    },
+    {
+      "id": "bd2408a9",
+      "text": "YaCV: YAML→PDF, 100% navegador, sin cuentas, ATS-friendly.",
+      "context": "general",
+      "date": "2026-06-24T05:45:53.946756+00:00",
+      "fact_type": "experience",
+      "tags": [
+        "seed",
+        "stack",
+        "yacv"
+      ]
+    }
+  ]
+}

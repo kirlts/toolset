@@ -1,0 +1,79 @@
+{
+  "bank_id": "witral",
+  "exported_at": "2026-06-27T00:00:00Z",
+  "fact_count": 6,
+  "facts": [
+    {
+      "id": "0a67a96d",
+      "text": "Witral: plugin-based seed system for routing data from messaging apps to local/cloud storage. github.com/kirlts/witral.",
+      "context": "",
+      "date": "2026-06-26T02:12:18.590213+00:00",
+      "fact_type": "observation",
+      "tags": [
+        "2026-06-26",
+        "daily-summary",
+        "witral"
+      ]
+    },
+    {
+      "id": "3160362c",
+      "text": "Witral: sistema seed basado en plugins para enrutar datos. Repositorio: github.com/kirlts/witral.",
+      "context": "general",
+      "date": "2026-06-26T02:12:18.590213+00:00",
+      "fact_type": "world",
+      "tags": [
+        "2026-06-26",
+        "daily-summary",
+        "witral"
+      ]
+    },
+    {
+      "id": "16f00980",
+      "text": "Witral: seed project, plugin-based routing messaging→storage. Motto: 'Infrastructure for your mind'. github.com/kirlts/witral.",
+      "context": "",
+      "date": "2026-06-24T07:18:35.729655+00:00",
+      "fact_type": "observation",
+      "tags": [
+        "witral",
+        "2026-06-24",
+        "daily-summary"
+      ]
+    },
+    {
+      "id": "881395ed",
+      "text": "Witral seed: sistema plugins para enrutar mensajería→storage. 'Infrastructure for your mind'. github.com/kirlts/witral.",
+      "context": "general",
+      "date": "2026-06-24T07:18:35.729655+00:00",
+      "fact_type": "experience",
+      "tags": [
+        "witral",
+        "2026-06-24",
+        "daily-summary"
+      ]
+    },
+    {
+      "id": "8c96b5e6",
+      "text": "Witral: plugin-based routing messaging→storage, github.com/kirlts/witral.",
+      "context": "",
+      "date": "2026-06-24T05:45:55.962830+00:00",
+      "fact_type": "observation",
+      "tags": [
+        "seed",
+        "witral",
+        "stack"
+      ]
+    },
+    {
+      "id": "12c9626a",
+      "text": "Witral: sistema plugins enrutar datos mensajería→storage. github.com/kirlts/witral. 'Infrastructure for your mind'.",
+      "context": "general",
+      "date": "2026-06-24T05:45:55.962830+00:00",
+      "fact_type": "world",
+      "tags": [
+        "seed",
+        "witral",
+        "stack"
+      ]
+    }
+  ]
+}

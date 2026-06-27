@@ -1,0 +1,316 @@
+{
+  "bank_id": "cl-concerts-db",
+  "exported_at": "2026-06-27T00:00:00Z",
+  "fact_count": 25,
+  "facts": [
+    {
+      "id": "493979a3",
+      "text": "No new activity recorded in the last 24 hours (leading to June 26, 2026).",
+      "context": "general",
+      "date": "2026-06-25T02:14:39.030000+00:00",
+      "fact_type": "world",
+      "tags": [
+        "2026-06-26",
+        "daily-summary",
+        "cl-concerts-db"
+      ]
+    },
+    {
+      "id": "e6a2063e",
+      "text": "Staging environment at 172.16.8.58, accessible via VPN, used for testing with technician Óscar.",
+      "context": "",
+      "date": "2026-06-26T02:14:39.869416+00:00",
+      "fact_type": "observation",
+      "tags": [
+        "2026-06-26",
+        "daily-summary",
+        "cl-concerts-db"
+      ]
+    },
+    {
+      "id": "909303dc",
+      "text": "Staging environment at 172.16.8.58 via VPN, technician Óscar.",
+      "context": "general",
+      "date": "2026-06-26T02:14:39.869416+00:00",
+      "fact_type": "world",
+      "tags": [
+        "2026-06-26",
+        "daily-summary",
+        "cl-concerts-db"
+      ]
+    },
+    {
+      "id": "f604786d",
+      "text": "ZAP security analysis completed on June 23-24, 2026 for cl-concerts-db: no blocking findings. False positives (SQL injection, path traversal, CSP, HSTS) confirmed mitigated.",
+      "context": "",
+      "date": "2026-06-23T00:00:00.010000+00:00",
+      "fact_type": "observation",
+      "tags": [
+        "2026-06-26",
+        "daily-summary",
+        "cl-concerts-db"
+      ]
+    },
+    {
+      "id": "22342e48",
+      "text": "ZAP security analysis completed on June 23-24, 2026 for cl-concerts-db: no blocking findings.",
+      "context": "general",
+      "date": "2026-06-23T00:00:00.010000+00:00",
+      "fact_type": "world",
+      "tags": [
+        "2026-06-26",
+        "daily-summary",
+        "cl-concerts-db"
+      ]
+    },
+    {
+      "id": "141f3c4f",
+      "text": "Project cl-concerts-db: Flask platform for catalog of docta music in Chile, associated with UAH.",
+      "context": "",
+      "date": "2026-06-26T02:14:39.849416+00:00",
+      "fact_type": "observation",
+      "tags": [
+        "2026-06-26",
+        "daily-summary",
+        "cl-concerts-db"
+      ]
+    },
+    {
+      "id": "aa6ab5ca",
+      "text": "Project cl-concerts-db: Flask platform for catalog of docta music in Chile (UAH), post-security audit.",
+      "context": "general",
+      "date": "2026-06-26T02:14:39.849416+00:00",
+      "fact_type": "world",
+      "tags": [
+        "2026-06-26",
+        "daily-summary",
+        "cl-concerts-db"
+      ]
+    },
+    {
+      "id": "88b53e5e",
+      "text": "El chatbot presenta vulnerabilidades reales no bloqueantes: SRI faltante en CDNs, jQuery 3.5.1 con CVEs, scripts cross-domain. Decisión: ningún hallazgo bloquea despliegue UAH.",
+      "context": "",
+      "date": "2026-06-24T07:17:44.051695+00:00",
+      "fact_type": "observation",
+      "tags": [
+        "cl-concerts-db",
+        "2026-06-24",
+        "daily-summary"
+      ]
+    },
+    {
+      "id": "2111c1ac",
+      "text": "Vulnerabilidades reales no bloqueantes en chatbot: SRI faltante, jQuery 3.5.1 CVEs, scripts cross-domain.",
+      "context": "general",
+      "date": "2026-06-24T07:17:44.051695+00:00",
+      "fact_type": "world",
+      "tags": [
+        "cl-concerts-db",
+        "2026-06-24",
+        "daily-summary"
+      ]
+    },
+    {
+      "id": "07f569c6",
+      "text": "Falsos positivos ZAP: SQL injection mitigado por whitelist, path traversal bloqueado por nginx, CSP configurado.",
+      "context": "",
+      "date": "2026-06-24T07:17:44.041695+00:00",
+      "fact_type": "observation",
+      "tags": [
+        "cl-concerts-db",
+        "2026-06-24",
+        "daily-summary"
+      ]
+    },
+    {
+      "id": "b09ca27a",
+      "text": "Falsos positivos ZAP confirmados: SQL injection, path traversal, CSP, HSTS.",
+      "context": "general",
+      "date": "2026-06-24T07:17:44.041695+00:00",
+      "fact_type": "world",
+      "tags": [
+        "cl-concerts-db",
+        "2026-06-24",
+        "daily-summary"
+      ]
+    },
+    {
+      "id": "1ddd9c09",
+      "text": "Main repo: github.com/jpgil/cl-concerts-db (collaborator), fork: github.com/kirlts/cl-concerts-db.",
+      "context": "",
+      "date": "2026-06-24T05:45:57.471894+00:00",
+      "fact_type": "observation",
+      "tags": [
+        "seed",
+        "cl-concerts-db",
+        "uah"
+      ]
+    },
+    {
+      "id": "dd1fa836",
+      "text": "The master branch is protected for production.",
+      "context": "",
+      "date": "2026-06-24T05:45:57.471894+00:00",
+      "fact_type": "observation",
+      "tags": [
+        "seed",
+        "cl-concerts-db",
+        "uah"
+      ]
+    },
+    {
+      "id": "871de525",
+      "text": "Staging at 172.16.8.58 uses user clconcert2, accessed via VPN, maintained by Óscar.",
+      "context": "",
+      "date": "2026-06-24T05:45:57.471894+00:00",
+      "fact_type": "observation",
+      "tags": [
+        "seed",
+        "cl-concerts-db",
+        "uah"
+      ]
+    },
+    {
+      "id": "67874d67",
+      "text": "cl-concerts-db is a Python/Flask platform for catalog of classical music concerts in Chile, with UAH.",
+      "context": "",
+      "date": "2026-06-24T05:45:57.471894+00:00",
+      "fact_type": "observation",
+      "tags": [
+        "seed",
+        "cl-concerts-db",
+        "uah"
+      ]
+    },
+    {
+      "id": "059f2aa6",
+      "text": "cl-concerts-db: Flask para catálogo de música docta, UAH, staging 172.16.8.58, técnico Óscar.",
+      "context": "general",
+      "date": "2026-06-24T05:45:57.471894+00:00",
+      "fact_type": "world",
+      "tags": [
+        "seed",
+        "cl-concerts-db",
+        "uah"
+      ]
+    },
+    {
+      "id": "03b8305a",
+      "text": "Non-blocking: SRI missing, jQuery 3.5.1 vulnerable (CVE-2020-11023), cross-domain JS. None block UAH deployment.",
+      "context": "security",
+      "date": "2026-06-23T21:17:25.134072+00:00",
+      "fact_type": "world",
+      "tags": [
+        "security",
+        "cl-concerts-db",
+        "zap-report",
+        "uah-deployment"
+      ]
+    },
+    {
+      "id": "7a3d75cd",
+      "text": "Análisis ZAP: ningún hallazgo bloquea despliegue UAH.",
+      "context": "",
+      "date": "2026-06-23T00:00:00.020000+00:00",
+      "fact_type": "observation",
+      "tags": [
+        "security",
+        "cl-concerts-db",
+        "zap-report",
+        "uah-deployment"
+      ]
+    },
+    {
+      "id": "e8020d43",
+      "text": "Chatbot: falta SRI en CDNs, jQuery 3.5.1 CVEs, scripts cross-domain.",
+      "context": "",
+      "date": "2026-06-23T21:12:18.873506+00:00",
+      "fact_type": "observation",
+      "tags": [
+        "security",
+        "cl-concerts-db",
+        "zap-report",
+        "uah-deployment"
+      ]
+    },
+    {
+      "id": "8adbc984",
+      "text": "False positives: SQL injection, path traversal, CSP, HSTS.",
+      "context": "security",
+      "date": "2026-06-23T21:17:25.124072+00:00",
+      "fact_type": "world",
+      "tags": [
+        "security",
+        "cl-concerts-db",
+        "zap-report",
+        "uah-deployment"
+      ]
+    },
+    {
+      "id": "dc252e0a",
+      "text": "Mitigaciones: SQL injection whitelist, path traversal nginx, CSP, HSTS.",
+      "context": "",
+      "date": "2026-06-23T21:12:18.863506+00:00",
+      "fact_type": "observation",
+      "tags": [
+        "security",
+        "cl-concerts-db",
+        "zap-report",
+        "uah-deployment"
+      ]
+    },
+    {
+      "id": "e6cee49c",
+      "text": "ZAP security report on basedeconciertos-qa.uahurtado.cl 2026-06-23.",
+      "context": "security",
+      "date": "2026-06-23T21:17:25.114072+00:00",
+      "fact_type": "world",
+      "tags": [
+        "security",
+        "cl-concerts-db",
+        "zap-report",
+        "uah-deployment"
+      ]
+    },
+    {
+      "id": "f1b141cf",
+      "text": "Ningún hallazgo bloquea despliegue UAH; problemas chatbot severidad media/baja diferidos.",
+      "context": "security",
+      "date": "2026-06-23T00:00:00.020000+00:00",
+      "fact_type": "world",
+      "tags": [
+        "security",
+        "cl-concerts-db",
+        "zap-report",
+        "uah-deployment"
+      ]
+    },
+    {
+      "id": "b6d5537a",
+      "text": "Chatbot: SRI faltante, jQuery 3.5.1 CVEs, cross-domain.",
+      "context": "security",
+      "date": "2026-06-23T21:12:18.873506+00:00",
+      "fact_type": "world",
+      "tags": [
+        "security",
+        "cl-concerts-db",
+        "zap-report",
+        "uah-deployment"
+      ]
+    },
+    {
+      "id": "fbd739f5",
+      "text": "Mitigaciones: SQL whitelist, nginx path traversal, CSP, cookie segura, HSTS.",
+      "context": "security",
+      "date": "2026-06-23T21:12:18.863506+00:00",
+      "fact_type": "world",
+      "tags": [
+        "security",
+        "cl-concerts-db",
+        "zap-report",
+        "uah-deployment"
+      ]
+    }
+  ]
+}
