@@ -421,7 +421,10 @@ if [ -f "$HERMES_CONFIG_SRC" ]; then
     "$HERMES_CONFIG_SRC" "${SSH_HOST}:/tmp/hermes-config.yaml"
   ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     "${SSH_HOST}" \
-    "sudo cp /tmp/hermes-config.yaml /home/opc/.hermes/config.yaml && sudo chown opc:opc /home/opc/.hermes/config.yaml"
+    "sudo chattr -i /home/opc/.hermes/config.yaml 2>/dev/null || true && \
+     sudo cp /tmp/hermes-config.yaml /home/opc/.hermes/config.yaml && \
+     sudo chown opc:opc /home/opc/.hermes/config.yaml && \
+     sudo chattr +i /home/opc/.hermes/config.yaml 2>/dev/null || true"
   echo "[DEPLOY] Hermes config.yaml synced."
 fi
 
@@ -579,7 +582,9 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
       echo '[hermes] SOUL.md restored from repo' | sudo tee -a ${HERMES_LOG}
     fi
     if [ -f /tmp/hermes-repo/config.yaml ]; then
+      sudo chattr -i /home/opc/.hermes/config.yaml 2>/dev/null || true
       cp /tmp/hermes-repo/config.yaml /home/opc/.hermes/config.yaml
+      sudo chattr +i /home/opc/.hermes/config.yaml 2>/dev/null || true
       echo '[hermes] config.yaml restored from repo' | sudo tee -a ${HERMES_LOG}
     fi
     if [ -f /tmp/hermes-repo/memory/MEMORY.md ]; then
