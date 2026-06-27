@@ -5,6 +5,11 @@
     http_port 8080
     auto_https off
     admin off
+    servers {
+        timeouts {
+            idle 0
+        }
+    }
 }
 
 :8080 {
