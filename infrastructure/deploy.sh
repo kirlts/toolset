@@ -170,10 +170,8 @@ echo "[DEPLOY] Ports cleaned."
 echo "[DEPLOY] Recreating services..."
 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   "${SSH_HOST}" \
-   "sudo systemctl stop hermes-webui 2>/dev/null || true && \
-    cd ${REMOTE_DIR} && \
-    sudo env FUNNEL_AUTH_USER='${FUNNEL_AUTH_USER:-toolset-admin}' \
-         FUNNEL_AUTH_PASSWORD='${FUNNEL_AUTH_PASSWORD:-changeme}' \
+    "sudo systemctl stop hermes-webui 2>/dev/null || true && \
+     cd ${REMOTE_DIR} && \
     docker compose up -d --remove-orphans 2>&1 && \
    sudo systemctl start hermes-webui 2>/dev/null || true" | sed 's/^/  [UP] /'
 
@@ -998,6 +996,29 @@ if [ -f "$PREFLIGHT_SCRIPT" ]; then
        fi"
   fi
 fi
+
+# --- Verify all public URLs respond correctly (mandatory) ---
+echo "[DEPLOY] Verifying public URLs..."
+FUNNEL="https://${CADDY_DOMAIN}"
+URLS=(
+  "/:Landing page"
+  "/health:Health check"
+  "/hindsight/health:Hindsight API"
+  "/hindsight/mcp/:MCP endpoint"
+  "/dashboard:Hindsight CP"
+  "/api/v1/:Infisical API"
+)
+for entry in "${URLS[@]}"; do
+  path="${entry%%:*}"
+  name="${entry##*:}"
+  CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "${FUNNEL}${path}" 2>/dev/null || echo "000")
+  if [ "$CODE" = "200" ] || [ "$CODE" = "302" ] || [ "$CODE" = "404" ]; then
+    echo "  ✅ ${name} (${path}) → ${CODE}"
+  else
+    echo "  ❌ ${name} (${path}) → ${CODE}"
+    DEPLOY_FAILED=true
+  fi
+done
 
 # --- Exit with error if deploy failed ---
 if [ "$DEPLOY_FAILED" = "true" ]; then

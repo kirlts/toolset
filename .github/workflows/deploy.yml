@@ -188,48 +188,5 @@ jobs:
           INFISICAL_URL: https://${{ vars.FUNNEL_DOMAIN }}:8443
           OPENCODE_GO_API_KEY: ${{ secrets.OPENCODE_GO_API_KEY }}
           FUNNEL_DOMAIN: ${{ vars.FUNNEL_DOMAIN }}
-          HERMES_LLM_PROVIDER: ${{ secrets.HERMES_LLM_PROVIDER }}
-          HERMES_LLM_MODEL: ${{ secrets.HERMES_LLM_MODEL }}
-          HERMES_WEBUI_PASSWORD: ${{ secrets.HERMES_WEBUI_PASSWORD }}
-          HERMES_WHATSAPP_MODE: ${{ secrets.HERMES_WHATSAPP_MODE }}
-          WHATSAPP_ALLOWED_USERS: ${{ secrets.WHATSAPP_ALLOWED_USERS }}
-          COMPOSIO_API_KEY: ${{ secrets.COMPOSIO_API_KEY }}
-          COMPOSIO_MCP_KEY: ${{ secrets.COMPOSIO_MCP_KEY }}
-        run: |
-          python3 scripts/sync-infisical-secrets.py push
-          python3 scripts/sync-infisical-secrets.py verify
-
-      - name: Reverse sync
-        env:
-          INFISICAL_TOKEN: ${{ secrets.INFISICAL_SERVICE_TOKEN }}
-          INFISICAL_PID: ${{ secrets.INFISICAL_PID }}
-          INFISICAL_URL: https://${{ vars.FUNNEL_DOMAIN }}:8443
-          GH_TOKEN: ${{ secrets.GH_CLI_TOKEN }}
-        run: python3 scripts/sync-infisical-secrets.py pull
-
-      - name: Notify failure
-        if: failure()
-        run: |
-          RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          ssh ${{ env.SSH_OPTS }} ${{ env.SSH_HOST }} \
-            "hermes -z 'Notifica por WhatsApp: Pipeline falló en toolset. $RUN_URL'" 2>/dev/null || true
-
-  preflight:
-    name: Preflight Checks
-    needs: deploy-services
-    if: ${{ always() && github.ref == 'refs/heads/main' && needs.deploy-services.result == 'success' }}
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@v4
-      - name: Tailscale
-        uses: tailscale/github-action@v3
-        with:
-          authkey: ${{ secrets.TAILSCALE_AUTH_KEY }}
-          hostname: gh-deploy
-      - run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
-      - name: Run preflight
         working-directory: ${{ env.INFRA_DIR }}
         run: chmod +x preflight.sh && ./preflight.sh
