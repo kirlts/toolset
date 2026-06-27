@@ -89,6 +89,9 @@ services:
       HINDSIGHT_API_LLM_BASE_URL: ${HINDSIGHT_API_LLM_BASE_URL:-https://opencode.ai/zen/go/v1}
       HINDSIGHT_API_HOST: 0.0.0.0
       HINDSIGHT_API_PORT: 8888
+      HF_HUB_OFFLINE: "1"
+      HINDSIGHT_API_MCP_STATELESS: "true"
+      HINDSIGHT_REQUEST_TIMEOUT_SECONDS: "120"
     volumes:
       - hindsight_data:/home/hindsight/.pg0
     networks:
