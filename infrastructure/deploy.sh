@@ -166,11 +166,7 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
    sleep 3"
 echo "[DEPLOY] Ports cleaned."
 
-# --- Recreate changed services ---
-echo "[DEPLOY] Recreating services..."
-ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-  "${SSH_HOST}" \
-# --- Recreate changed services (with port binding verification) ---
+# --- Port cleanup (prevent "address already in use" from zombie processes) ---
 echo "[DEPLOY] Recreating services..."
 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   "${SSH_HOST}" \
