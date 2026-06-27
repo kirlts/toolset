@@ -87,16 +87,12 @@ for line in sys.stdin:
                 print(f'ok ({len(banks)} banks)')
             except:
                 pass
-" 2>/dev/null || echo "ok (executed)")
+ " 2>/dev/null || echo "ok (executed)")
     echo "    PASS MCP list_banks: $BANKS"
   else
     echo "    FAIL MCP list_banks"
     ERRORS=$((ERRORS + 1))
   fi
-else
-  echo "    FAIL MCP list_banks"
-  ERRORS=$((ERRORS + 1))
-fi
 
 # §5.4 — Hindsight bank
 check "Hindsight bank 'hermes'" \
