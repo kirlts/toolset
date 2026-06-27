@@ -183,9 +183,9 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   "${SSH_HOST}" \
    "sudo systemctl stop hermes-webui 2>/dev/null || true && \
     cd ${REMOTE_DIR} && \
-    FUNNEL_AUTH_USER='${FUNNEL_AUTH_USER:-toolset-admin}' \
-    FUNNEL_AUTH_PASSWORD='${FUNNEL_AUTH_PASSWORD:-changeme}' \
-    sudo docker compose up -d --remove-orphans 2>&1 && \
+    sudo env FUNNEL_AUTH_USER='${FUNNEL_AUTH_USER:-toolset-admin}' \
+         FUNNEL_AUTH_PASSWORD='${FUNNEL_AUTH_PASSWORD:-changeme}' \
+    docker compose up -d --remove-orphans 2>&1 && \
    sudo systemctl start hermes-webui 2>/dev/null || true" | sed 's/^/  [UP] /'
 
 # --- Save compose state for rollback ---
@@ -796,6 +796,13 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   "${SSH_HOST}" \
   "hermes config set home /opt/toolset-repo 2>/dev/null || true"
 echo "[DEPLOY] Hermes home configured."
+
+# --- Protect config.yaml against Hermes auto-overwrite ---
+echo "[DEPLOY] Protecting Hermes config.yaml from auto-overwrite..."
+ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  "${SSH_HOST}" \
+  "sudo chattr +i /home/opc/.hermes/config.yaml 2>/dev/null && echo '  config.yaml immutable' || echo '  chattr not available (expected in some envs)'"
+echo "[DEPLOY] Config protection applied."
 
 # --- Restart hermes-gateway (post-config changes) ---
 echo "[DEPLOY] Restarting hermes-gateway..."

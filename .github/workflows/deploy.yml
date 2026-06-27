@@ -158,8 +158,12 @@ jobs:
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
 
-      - name: Verify connectivity
-        run: ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 ${{ env.SSH_HOST }} "hostname && uptime"
+      - name: Verify connectivity (3 attempts)
+        run: |
+          for i in 1 2 3; do
+            ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 ${{ env.SSH_HOST }} "hostname && uptime" && break
+            echo "  SSH attempt $i failed, retrying..." && sleep 5
+          done
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -196,6 +200,8 @@ jobs:
           COMPOSIO_MCP_KEY: ${{ secrets.COMPOSIO_MCP_KEY }}
           GH_CLI_TOKEN: ${{ secrets.GH_CLI_TOKEN }}
           FUNNEL_DOMAIN: ${{ vars.FUNNEL_DOMAIN }}
+          FUNNEL_AUTH_USER: ${{ vars.FUNNEL_AUTH_USER }}
+          FUNNEL_AUTH_PASSWORD: ${{ secrets.FUNNEL_AUTH_PASSWORD }}
         working-directory: ${{ env.INFRA_DIR }}
         run: chmod +x deploy.sh && ./deploy.sh
 
@@ -229,3 +235,13 @@ jobs:
         if: ${{ !inputs.skip_preflight }}
         working-directory: ${{ env.INFRA_DIR }}
         run: chmod +x preflight.sh && ./preflight.sh
+
+      - name: Notify failure
+        if: failure()
+        run: |
+          echo "::error::Deploy failed! https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          echo "Pipeline falló: $RUN_URL"
+          # Try WhatsApp notification via Hermes
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 ${{ env.SSH_HOST }} \
+            "hermes -z 'Envía por WhatsApp: Pipeline CI/CD falló en toolset. Revisa $RUN_URL'" 2>/dev/null || true
