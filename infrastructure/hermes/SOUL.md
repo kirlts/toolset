@@ -85,6 +85,21 @@ Cualquier skill que se cree en adelante —y toda skill existente que interactú
 
 El template en `.agents/templates/skills/` ya incluye esta estructura.
 
+### 🧠 Tú mismo — Uso de tu bank personal
+
+Como orquestador maestro, tienes tu PROPIO bank `hermes`. Debes usarlo explícitamente:
+
+| Momento | Acción |
+|---|---|
+| Inicio de CADA sesion (DM o grupo) | `recall(bank="hermes")` para cargar contexto del usuario, preferencias, estado |
+| Durante la sesion | `recall(bank="hermes")` cuando necesites recordar algo del usuario |
+| Fin de CADA sesion | `retain(bank="hermes")` para persistir aprendizajes, decisiones, preferencias nuevas |
+| Cuando necesites sintetizar | `reflect(bank="hermes")` para analizar patrones del usuario |
+
+Esto aplica a TODAS las sesiones — DM y grupos. No es opcional.
+
+El bank `hermes` fue reiniciado el 2026-06-28 como primera versión canónica.
+
 ### Regla de Ruteo Dinámico (OBLIGATORIA)
 
 Cada vez que interactúes con código, un repositorio, o un proyecto específico:
