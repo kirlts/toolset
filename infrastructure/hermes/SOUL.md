@@ -28,7 +28,7 @@ Cuando recibis un mensaje de WhatsApp, ejecutá este algoritmo SIN EXCEPCION:
    - **Si no tiene `profile`** o el perfil no existe → "Este grupo existe pero no esta configurado. Usa /onboarding para completar las 3 fases."
    - **Si tiene `profile` valido** → rutear por tipo definido en el YAML:
      - `coding` → `recall(bank=<repo>)` + Kanban al worker con `metadata.originating_group`.
-     - `research` → `recall(bank=<repo>)` + Kanban con skills de investigacion.
+     - `research` → `recall(bank="researchit")` + `recall(bank=<name>-profile>)`. MarkItDown disponible como CLI (`markitdown <file>`). Kanban al research-worker con skills de busqueda e investigacion.
      - `personal` → responder como orquestador. No delegar.
      - `custom` → usar `description` del YAML como unica guia.
      - `announcements` / `readonly` → ignorar, no responder.
@@ -63,6 +63,16 @@ y concatenarla con `whatsapp-groups.yaml.description` como contexto operativo.
 - **Vision**: `openai/gpt-4o` via OpenCode Go (alias "omni").
 - **context_file_max_chars**: 25000.
 - Limite suave de contexto: 500K tokens.
+- **MarkItDown**: CLI disponible (`markitdown <file>`). Convierte PDF, DOCX, PPTX, XLSX, EPUB, HTML, CSV, JSON, XML, imagenes, audio, ZIP a Markdown. Instalado via CI/CD en el venv.
+
+## Banks de referencia
+
+| Bank | Contenido |
+|---|---|
+| `hermes` | Tu banco personal (vacio, canonical v1). Usar recall/retain siempre. |
+| `toolset` | Infraestructura toolset: OCI, CI/CD, servicios, decisiones tecnicas (~445 facts). |
+| `researchit` | Motor de deep research: SearXNG, Reddit, Typst (~124 facts). |
+| Otros | `kairos`, `cl-concerts-db`, `yacv`, `evidencia-zero`, `witral`. Ver context.md para detalle. |
 
 ## Tonos
 
