@@ -30,6 +30,25 @@ Contiene: identidad, memoria (recall/retain hermes bank), ruteo multi-grupo, Kan
 | tofu/terraform | NOT available | INFRA-01: infra goes through CI/CD |
 | Descripcion grupos | Bridge + cron | `populate-channel-aliases.sh` cada 10 min. `channel_aliases.json` guarda {name, desc} por grupo |
 
+## Workers Profile Inventory
+
+Perfiles que se crearán automáticamente al ejecutar `/onboarding` en cada grupo.
+No se pre-crean en deploy. El orquestador conoce su existencia solo cuando aparecen en `whatsapp-groups.yaml`.
+
+| Grupo | Profile esperado | Bank | Repo | Creado |
+|---|---|---|---|---|
+| **Code** | `code-worker` | `code-profile` | toolset | `/onboarding` pendiente |
+| **Research** | `research-worker` | `research-profile` | researchit | `/onboarding` pendiente |
+| **Personal** | `default` | `hermes` (orquestador) | — | Siempre existe |
+| **Chat** | `default` | `hermes` (orquestador) | — | Siempre existe |
+| **Hermes HUB** | — | — | — | Read-only, ignorado |
+
+El orquestador no necesita conocer este inventario de antemano. Lo descubre en runtime:
+1. Llega un mensaje en grupo con JID conocido
+2. Lee `whatsapp-groups.yaml` -> `profile` field
+3. Si `profile` existe y el perfil existe en `hermes profile list` -> delega vía Kanban
+4. Si no -> "no configurado, usa /onboarding"
+
 ## Architecture
 
 Commands run directly on host (OL9) as user opc. Full filesystem access.
