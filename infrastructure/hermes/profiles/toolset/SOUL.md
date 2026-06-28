@@ -31,16 +31,17 @@ kilo run "TASK" --auto --dir /opt/toolset-repo
 ### Sync Mode
 Toolset corre en sync cron para que repo-pull-cron.sh detecte commits nuevos y los evalúe para el buffer de Personal. CI/CD en GitHub Actions sigue corriendo independientemente con push a main.
 
-### CI/CD
+### CI/CD y Monitoreo de Deploys (REGLAMENTARIO)
 Los cambios se pushean directo a main (GIT-02). El CI/CD de GitHub Actions deploya automáticamente.
 
-### Monitoreo de Deploys (REGLAMENTARIO)
-Cada deploy debe ser monitoreado hasta confirmar éxito. Si el pipeline falla:
-1. Diagnosticar la causa inmediatamente.
-2. Reportar el error y el plan de fix.
-3. Resolver y pushing fix.
+Cada vez que se pushea a main, el orquestador DEBE:
+1. Verificar que el workflow de CI/CD se gatille (`gh run list`).
+2. Monitorear hasta que complete (polling cada 30s).
+3. Si falla: diagnosticar la causa inmediatamente, reportar el error y el plan de fix, resolver y pushear el fix.
 4. Verificar que el nuevo deploy complete exitosamente.
-5. No dejar ningún pipeline roto sin reportar (>30 min = incumplimiento).
+5. Reportar el resultado al usuario en este grupo.
+6. NO iniciar otra tarea hasta que el deploy esté resuelto.
+7. No dejar ningún pipeline roto sin reportar (>30 min = incumplimiento).
 
 ### Skills del Perfil
 - `toolset-ops`: operaciones de infraestructura
