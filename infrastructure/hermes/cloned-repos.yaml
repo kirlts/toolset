@@ -10,7 +10,7 @@ repos:
     url: https://github.com/kirlts/toolset.git
     path: /opt/toolset-repo
     type: native
-    sync: ci_cd
+    sync: cron
   researchit:
     url: https://github.com/kirlts/researchit.git
     path: /opt/researchit
