@@ -887,41 +887,6 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   "sudo chattr +i /home/opc/.hermes/config.yaml 2>/dev/null && echo '  config.yaml immutable' || echo '  chattr not available (expected in some envs)'"
 echo "[DEPLOY] Config protection applied."
 
-# --- Create worker profiles for WhatsApp group routing ---
-# Cada worker profile hereda config/env/SOUL/skills del default via --clone.
-# Solo se diferencian en terminal.cwd (apunta al repo correspondiente).
-# Skills de external_skills_dirs están disponibles globalmente — no se instalan.
-echo "[DEPLOY] Creating/verifying worker profiles..."
-WORKER_PROFILES=(
-  "code-worker:/opt/toolset-repo"
-  "research-worker:/opt/researchit"
-)
-for PROFILE_ENTRY in "${WORKER_PROFILES[@]}"; do
-  IFS=':' read -r PROFILE_NAME PROFILE_CWD <<< "$PROFILE_ENTRY"
-  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    "${SSH_HOST}" \
-    "export PATH=/usr/local/bin:/home/opc/.local/bin:\$PATH; \
-     if hermes profile list 2>/dev/null | grep -q '${PROFILE_NAME}'; then \
-       echo '  ✓ ${PROFILE_NAME} already exists'; \
-     else \
-       echo '  Creating ${PROFILE_NAME}...'; \
-       hermes profile create ${PROFILE_NAME} --clone 2>&1 && \
-       hermes -p ${PROFILE_NAME} config set terminal.cwd ${PROFILE_CWD} 2>&1 && \
-       echo '  ✓ ${PROFILE_NAME} created with cwd=${PROFILE_CWD}' || \
-       echo "  ⚠ ${PROFILE_NAME} creation failed"; \
-     fi" || echo "  ⚠ ${PROFILE_NAME}: deploy continued despite profile creation issue"
-done
-# --- Clean up old orphaned profiles (renamed conventions) ---
-ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-  "${SSH_HOST}" \
-  "export PATH=/usr/local/bin:/home/opc/.local/bin:\$PATH; \
-   for old in toolset-worker researchit-worker; do \
-     if hermes profile list 2>/dev/null | grep -q \"\$old\"; then \
-       echo '  Removing orphaned profile: '\$old; \
-       hermes profile delete \"\$old\" --yes 2>/dev/null || true; \
-     fi; \
-   done" || true
-
 echo "[DEPLOY] Worker profiles ready."
 
 # --- Restart hermes-gateway (post-config changes) ---

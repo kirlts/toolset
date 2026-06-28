@@ -1,46 +1,27 @@
 # WhatsApp Group → Hermes configuration mapping
 # Domain-abstract. Not coupled to GitHub repos.
-# Versioned in toolset repo. Deployed to ~/.hermes/ via deploy.sh.
-# Desplegado automáticamente vía deploy.sh paso 1b.
-#
-# Type options:
-#   coding     → repo + worker profile + skills (Kilo CLI coding)
-#   research   → area de investigación + skills (sin repo obligatorio)
-#   personal   → orquestador maestro (default profile)
-#   custom     → descripción libre, sin worker automático
+# Versioned in toolset repo. Desplegado via deploy.sh paso 1b.
+# Profile y skills se asignan via /onboarding (no pre-crear).
+# Hasta que se ejecute /onboarding, Hermes responde "no configurado".
 
 groups:
   "120363426715592979@g.us":
     name: "Code"
     type: "coding"
-    repo: "toolset"
-    profile: "code-worker"
-    skills: ["kilo-code", "github-pr-workflow"]
-    description: "Desarrollo de infraestructura toolset. Código, tests, deploys."
 
   "120363409253667928@g.us":
     name: "Research"
     type: "research"
-    repo: "researchit"
-    profile: "research-worker"
-    skills: ["standard-research", "markitdown-converter"]
-    description: "Investigación profunda con SearXNG + deepseek-v4-flash. Papers, fact-checking."
 
   "120363429377303869@g.us":
     name: "Personal"
     type: "personal"
-    profile: "default"
-    description: "Orquestador maestro. Tareas personales, estado del sistema, decisiones."
 
   "120363427331798211@g.us":
     name: "Chat"
     type: "personal"
-    profile: "default"
-    description: "Conversación general. Sin worker específico."
 
   "120363408844901511@g.us":
     name: "Hermes HUB"
     type: "announcements"
-    profile: "default"
-    description: "Anuncios de la comunidad. Solo lectura para Hermes."
     readonly: true

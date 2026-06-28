@@ -52,6 +52,10 @@ Questions asked in sequence:
 1. **Group type:** "¿Que tipo de perfil?" → coding / research / personal / custom
 2. **Name:** Auto-detected from `channel_aliases.json`. Editable by user.
 3. **Domain/description:** "¿Que hace este perfil? Describilo en una frase."
+   - Antes de preguntar, leer `~/.hermes/channel_aliases.json` -> `whatsapp.<jid>.desc`.
+   - Si hay descripcion disponible (no vacia), mostrarla como sugerencia:
+     "Descripcion actual del grupo en WhatsApp: '<desc>'. ¿La usamos o preferis escribir una nueva?"
+   - Si el usuario acepta, usar la descripcion de WhatsApp como descripcion del perfil.
 4. **Repository:** Solo si type=coding o type=research. "¿Repositorio GitHub? (nombre corto o URL completa, o 'n' para ninguno)"
    - Validate: `git ls-remote https://github.com/kirlts/<repo>.git` responde 200.
 

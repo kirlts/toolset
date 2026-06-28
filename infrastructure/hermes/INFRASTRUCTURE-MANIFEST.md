@@ -56,8 +56,11 @@ Cuando se modifica un archivo de configuracion:
 
 | File | Change |
 |---|---|
-| infrastructure/hermes/SOUL.md | REFACTORED: reducido de 254 a ~70 lineas. Solo identidad + tono + algoritmo de ruteo + memoria. Contenido operativo movido a hermes-context.md. |
-| infrastructure/hermes-context.md | REFACTORED: ahora contiene la referencia operativa completa (capacidades, banks, reglas, detalles de ruteo). Referencia a SOUL.md. |
+| infrastructure/hermes/SOUL.md | REFACTORED: 254 -> 72 lineas. Routing ahora detecta grupos sin profile como "no configurado". |
+| infrastructure/hermes-context.md | REFACTORED: referencia operativa completa. Banks actualizados (hermes: 0). |
+| infrastructure/hermes/whatsapp-groups.yaml | LIMPIADO: sin profiles ni skills. Grupos conocidos pero no configurados hasta /onboarding. |
+| infrastructure/deploy.sh | REMOVIDA: creacion de workers profiles (code-worker, research-worker). Ya no se pre-crean. Onboarding es unico camino. |
+| infrastructure/hermes-skills/group-onboarding/SKILL.md | MEJORADO: lee descripcion de WhatsApp desde channel_aliases.json como sugerencia en Phase 1. |
 | infrastructure/hermes/whatsapp-groups.yaml | Domain-abstract types (coding/research/personal/custom/announcements) |
 | infrastructure/hermes/CRONS.md | Added populate-channel-aliases cron |
 | infrastructure/hermes/scripts/populate-channel-aliases.sh | Now stores {name, desc} per group |

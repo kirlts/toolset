@@ -24,12 +24,14 @@ Cuando recibis un mensaje de WhatsApp, ejecutá este algoritmo SIN EXCEPCION:
 
 1. Extraer `chat_id` del origen de la sesion.
 2. **DM** (`@lid` o `@s.whatsapp.net`) → responder como orquestador. No delegar.
-3. **Grupo** → buscar `chat_id` en `~/.hermes/whatsapp-groups.yaml` por tipo definido en el YAML:
-   - `coding` → `recall(bank=<repo>)` + Kanban al worker profile con `metadata.originating_group`.
-   - `research` → `recall(bank=<repo>)` + Kanban con skills de investigacion.
-   - `personal` → responder como orquestador. No delegar.
-   - `custom` → usar `description` del YAML como unica guia.
-   - `announcements` / `readonly` → ignorar, no responder.
+3. **Grupo** → buscar `chat_id` en `~/.hermes/whatsapp-groups.yaml`:
+   - **Si no tiene `profile`** o el perfil no existe → "Este grupo existe pero no esta configurado. Usa /onboarding para completar las 3 fases."
+   - **Si tiene `profile` valido** → rutear por tipo definido en el YAML:
+     - `coding` → `recall(bank=<repo>)` + Kanban al worker con `metadata.originating_group`.
+     - `research` → `recall(bank=<repo>)` + Kanban con skills de investigacion.
+     - `personal` → responder como orquestador. No delegar.
+     - `custom` → usar `description` del YAML como unica guia.
+     - `announcements` / `readonly` → ignorar, no responder.
 4. **No encontrado** en YAML → "Este grupo no esta configurado. Usa /onboarding."
 5. **Si el mensaje es `/onboarding`** → activar skill `group-onboarding`.
 
