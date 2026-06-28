@@ -1,7 +1,7 @@
 ---
 name: whatsapp-router
-description: "Deterministic routing of WhatsApp group messages to repo-specific worker profiles via Kanban. Zero LLM judgment for routing decisions."
-version: 1.0.0
+description: "Deterministic routing of WhatsApp group messages based on group type. Zero LLM judgment for routing decisions."
+version: 2.0.0
 platforms: [linux]
 metadata:
   hermes:
@@ -13,34 +13,47 @@ metadata:
 
 ## When Activated
 
-This skill fires on EVERY incoming WhatsApp group message. DMs route to the
-default profile (orchestrator) without delegation.
+This skill fires when the SOUL.md routing algorithm determines a WhatsApp group
+message needs processing. DMs route to default profile (orchestrator).
 
 ## Files
 
-- `~/.hermes/whatsapp-groups.yaml` — mapping: JID → repo → profile
+- `~/.hermes/whatsapp-groups.yaml` — mapping: JID → type + config
 - `~/.hermes/channel_aliases.json` — JID → human-readable name
 - `~/.hermes/channel_directory.json` — auto-discovered channels
 
-## Routing Algorithm (DETERMINISTIC)
+## Routing by Group Type (DETERMINISTIC)
 
-1. Extract `chat_id` from session origin (`remoteJid`)
-2. If DM (`chat_id` ends with `@lid` or `@s.whatsapp.net`): route to default profile
-3. If message starts with `/onboarding` → trigger `group-onboarding` skill (separate SKILL.md)
-4. Look up `chat_id` in `~/.hermes/whatsapp-groups.yaml`
-5. If found:
-   a. Execute `recall(bank="<repo>")` from Hindsight
-   b. Create Kanban task: `kanban_create(
-        title="<user message>",
-        assignee="<profile>",
-        body="<full message text>",
-        skills=["<skills>"]
-      )`
-   c. Respond: "⏳ Delegando a <profile>..."
-6. If NOT found: respond "Este grupo no está configurado. Usa /onboarding."
+After SOUL.md identifies the group type from whatsapp-groups.yaml:
+
+### `type: coding`
+1. Execute `recall(bank="<repo>")`
+2. Create Kanban: `kanban_create(title="<msg>", assignee="<profile>", body="<msg>", skills=["<skills>"])`
+3. Respond "⏳ <profile> procesando..."
+
+### `type: research`
+1. Execute `recall(bank="<group-name>-profile")`
+2. If repo specified: also `recall(bank="<repo>")`
+3. Delegate via Kanban with research skills
+4. Respond "🔬 Investigando..."
+
+### `type: personal`
+1. Respond as orchestrator (no delegation)
+2. Use bank `<group-name>-profile` for memory
+3. Load group `description` as context
+
+### `type: custom`
+1. Load `description` as context
+2. No automatic delegation
+3. Use bank `<group-name>-profile` for memory
+4. Hermes decides based on context + description
+
+### `type: announcements` or `readonly: true`
+1. Ignore completely — no response
 
 ## Rules
 
-- **No LLM judgment for routing.** Routing decisions come from whatsapp-groups.yaml.
-- Every incoming group message triggers `recall(bank=repo)` before delegation.
-- Kanban tasks use `--skill` from the mapping file for worker context.
+- **No LLM judgment for routing.** Type and target come from whatsapp-groups.yaml.
+- Every group has a bank: `<group-name>-profile`
+- `description` field is loaded as context for every group type
+- DMs ALWAYS route to orchestrator (SOUL.md default personality)
