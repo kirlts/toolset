@@ -1,7 +1,7 @@
 ---
 name: group-onboarding
-description: "3-phase MECE onboarding for WhatsApp groups and DM. Creates SOUL.md, skills config, and Hindsight bank. No predefined categories — each group defines its own identity."
-version: 4.0.0
+description: "Context-aware onboarding for WhatsApp groups and DM. Creates SOUL.md, skills config, and Hindsight bank. No predefined categories — each group defines its own identity. Optional Phase 0 extracts context from artifacts, URLs, voice messages, or conversation history."
+version: 4.1.0
 platforms: [linux]
 metadata:
   hermes:
