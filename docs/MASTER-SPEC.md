@@ -140,6 +140,7 @@
 **SOUL.md:** Identidad/tono en ~/.hermes/SOUL.md (refactorizado). Contenido operacional movido a ~/.hermes/context.md.
 **AGENTS.md:** Contexto operacional del proyecto (capacidades, arquitectura, reglas, banks) cargado como context file de Hermes via auto-descubrimiento desde el repo clonado.
 **External skills:** Dos directorios vía `external_skills_dirs`: `/opt/toolset-repo/infrastructure/hermes-skills/` y `/opt/toolset-repo/.agents/skills/`.
+**Configuration manifest:** Todos los archivos de configuracion de Hermes se trackean en `infrastructure/hermes/INFRASTRUCTURE-MANIFEST.md`. No modificar un archivo de config sin actualizar el manifest.
 
 **MCP Lifecycle:**
 1. deploy.sh sincroniza SOUL.md, config.yaml, .env, y context.md al servidor.

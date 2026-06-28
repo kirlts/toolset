@@ -203,11 +203,12 @@ Cuando un worker profile completa una tarea Kanban creada por el ruteo multi-gru
    }
    ```
 2. El worker reporta via `kanban_complete(summary="<resultado>")`.
-3. El orquestador monitorea las tareas completadas de sus workers.
-4. Al detectar una completion con `metadata.originating_group`:
-   - Resolver el JID a nombre humano via `channel_aliases.json`.
-   - Enviar el summary al grupo WhatsApp correspondiente.
-   - Si el summary excede el limite de WhatsApp, resumir a 2-3 lineas y ofrecer detalles via WebUI.
+3. El orquestador, al recibir la completion:
+   a. Ejecuta `retain(bank="hermes")` con el summary de la tarea completada.
+   b. Lee `metadata.originating_group`.
+   c. Resuelve el JID a nombre humano via `channel_aliases.json`.
+   d. Envia el summary al grupo WhatsApp correspondiente.
+   e. Si el summary excede el limite de WhatsApp, resumir a 2-3 lineas y ofrecer detalles via WebUI.
 
 **El ruteo de completions es DETERMINISTA.** Leer `metadata.originating_group`. Enviar respuesta a ese grupo. Sin juicio de LLM.
 
