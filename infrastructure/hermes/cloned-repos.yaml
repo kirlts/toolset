@@ -25,3 +25,8 @@ repos:
     path: /opt/hermes-webui
     type: native
     sync: deploy
+  personal:
+    url: https://github.com/kirlts/personal.git
+    path: /home/opc/personal
+    type: cloned
+    sync: cron
