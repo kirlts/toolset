@@ -64,7 +64,31 @@ Copia y commitea los siguientes archivos de `~/.hermes/` al repo `toolset/infras
 | `witral` | ~2 | Routing messaging→storage |
 | `default` | ~52 | Banco por defecto |
 
-## 3. `hermes-health-check` — Diagnóstico diario del sistema
+## 3. `populate-channel-aliases` — Sincronización de nombres de grupos WhatsApp
+
+| Campo | Valor |
+|---|---|
+| **Job ID** | `populate-channel-aliases` |
+| **Schedule** | Cada 10 minutos (`*/10 * * * *`) |
+| **Script** | `populate-channel-aliases.sh` |
+| **No-agent** | `true` (script puro, sin LLM) |
+| **Deliver** | `local` (solo escribe en disco) |
+| **Estado** | ✅ Activo |
+
+### Qué hace
+1. Lee `channel_directory.json` para descubrir grupos WhatsApp
+2. Consulta `GET /chat/<jid>` en el bridge (`localhost:3000`) para cada grupo
+3. Obtiene el nombre humano (`metadata.subject` desde Baileys groupMetadata)
+4. Escribe `channel_aliases.json` para que Hermes resuelva JIDs a nombres
+5. Solo actualiza entradas cuando cambian (evita escritura innecesaria)
+
+### Dependencias
+- Bridge de WhatsApp corriendo en `127.0.0.1:3000`
+- `channel_directory.json` generado por Hermes gateway (cada 5 min)
+
+---
+
+## 4. `hermes-health-check` — Diagnóstico diario del sistema
 
 | Campo | Valor |
 |---|---|

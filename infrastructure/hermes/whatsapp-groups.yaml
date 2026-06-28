@@ -1,0 +1,35 @@
+# WhatsApp Group → Repo mapping for deterministic routing
+# Versioned in toolset repo. Deployed to ~/.hermes/ via deploy.sh.
+# Format: <group_jid>: { name, repo, profile, skills, type? }
+# Desplegado automáticamente vía deploy.sh paso 1b.
+
+groups:
+  "120363426715592979@g.us":
+    name: "Code"
+    repo: "toolset"
+    profile: "toolset-worker"
+    skills: ["kilo-code", "github-pr-workflow"]
+
+  "120363409253667928@g.us":
+    name: "Research"
+    repo: "researchit"
+    profile: "researchit-worker"
+    skills: ["standard-research", "markitdown-converter"]
+
+  "120363429377303869@g.us":
+    name: "Personal"
+    repo: "hermes"
+    profile: "default"
+    skills: []
+
+  "120363427331798211@g.us":
+    name: "Chat"
+    repo: "hermes"
+    profile: "default"
+    skills: []
+
+  "120363408844901511@g.us":
+    name: "Hermes HUB"
+    type: "announcements"
+    profile: "default"
+    skills: []

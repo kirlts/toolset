@@ -120,14 +120,18 @@
 
 **Status:** ✅ Implementado y operativo
 
-**Purpose:** Actuar como punto de entrada conversacional persistente para procesar ordenes y coordinar subagentes asincronos.
+**Purpose:** Actuar como punto de entrada conversacional persistente para procesar ordenes, rutear mensajes de grupo WhatsApp a workers especializados, y coordinar subagentes asincronos.
 
 **Interface:**
 ```
- HermesInputReceiver -> parseCommand() -> delegateToSubagent() -> sendResponse()
+ HermesInputReceiver -> whatsapp-router skill (determinista) -> kanban_create() -> worker profile -> sendResponse()
 ```
 
 **Platforms activas:** WhatsApp (bot number 56936414929), WebUI (https://toolset-oci-1-1.tail2d4c18.ts.net:8787/).
+**WhatsApp multi-group:** 6 grupos detectados en comunidad "Hermes HUB": Chat, Code, Research, Personal, Hermes HUB (anuncios), + DM legacy. Ruteo determinista via `whatsapp-router` skill + `whatsapp-groups.yaml` (versionado en `infrastructure/hermes/`).
+**Deterministic routing:** `channel_aliases.json` resuelve JID → nombre humano via `GET /chat/:id` en bridge (Baileys groupMetadata). `whatsapp-groups.yaml` mapea JID → repo → perfil worker. 0% LLM en decisiones de ruteo.
+**Worker profiles:** perfiles Hermes dedicados por repositorio (`toolset-worker`, `researchit-worker`), cada uno con `terminal.cwd` al repo clonado y skills especificas. Tareas delegadas via Kanban `kanban_create()`.
+**Onboarding:** comando `/onboarding` en cualquier grupo WhatsApp permite vincular el grupo a un repositorio sin intervención del deploy. Valida repo, perfil, skills antes de escribir y pushear `whatsapp-groups.yaml`.
 **WebUI deploy:** deploy.sh actualiza hermes-webui via `git pull --ff-only` en cada deploy, tanto en instalacion inicial como en reinicio del servicio.
 **MCP servers:** hindsight-selfhosted (36 tools), composio (7 tools).
 **Memory bank:** hermes (Hindsight, 30 facts seedeados).
@@ -139,6 +143,8 @@
 
 **MCP Lifecycle:**
 1. deploy.sh sincroniza SOUL.md, config.yaml, .env, y context.md al servidor.
+1b. deploy.sh copia `whatsapp-groups.yaml` a `~/.hermes/` y ejecuta `populate-channel-aliases.sh` para construir `channel_aliases.json`.
+1c. deploy.sh crea/verifica perfiles worker (`toolset-worker`, `researchit-worker`) con `terminal.cwd` y skills especificas.
 2. inject-composio-key.py actualiza config.yaml con MCP servers, approvals mode, y external_skills_dirs.
 3. Gateway se reinicia (`systemctl kill -s KILL` + `systemctl start`) para recoger cambios.
 4. Health check verifica que el gateway responda activamente.

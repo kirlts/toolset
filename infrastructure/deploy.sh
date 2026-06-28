@@ -530,6 +530,41 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
 # --- Skills are loaded via external_skills_dirs from /opt/toolset-repo/ (set in inject-composio-key.py) ---
 echo "[DEPLOY] Skills directory sync disabled — using external_skills_dirs from cloned repo"
 
+# --- Deploy whatsapp-groups.yaml for deterministic group routing ---
+WHATSAPP_GROUPS_SRC="$(dirname "${COMPOSE_FILE}")/hermes/whatsapp-groups.yaml"
+if [ -f "$WHATSAPP_GROUPS_SRC" ]; then
+  echo "[DEPLOY] Deploying whatsapp-groups.yaml..."
+  scp -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    "$WHATSAPP_GROUPS_SRC" "${SSH_HOST}:/tmp/whatsapp-groups.yaml"
+  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    "${SSH_HOST}" \
+    "sudo cp /tmp/whatsapp-groups.yaml /home/opc/.hermes/whatsapp-groups.yaml && \
+     sudo chown opc:opc /home/opc/.hermes/whatsapp-groups.yaml && \
+     sudo rm -f /tmp/whatsapp-groups.yaml && \
+     echo '  whatsapp-groups.yaml deployed'"
+fi
+
+# --- Deploy populate-channel-aliases script ---
+POPULATE_SCRIPT_SRC="$(dirname "${COMPOSE_FILE}")/hermes/scripts/populate-channel-aliases.sh"
+if [ -f "$POPULATE_SCRIPT_SRC" ]; then
+  echo "[DEPLOY] Deploying populate-channel-aliases.sh..."
+  scp -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    "$POPULATE_SCRIPT_SRC" "${SSH_HOST}:/tmp/populate-channel-aliases.sh"
+  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    "${SSH_HOST}" \
+    "sudo cp /tmp/populate-channel-aliases.sh /home/opc/.hermes/scripts/populate-channel-aliases.sh && \
+     sudo chmod +x /home/opc/.hermes/scripts/populate-channel-aliases.sh && \
+     sudo chown opc:opc /home/opc/.hermes/scripts/populate-channel-aliases.sh && \
+     sudo rm -f /tmp/populate-channel-aliases.sh && \
+     echo '  populate-channel-aliases.sh deployed'"
+  # Ejecutar el populate inmediatamente para poblar aliases iniciales
+  echo "[DEPLOY] Running initial channel alias population..."
+  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    "${SSH_HOST}" \
+    "export PATH=/usr/local/bin:/home/opc/.local/bin:\$PATH; \
+     bash /home/opc/.hermes/scripts/populate-channel-aliases.sh 2>&1 | sed 's/^/  [POPULATE] /'" || true
+fi
+
 # --- Write Hermes .env on remote (always overwrite — Hermes creates a default template) ---
 # Hermes systemd service runs as user 'opc', so .hermes dir is under /home/opc/
 HERMES_DIR="/home/opc/.hermes"
@@ -830,6 +865,62 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   "${SSH_HOST}" \
   "sudo chattr +i /home/opc/.hermes/config.yaml 2>/dev/null && echo '  config.yaml immutable' || echo '  chattr not available (expected in some envs)'"
 echo "[DEPLOY] Config protection applied."
+
+# --- Create worker profiles for WhatsApp group routing ---
+echo "[DEPLOY] Creating/verifying worker profiles..."
+WORKER_PROFILES_JSON=$(cat << WORKERJSON
+{
+  "toolset-worker": {"cwd": "/opt/toolset-repo", "skills": ["kilo-code", "github-pr-workflow"]},
+  "researchit-worker": {"cwd": "/opt/researchit-repo", "skills": ["standard-research", "markitdown-converter"]}
+}
+WORKERJSON
+)
+echo "$WORKER_PROFILES_JSON" | python3 -c "
+import json, sys, subprocess, os
+profiles = json.load(sys.stdin)
+for name, cfg in profiles.items():
+    # Verificar si el perfil existe
+    r = subprocess.run(['ssh'] + '${SSH_HOST}'.split() + ['hermes profile list 2>/dev/null || true'],
+                       capture_output=True, text=True, shell=False, timeout=15)
+    # Usar hermes directamente via ssh
+    check = subprocess.run(
+        ['ssh', '-oStrictHostKeyChecking=no', '-oUserKnownHostsFile=/dev/null',
+         '${SSH_HOST}',
+         f'export PATH=/usr/local/bin:/home/opc/.local/bin:\$PATH; hermes profile list 2>/dev/null || echo NOT_FOUND'],
+        capture_output=True, text=True, timeout=15
+    )
+    exists = name in check.stdout
+    if not exists:
+        print(f'  Creating profile: {name}')
+        subprocess.run(
+            ['ssh', '-oStrictHostKeyChecking=no', '-oUserKnownHostsFile=/dev/null',
+             '${SSH_HOST}',
+             f'export PATH=/usr/local/bin:/home/opc/.local/bin:\$PATH; '
+             f'hermes profile create {name} --clone-from default --no-skills 2>&1'],
+            check=False, timeout=30
+        )
+        # Configurar cwd del perfil
+        subprocess.run(
+            ['ssh', '-oStrictHostKeyChecking=no', '-oUserKnownHostsFile=/dev/null',
+             '${SSH_HOST}',
+             f'export PATH=/usr/local/bin:/home/opc/.local/bin:\$PATH; '
+             f'hermes -p {name} config set terminal.cwd {cfg[\"cwd\"]} 2>&1'],
+            check=False, timeout=30
+        )
+        # Instalar skills
+        for skill in cfg.get('skills', []):
+            subprocess.run(
+                ['ssh', '-oStrictHostKeyChecking=no', '-oUserKnownHostsFile=/dev/null',
+                 '${SSH_HOST}',
+                 f'export PATH=/usr/local/bin:/home/opc/.local/bin:\$PATH; '
+                 f'hermes -p {name} skills install {skill} 2>&1'],
+                check=False, timeout=30
+            )
+        print(f'  ✅ {name} created with cwd={cfg[\"cwd\"]}')
+    else:
+        print(f'  ✅ {name} already exists')
+"
+echo "[DEPLOY] Worker profiles ready."
 
 # --- Restart hermes-gateway (post-config changes) ---
 echo "[DEPLOY] Restarting hermes-gateway..."
