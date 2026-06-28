@@ -1,6 +1,12 @@
 # Hermes Context — Toolset Personal
 
-Project context file loaded at session start. Contains operational configuration extracted from SOUL.md.
+Project context file loaded at session start (AGENTS.md behavior).
+Contiene la referencia operativa del proyecto. La identidad, tono y algoritmo de ruteo estan en `SOUL.md`.
+
+## SOUL.md Reference
+
+La identidad del orquestador esta en `~/.hermes/SOUL.md` (desplegado desde `infrastructure/hermes/SOUL.md`).
+Contiene: identidad, memoria (recall/retain hermes bank), ruteo multi-grupo, Kanban completion routing, contexto dinamico, plataforma, tono.
 
 ## Capabilities
 
@@ -46,7 +52,7 @@ Hindsight is centralized memory. Each active repo + each WhatsApp group has its 
 
 | Bank | Purpose | Facts |
 |---|---|---|
-| **hermes** | **[AGENT MEMORY]** User profile, agent state, preferences, personal context, consolidated working memory | ~241 |
+| **hermes** | **[AGENT MEMORY]** User profile, agent state, preferences, personal context. Reiniciado 2026-06-28 (canonical v1) | 0 |
 | **toolset** | **[INFRASTRUCTURE]** Toolset IaC: OCI, CI/CD, services, architecture decisions, deploy state | ~445 |
 | **code-profile** | Worker profile for Code WhatsApp group — desarrollo toolset | created on /onboarding |
 | **research-profile** | Worker profile for Research WhatsApp group — investigacion profunda | created on /onboarding |

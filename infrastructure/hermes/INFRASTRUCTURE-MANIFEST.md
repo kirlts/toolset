@@ -10,8 +10,8 @@
 
 | File | Purpose | Sync to VPS | Last Updated |
 |---|---|---|---|
-| `infrastructure/hermes/SOUL.md` | Identidad, reglas, ruteo multi-grupo, tono del orquestador | deploy.sh (sobrescribe) | 2026-06-28 |
-| `infrastructure/hermes-context.md` | Context file de Hermes (AGENTS.md). Cargado al inicio de sesion | deploy.sh -> ~/.hermes/context.md + /opt/toolset-repo/AGENTS.md | 2026-06-28 |
+| `infrastructure/hermes/SOUL.md` | Identidad, tono, algoritmo de ruteo, memoria del orquestador. ~70 lineas. Sin contenido operativo. | deploy.sh (sobrescribe) | 2026-06-28 |
+| `infrastructure/hermes-context.md` | Contexto operativo de Hermes (AGENTS.md): capacidades, arquitectura, banks, reglas, routing detallado | deploy.sh -> ~/.hermes/context.md + /opt/toolset-repo/AGENTS.md | 2026-06-28 |
 | `infrastructure/hermes/config.yaml` | Config estructural: MCP servers, external_skills_dirs, modelo, proveedor | deploy.sh + inject-composio-key.py | 2026-06-26 |
 | `infrastructure/hermes/CRONS.md` | Documentacion de cron jobs activos | Repo (documentacion, no ejecutable) | 2026-06-28 |
 | `infrastructure/hermes/scripts/populate-channel-aliases.sh` | Consulta bridge GET /chat/:id, escribe channel_aliases.json con {name, desc} | deploy.sh (paso 1b) | 2026-06-28 |
@@ -56,8 +56,8 @@ Cuando se modifica un archivo de configuracion:
 
 | File | Change |
 |---|---|
-| infrastructure/hermes/SOUL.md | Routing multi-grupo, Kanban completion forwarding, descripcion como contexto dinamico, DM onboarding |
-| infrastructure/hermes-context.md | Updated capabilities, architecture, banks, routing rules |
+| infrastructure/hermes/SOUL.md | REFACTORED: reducido de 254 a ~70 lineas. Solo identidad + tono + algoritmo de ruteo + memoria. Contenido operativo movido a hermes-context.md. |
+| infrastructure/hermes-context.md | REFACTORED: ahora contiene la referencia operativa completa (capacidades, banks, reglas, detalles de ruteo). Referencia a SOUL.md. |
 | infrastructure/hermes/whatsapp-groups.yaml | Domain-abstract types (coding/research/personal/custom/announcements) |
 | infrastructure/hermes/CRONS.md | Added populate-channel-aliases cron |
 | infrastructure/hermes/scripts/populate-channel-aliases.sh | Now stores {name, desc} per group |

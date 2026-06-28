@@ -137,13 +137,13 @@
 **Memory bank:** hermes (Hindsight, 30 facts seedeados).
 **Bank discovery:** deploy.sh descubre banks desde `infrastructure/hermes/banks/` (versionado en repo) y los crea en Hindsight si no existen.
 **Modelo default:** deepseek-v4-flash via OpenCode Go.
-**SOUL.md:** Identidad/tono en ~/.hermes/SOUL.md (refactorizado). Contenido operacional movido a ~/.hermes/context.md.
-**AGENTS.md:** Contexto operacional del proyecto (capacidades, arquitectura, reglas, banks) cargado como context file de Hermes via auto-descubrimiento desde el repo clonado.
+**SOUL.md:** Identidad y algoritmo de ruteo en `~/.hermes/SOUL.md` (~70 lineas). Contenido operacional movido a `~/.hermes/context.md`.
+**context.md (AGENTS.md):** Contexto operacional del proyecto (capacidades, arquitectura, reglas, banks) cargado como context file de Hermes via auto-descubrimiento desde el repo clonado.
 **External skills:** Dos directorios vía `external_skills_dirs`: `/opt/toolset-repo/infrastructure/hermes-skills/` y `/opt/toolset-repo/.agents/skills/`.
 **Configuration manifest:** Todos los archivos de configuracion de Hermes se trackean en `infrastructure/hermes/INFRASTRUCTURE-MANIFEST.md`. No modificar un archivo de config sin actualizar el manifest.
 
 **MCP Lifecycle:**
-1. deploy.sh sincroniza SOUL.md, config.yaml, .env, y context.md al servidor.
+1. deploy.sh sincroniza SOUL.md (identidad) y context.md (operacional) al servidor.
 1b. deploy.sh copia `whatsapp-groups.yaml` a `~/.hermes/` y ejecuta `populate-channel-aliases.sh` para construir `channel_aliases.json`.
 1c. deploy.sh crea/verifica perfiles worker (`code-worker`, `research-worker`) con `terminal.cwd` y skills especificas.
 2. inject-composio-key.py actualiza config.yaml con MCP servers, approvals mode, y external_skills_dirs.
