@@ -11,6 +11,9 @@ groups:
 
   "120363429377303869@g.us":
     name: "Personal"
+    description: "Knowledge Base Personal de Martin. Narrativa Mitologica bajo Kairós. Buffer de entrada para Terreno y Mito."
+    repo: "kirlts/personal"
+    profile: "personal"
 
   "120363427331798211@g.us":
     name: "Chat"
