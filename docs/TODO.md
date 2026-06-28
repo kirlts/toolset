@@ -119,6 +119,17 @@
 - [x] Test flujo completo: WhatsApp → clonar repo → responder pregunta. ✅ Hermes clonó researchit y contó 8 archivos .py. 2026-06-26 [🤖 Verified via hermes -z]
 - [x] Test `kilo run "Run tests" --auto` desde terminal VPS. ✅ Ejecutó python3 hello.py → "hello world". 2026-06-26 [🤖 Verified via SSH]
 - [x] Implementar model discovery: No necesario. El stack usa exclusivamente deepseek-v4-flash via OpenCode Go. No hay selección de modelos. 2026-06-26 [🔄 Cerrado por decisión arquitectónica]
+- [x] WhatsApp multi-group routing: 6 grupos en comunidad Hermes HUB. Ruteo determinista via whatsapp-groups.yaml. Sin tipos predefinidos. 2026-06-28 [🤖 Verified by tool]
+- [x] 3-phase MECE onboarding v4: sin categorías. Group descriptions auto-sugeridas desde WhatsApp. 2026-06-28 [🤖 Verified by tool]
+- [x] Inter-profile delegation: kanban con metadata.originating_group propagation. 2026-06-28 [🤖 Verified by tool]
+- [x] Bridge patch: metadata.desc expuesto desde Baileys groupMetadata. 2026-06-28 [🤖 Verified by deploy]
+- [x] Channel alias population: populate-channel-aliases.sh con {name, desc} por grupo. Cron 10 min. 2026-06-28 [🤖 Verified by deploy]
+- [x] INFRASTRUCTURE-MANIFEST.md: tracking de todos los archivos de configuración Hermes. 2026-06-28 [🤖 Verified by tool]
+- [x] recall max_tokens=16384 universal (evita truncation en banks con 445+ facts). 2026-06-28 [🤖 Verified by tool]
+- [x] Workers creados solo por /onboarding. Sin pre-creación en deploy. 2026-06-28 [🧑 UD-018]
+- [x] Sin categorías predefinidas en onboarding. 2026-06-28 [🧑 UD-019]
+- [x] Descripción de grupo WhatsApp como contexto dinámico. 2026-06-28 [🧑 UD-020]
+- [x] Bridge parcheado para exponer descripciones. 2026-06-28 [🧑 UD-021]
 
 ---
 
@@ -225,7 +236,7 @@
 | EPIC-001 | TASK-001 a TASK-003 | Completed | 4 | 1 | 0 | 5 |
 | EPIC-002 | TASK-004 | Completed | 1 | 1 | 0 | 2 |
 | EPIC-003 | TASK-005 | Completed | 1 | 0 | 0 | 1 |
-| EPIC-004 | TASK-006 | Completed | 4 | 1 | 0 | 5 |
+| EPIC-004 | TASK-006 | Completed | 4 | 4 | 0 | 8 |
 | EPIC-005 | TASK-007 | Completed | 0 | 0 | 1 | 1 |
 | EPIC-006 | TASK-008 a TASK-011 | In Progress | 4 | 0 | 0 | 4 |
 | EPIC-007 | TASK-012 | Completed | 7 | 0 | 0 | 7 |

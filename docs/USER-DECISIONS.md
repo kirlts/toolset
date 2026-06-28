@@ -304,9 +304,44 @@
 
 ---
 
-## [UD-017] Hermes WebUI puerto 8877 (no 8888) para evitar conflicto con Hindsight
+## [UD-018] Workers creados solo por /onboarding — sin pre-creación en deploy
 
-**Date:** 2026-06-27
-**Context:** Hindsight API (Docker) bindea 127.0.0.1:8888, conflicto con Hermes WebUI (systemd) que usaba mismo puerto.
-**Decision:** Cambiar HERMES_WEBUI_PORT a 8877. Actualizar Funnel :8787 → localhost:8877.
-**Consequences:** Hermes WebUI no compite con Hindsight por el puerto. Funnel actualizado.
+**Date:** 2026-06-28
+**Context:** Deploy.sh pre-creaba code-worker y research-worker en cada deploy. El usuario determinó que ningún worker profile debe existir hasta que se ejecute `/onboarding` en el grupo WhatsApp correspondiente. Los grupos deben mostrar "no configurado" hasta completar las 3 fases.
+**Decision:** Eliminar toda pre-creación de workers de deploy.sh. Workers se crean exclusivamente via `/onboarding` (Phase 3, pregunta "nuevo"). El usuario es la única autoridad para crear workers.
+**Discarded alternatives:** Mantener workers base pre-creados y que /onboarding los complemente (descartado por contaminación de estado inicial).
+**Consequences:** No hay workers sin onboarding. 0 perfiles extra en `hermes profile list`. El usuario debe ejecutar /onboarding para cada grupo.
+**Reversion conditions:** Si se necesita un worker base pre-configurado para deploy inmediato.
+
+---
+
+## [UD-019] Sin categorías predefinidas en onboarding
+
+**Date:** 2026-06-28
+**Context:** El onboarding original tenía 4 categorías (coding/research/personal/custom) con skills defaults y preguntas condicionales por tipo. El usuario señaló que es imposible cubrir todos los usos posibles con categorías fijas.
+**Decision:** Eliminar todas las categorías del onboarding. Las 3 fases son idénticas para todos los grupos. Sin skills defaults, sin preguntas condicionales. El usuario define todo desde cero.
+**Discarded alternatives:** Mantener categorías con opción "otro" (descartado: el sesgo de las categorías existentes condiciona la elección del usuario).
+**Consequences:** Onboarding más largo (sin defaults) pero más flexible. Cada grupo define su identidad completa.
+**Reversion conditions:** Si el usuario encuentra que el onboarding sin defaults es tedioso para casos repetitivos.
+
+---
+
+## [UD-020] Descripción de grupo WhatsApp como contexto dinámico
+
+**Date:** 2026-06-28
+**Context:** WhatsApp group descriptions se leen cada 10 min via cron y se almacenan en channel_aliases.json. El usuario puede editar la descripción del grupo en WhatsApp y Hermes lo refleja en minutos.
+**Decision:** La descripción del grupo se carga como contexto operativo al inicio de cada sesión. Sirve como pizarra dinámica: recordatorios, enlaces, estado de tareas. No poner credenciales reales (visible a todos los miembros del grupo).
+**Discarded alternatives:** Solo usar description estática del YAML (descartado: perdería la capacidad de actualizar contexto sin intervención del agente).
+**Consequences:** Contexto actualizable desde WhatsApp sin escribir código. Cambio reflejado en <10 min.
+**Reversion conditions:** Si el usuario prefiere controls estáticos y no dinámicos.
+
+---
+
+## [UD-021] Bridge parcheado para exponer descripciones de grupos WhatsApp
+
+**Date:** 2026-06-28
+**Context:** Baileys groupMetadata() retorna descripciones de grupos (metadata.desc) pero el bridge de WhatsApp no las exponía. Solo exponía name, isGroup, y participants.
+**Decision:** Parchear bridge.js para incluir desc en la respuesta de GET /chat/:id. Versión del parche en infrastructure/hermes/scripts/patch-bridge.sh, aplicado idempotentemente por deploy.sh.
+**Discarded alternatives:** Usar API de WhatsApp Business para obtener descripciones (descartado: no hay API pública para grupos de comunidad).
+**Consequences:** Cualquier herramienta que consulte el bridge obtiene descripciones. Sin LLM involvement.
+**Reversion conditions:** Si Hermes actualiza el bridge.js y el parche ya no aplica (patch-bridge.sh detecta y falla grácilmente).

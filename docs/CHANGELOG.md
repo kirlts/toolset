@@ -93,37 +93,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- CI/CD pipeline hardening: concurrency group, rollback automático, preflight integrado con auto-revert.
-- scripts/sync-infisical-secrets.py: standalone push\|verify\|pull con PATCH fallback.
-- Reverse sync Infisical→GitHub desde runner (GH_TOKEN).
-- workflow_dispatch con inputs skip_opentofu, skip_deploy, skip_sandbox_build, skip_preflight.
-- FUNNEL_DOMAIN como GitHub variable (reemplazadas 36 referencias hardcodeadas).
-- Caddy basicauth para Hindsight CP management routes (FUNNEL_AUTH_USER/PASSWORD via env).
-- Notificación de fallo en pipeline (intento WhatsApp vía Hermes).
-- config.yaml protegido contra overwrite de Hermes (chattr +i).
-- Docker layer caching (docker/build-push-action@v6 + type=gha).
-- Skills: toolset-ops, monitoring, kilo-code refactorizados con declarative framing y tablas.
-- Detección de cambios: sandbox build condicional, compose pull condicional.
+- WhatsApp multi-group routing via 6 groups in Hermes HUB community (Chat, Code, Research, Personal, Hermes HUB, DM).
+- Deterministic routing via whatsapp-groups.yaml — no LLM judgment, no predefined categories.
+- 3-phase MECE onboarding (v4): category-free. Same questions for all groups. Group descriptions auto-suggested from WhatsApp via channel_aliases.json.
+- worker profiles created only by /onboarding. No pre-created workers in deploy.
+- Inter-profile delegation: kanban with metadata.originating_group propagation. Responses return to originating WhatsApp group.
+- INFRASTRUCTURE-MANIFEST.md: declarative tracking of all Hermes configuration files.
+- group-onboarding SKILL.md (v4): 3-phase onboarding without predefined types.
+- whatsapp-router SKILL.md (v4): deterministic routing, type-free.
+- profile-soul.md template: SOUL.md generation with bank rules, evolution preferences, dynamic context.
+- populate-channel-aliases.sh: bridge → channel_aliases.json with {name, desc} per group. Cron every 10 min.
+- patch-bridge.sh: exposes metadata.desc from Baileys groupMetadata. CI/CD-managed.
+- recall max_tokens=16384 universal — prevents truncation in banks with 445+ facts.
+- RULES.md: MANIFEST-01 to 04, ROUTE-01 to 05, ONBOARD-01 to 03 rule groups.
+- hermes-context.md: Workers Profile Inventory, per-group bank tracking.
+- memory recall: max_tokens=16384 for all recall calls (toolset 445, researchit 124, hermes).
+- README.md: rewritten with architecture, routing table, key files, /onboarding flow, CI/CD.
 
 ### Changed
-- Tailscale: reemplazado curl\|sh manual por tailscale/github-action@v3 (ahorra ~2min).
-- Service verification: 5×20s → 3×10s (70s menos).
-- SSH ControlMaster multiplexing para todas las llamadas (reusa conexión).
-- Preflight Checks movido a job separado no bloqueante (continue-on-error).
-- INFISICAL_PID añadido como GitHub Secret.
-- paths-ignore para docs/** y *.md evita deploy en cambios triviales.
+- SOUL.md: refactored 254→79 lines. Clean identity/routing/memory/tone separation. No type-based routing. Routing checks profile field only.
+- hermes-context.md: full operational reference. Banks updated (hermes: 0 facts canonical v1).
+- whatsapp-groups.yaml: stripped types and profiles. JID-only until /onboarding.
+- deploy.sh: removed worker profile creation. Added whatsapp-groups.yaml deploy, bridge patch, populate aliases, cron setup. Bridge patch block made independent.
+- deploy.yml: removed `**.md` from paths-ignore (blocked SOUL.md, SKILL.md deploys).
+- .gitignore: added transcript.txt.
 
 ### Fixed
-- Infisical sync: POST→PATCH fallback cuando el secret ya existe (400).
-- GITHUB_OUTPUT multiline error en change detection.
-- chattr -i antes de chown -R sobre hermes dir (config.yaml inmutable).
-- Cname typo INFISIAL_ENCRYPTION_KEY corregido.
-- Deploy tiempo reducido de ~12min a ~4:25.
+- Bridge was missing metadata.desc from Baileys groupMetadata. Now exposed via patch-bridge.sh.
+- Channel_aliases stored only names, now stores {name, desc} per group.
+- SOUL.md routing with `profile definido` check for groups without /onboarding.
+- recall truncation: max_tokens=16384 for all calls.
+- deploy.sh: bridge patch nested inside populate if block (broken). Made independent.
 
 ### Removed
-- OIDC: secrets borrados (OCI_DOMAIN_URL, OCI_OAUTH_CLIENT_ID/SECRET), DT-001 cerrado.
-- .env auth vars (MASTER-SPEC §4.1 compliance — se pasan por SSH env, no por .env).
-- OCI backup upload (prematuro, backup local existe).
+- All predefined categories from onboarding (coding/research/personal/custom).
+- Type-based routing from SOUL.md and whatsapp-router SKILL.md.
+- Worker profile creation from deploy.sh (onboarding only).
+- Pre-created code-worker and research-worker profiles from VPS.
+- Channels/type system from whatsapp-groups.yaml.
 
 ## [0.1.0] - 2026-06-21
 
