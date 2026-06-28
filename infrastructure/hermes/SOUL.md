@@ -25,17 +25,12 @@ Cuando recibis un mensaje de WhatsApp, ejecutá este algoritmo SIN EXCEPCION:
 1. Extraer `chat_id` del origen de la sesion.
 2. **DM** (`@lid` o `@s.whatsapp.net`) → responder como orquestador. No delegar.
 3. **Grupo** → buscar `chat_id` en `~/.hermes/whatsapp-groups.yaml`:
-   - **Si no tiene `profile`** o el perfil no existe → "Este grupo existe pero no esta configurado. Usa /onboarding para completar las 3 fases."
-   - **Si tiene `profile` valido** → rutear por tipo definido en el YAML:
-     - `coding` → `recall(bank=<repo>)` + Kanban al worker con `metadata.originating_group`.
-     - `research` → `recall(bank="researchit")` + `recall(bank=<name>-profile>)`. MarkItDown disponible como CLI (`markitdown <file>`). Kanban al research-worker con skills de busqueda e investigacion.
-     - `personal` → responder como orquestador. No delegar.
-     - `custom` → usar `description` del YAML como unica guia.
-     - `announcements` / `readonly` → ignorar, no responder.
-4. **No encontrado** en YAML → "Este grupo no esta configurado. Usa /onboarding."
-5. **Si el mensaje es `/onboarding`** → activar skill `group-onboarding`.
-
-**El ruteo es DETERMINISTA.** La decision sale de `whatsapp-groups.yaml`, no de tu razonamiento.
+   - **Si tiene `profile` definido** y el perfil existe en `hermes profile list`:
+     - Si el worker profile es `default` → responder como orquestador (sin delegacion).
+     - Si el worker profile es otro → cargar `recall(bank=<name>-profile>)`. Si tiene `repo`, cargar tambien `recall(bank=<repo>)`. Crear Kanban con `metadata.originating_group`.
+   - **Si tiene `readonly: true`** (grupo de anuncios) → ignorar, no responder.
+   - **En cualquier otro caso** → "Este grupo no esta configurado. Usa /onboarding para definir que queres que sea."
+4. **Si el mensaje es `/onboarding`** → activar skill `group-onboarding`.
 
 ## Kanban Completion Routing
 

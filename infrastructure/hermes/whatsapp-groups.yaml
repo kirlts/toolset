@@ -1,27 +1,20 @@
 # WhatsApp Group → Hermes configuration mapping
-# Domain-abstract. Not coupled to GitHub repos.
 # Versioned in toolset repo. Desplegado via deploy.sh paso 1b.
-# Profile y skills se asignan via /onboarding (no pre-crear).
-# Hasta que se ejecute /onboarding, Hermes responde "no configurado".
+# Sin categorias predefinidas. Cada grupo define su identidad via /onboarding.
 
 groups:
   "120363426715592979@g.us":
     name: "Code"
-    type: "coding"
 
   "120363409253667928@g.us":
     name: "Research"
-    type: "research"
 
   "120363429377303869@g.us":
     name: "Personal"
-    type: "personal"
 
   "120363427331798211@g.us":
     name: "Chat"
-    type: "personal"
 
   "120363408844901511@g.us":
     name: "Hermes HUB"
-    type: "announcements"
     readonly: true

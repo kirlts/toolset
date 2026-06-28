@@ -56,16 +56,12 @@ Cuando se modifica un archivo de configuracion:
 
 | File | Change |
 |---|---|
-| infrastructure/hermes/SOUL.md | REFACTORED: 254 -> 72 lineas. Routing ahora detecta grupos sin profile como "no configurado". |
-| infrastructure/hermes-context.md | REFACTORED: referencia operativa completa. Nuevo Workers Profile Inventory. Banks actualizados (hermes: 0). |
-| infrastructure/hermes/whatsapp-groups.yaml | LIMPIADO: sin profiles ni skills. Grupos conocidos pero no configurados hasta /onboarding. |
-| infrastructure/deploy.sh | REMOVIDA: creacion de workers profiles. FIX: bridge patch independiente del populate. |
-| infrastructure/hermes-skills/group-onboarding/SKILL.md | MEJORADO: lee descripcion de WhatsApp desde channel_aliases.json como sugerencia en Phase 1. |
-| infrastructure/hermes/whatsapp-groups.yaml | Domain-abstract types (coding/research/personal/custom/announcements) |
-| infrastructure/hermes/CRONS.md | Added populate-channel-aliases cron |
-| infrastructure/hermes/scripts/populate-channel-aliases.sh | Now stores {name, desc} per group |
-| infrastructure/hermes/scripts/patch-bridge.sh | NEW: exposes metadata.desc from Baileys groupMetadata |
-| infrastructure/hermes-skills/whatsapp-router/SKILL.md | v3: Kanban metadata originating_group, routing by type |
+| infrastructure/hermes/SOUL.md | REFACTORED: 254 -> 84 lineas. Routing sin tipos predefinidos — solo verifica si hay profile. |
+| infrastructure/hermes-context.md | REFACTORED: referencia operativa completa. Workers Profile Inventory. Banks actualizados. |
+| infrastructure/hermes/whatsapp-groups.yaml | LIMPIADO: sin type, sin profiles. Solo JID + name. Onboarding define todo. |
+| infrastructure/deploy.sh | REMOVIDO: creacion de workers profiles. FIX: bridge patch independiente del populate. |
+| infrastructure/hermes-skills/group-onboarding/SKILL.md | v4: sin tipos predefinidos. Mismas preguntas para todos los grupos. Sin defaults por categoria. |
+| infrastructure/hermes-skills/whatsapp-router/SKILL.md | v4: sin tabla de tipos. Solo verifica profile field. |
 | infrastructure/hermes-skills/group-onboarding/SKILL.md | v3: 3-phase MECE, DM handler, evolution preferences, dynamic description |
 | .agents/templates/profile-soul.md | NEW: profile SOUL.md with placeholders, evolution + desc rules |
 | docs/MASTER-SPEC.md | Updated 7.1 with multi-group routing, deterministic routing, onboarding |

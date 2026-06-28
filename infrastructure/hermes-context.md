@@ -37,11 +37,11 @@ No se pre-crean en deploy. El orquestador conoce su existencia solo cuando apare
 
 | Grupo | Profile esperado | Bank | Repo | Creado |
 |---|---|---|---|---|
-| **Code** | `code-worker` | `code-profile` | toolset | `/onboarding` pendiente |
-| **Research** | `research-worker` | `research-profile` | researchit | `/onboarding` pendiente |
-| **Personal** | `default` | `hermes` (orquestador) | — | Siempre existe |
-| **Chat** | `default` | `hermes` (orquestador) | — | Siempre existe |
-| **Hermes HUB** | — | — | — | Read-only, ignorado |
+| **Code** | (por definir en /onboarding) | (por definir) | (por definir) | `/onboarding` pendiente |
+| **Research** | (por definir en /onboarding) | (por definir) | (por definir) | `/onboarding` pendiente |
+| **Personal** | (por definir en /onboarding) | (por definir) | (por definir) | `/onboarding` pendiente |
+| **Chat** | (por definir en /onboarding) | (por definir) | (por definir) | `/onboarding` pendiente |
+| **Hermes HUB** | — (read-only) | — | — | Ignorado |
 
 El orquestador no necesita conocer este inventario de antemano. Lo descubre en runtime:
 1. Llega un mensaje en grupo con JID conocido

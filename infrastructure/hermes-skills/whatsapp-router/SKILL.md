@@ -1,7 +1,7 @@
 ---
 name: whatsapp-router
-description: "Deterministic routing of WhatsApp group messages based on group type. Includes Kanban metadata for response routing back to originating group."
-version: 3.0.0
+description: "Deterministic routing of WhatsApp group messages. Routes based on whatsapp-groups.yaml profile field. No predefined categories."
+version: 4.0.0
 platforms: [linux]
 metadata:
   hermes:
@@ -15,44 +15,36 @@ metadata:
 
 1. Extract `chat_id` from session origin.
 2. DM (`@lid` or `@s.whatsapp.net`) → orchestrator. No delegation.
-3. Group → read `~/.hermes/whatsapp-groups.yaml`.
-4. Lookup `chat_id`. Route by `type` field.
+3. Group → lookup `chat_id` in `~/.hermes/whatsapp-groups.yaml`.
 
-### Routing by type
+If the entry has a `profile`:
+- `default` → orchestrator. No Kanban.
+- Any other profile → `recall(bank=<name>-profile>)` + if repo: `recall(bank=<repo>)`. Kanban with `metadata.originating_group`.
 
-| type | Action | Delegation | Bank |
-|---|---|---|---|
-| `coding` | `recall(bank=<repo>)` → Kanban to `<profile>` | Yes | `<repo>` + `<name>-profile` |
-| `research` | `recall(bank=<name>-profile>)` → Kanban | Yes | `<name>-profile` |
-| `personal` | Respond as orchestrator | No | `<name>-profile` |
-| `custom` | Load `description` as context | No | `<name>-profile` |
-| `announcements` | Ignore | No | — |
+If `readonly: true`: ignore.
+
+If no profile or not found: "not configured, use /onboarding."
 
 ### Kanban Task Metadata
-
-Every `kanban_create()` from this router includes:
 
 ```
 metadata = {
   "originating_group": "<chat_id>",
   "originating_channel": "whatsapp",
-  "group_name": "<human name from channel_aliases.json>"
+  "group_name": "<name from channel_aliases.json>"
 }
 ```
 
-The orchestrator uses `originating_group` to route the Kanban completion response back to the correct WhatsApp group.
+The orchestrator uses `originating_group` to route completion responses back to the correct WhatsApp group.
 
 ## Inter-Profile Delegation
 
-Cuando un worker necesita delegar a OTRO perfil (ej: el code-worker necesita reiniciar el gateway y solo el default tiene acceso):
-
-1. El worker crea `kanban_create(assignee="<otro-perfil>", title="...", ...)`.
-2. **Debe incluir el `originating_group` original** del mensaje de WhatsApp. No sobrescribirlo con su propio JID.
-3. El otro perfil completa la tarea.
-4. El orquestador enruta la respuesta al grupo WhatsApp original.
-
-Esto permite que cualquier perfil delegue a cualquier otro. La cadena de delegación es transparente para el usuario — la respuesta siempre vuelve al grupo correcto.
+When a worker delegates to another profile, it must propagate the original `originating_group`:
+```
+kanban_create(assignee="<otro>", metadata={originating_group: "<original JID>"})
+```
+The response always returns to the WhatsApp group where the user sent the first message.
 
 ## Group Description
 
-Every group type loads `description` from `channel_aliases.json` (populated by `populate-channel-aliases.sh` via bridge `GET /chat/:id`). The description originates from WhatsApp group metadata (`groupMetadata().desc`).
+Every group loads `description` from `channel_aliases.json`. The user can edit the WhatsApp group description at any time; Hermes picks it up within 10 minutes via cron.
