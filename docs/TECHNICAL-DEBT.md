@@ -75,3 +75,13 @@
 **Origin:** TODO.md EPIC-003
 **Description:** Infisical CLI está disponible dentro del contenedor `infisical` y soporta `infisical run --command=...` que inyecta secrets como env vars directo al proceso sin archivo .env intermedio. Sin embargo, migrar los servicios existentes (docker compose) a este modelo requiere cambiar la entrad point de cada contenedor para usar `infisical run -- docker compose up` en lugar de leer el .env. Esto añade dependencia del contenedor Infisical y complica el startup sequence. Actualmente el .env se maneja correctamente via GitHub Secrets → deploy.sh → /opt/toolset/.env → docker compose.
 **Status:** ☐ Pending — bajo prioridad. El modelo actual funciona y cumple MASTER-SPEC §4.1 (secrets via Infisical). El .env se escribe desde CI/CD, no es persistente en repo.
+
+---
+
+## [DT-007] Health Check autónomo — conectar con Hermes Agent
+
+**Severity:** Low
+**Origin:** Post-audit 2026-06-27
+**Description:** El health check actual (`.github/workflows/healthcheck.yml`) corre cada 5 min desde GitHub Actions y verifica URLs. Si falla, crea un issue en el repo (notificación por correo). Pero no hay integración con Hermes Agent: no puede iniciar un deploy de recuperación, no reporta el estado a Hermes, y no hay un dashboard de uptime.
+**Remediation plan:** En futura iteración, el health check debe notificar a Hermes vía WhatsApp (en lugar de/issues/además del issue de GitHub). Hermes podría gatillar un auto-deploy si detecta caída. Idealmente, el health check corre desde el propio Hermes (cron dentro del VPS) para no depender de GitHub Actions.
+**Status:** ☐ Pending
