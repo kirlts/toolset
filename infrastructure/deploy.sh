@@ -562,7 +562,12 @@ if [ -f "$POPULATE_SCRIPT_SRC" ]; then
   ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     "${SSH_HOST}" \
     "export PATH=/usr/local/bin:/home/opc/.local/bin:\$PATH; \
-     bash /home/opc/.hermes/scripts/populate-channel-aliases.sh 2>&1 | sed 's/^/  [POPULATE] /'" || true
+      bash /home/opc/.hermes/scripts/populate-channel-aliases.sh 2>&1 | sed 's/^/  [POPULATE] /'" || true
+  # Programar cron de refresco cada 10 minutos (idempotente, via deploy.sh)
+  echo "[DEPLOY] Ensuring populate-cron entry..."
+  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    "${SSH_HOST}" \
+    "(crontab -l 2>/dev/null | grep -q 'populate-channel-aliases') && echo '  cron already set' || (crontab -l 2>/dev/null; echo '*/10 * * * * bash /home/opc/.hermes/scripts/populate-channel-aliases.sh > /dev/null 2>&1') | crontab - && echo '  cron added'"
 fi
 
 # --- Write Hermes .env on remote (always overwrite — Hermes creates a default template) ---
