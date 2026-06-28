@@ -42,6 +42,17 @@ metadata = {
 
 The orchestrator uses `originating_group` to route the Kanban completion response back to the correct WhatsApp group.
 
+## Inter-Profile Delegation
+
+Cuando un worker necesita delegar a OTRO perfil (ej: el code-worker necesita reiniciar el gateway y solo el default tiene acceso):
+
+1. El worker crea `kanban_create(assignee="<otro-perfil>", title="...", ...)`.
+2. **Debe incluir el `originating_group` original** del mensaje de WhatsApp. No sobrescribirlo con su propio JID.
+3. El otro perfil completa la tarea.
+4. El orquestador enruta la respuesta al grupo WhatsApp original.
+
+Esto permite que cualquier perfil delegue a cualquier otro. La cadena de delegación es transparente para el usuario — la respuesta siempre vuelve al grupo correcto.
+
 ## Group Description
 
 Every group type loads `description` from `channel_aliases.json` (populated by `populate-channel-aliases.sh` via bridge `GET /chat/:id`). The description originates from WhatsApp group metadata (`groupMetadata().desc`).
