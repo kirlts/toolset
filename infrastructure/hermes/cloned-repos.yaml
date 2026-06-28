@@ -30,3 +30,8 @@ repos:
     path: /home/opc/personal
     type: cloned
     sync: cron
+  toolset:
+    url: https://github.com/kirlts/toolset.git
+    path: /opt/toolset
+    type: cloned
+    sync: cron
