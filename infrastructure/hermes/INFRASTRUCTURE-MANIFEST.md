@@ -78,3 +78,9 @@ Cuando se modifica un archivo de configuracion:
 | infrastructure/hermes/cloned-repos.yaml | CREATED: manifest for repo cloning (native tools + cloned repos) |
 | infrastructure/deploy.sh | REPLACED ad-hoc ResearchIt clone with clone_repos() reading cloned-repos.yaml |
 | infrastructure/hermes/scripts/repo-pull-cron.sh | CREATED: silent git pull cron (5min, only notifies on conflict, max 1x/day) |
+| **Session 2** | |
+| infrastructure/hermes/SOUL.md | UPDATED: eliminada excepción hardcodeada de personal por regla universal de delegación según tarea. |
+| infrastructure/hermes/whatsapp-groups.yaml | ADDED: grupo Toolset (JID 120363426816726918, profile: toolset, repo: kirlts/toolset). |
+| infrastructure/hermes/profiles/toolset/SOUL.md | NEW: perfil toolset con dominio exclusivo, Kilo CLI obligatorio, Kanban para tareas multi-step. |
+| infrastructure/hermes-skills/group-onboarding/SKILL.md | v4.2.0: agregada inferencia de criterio de delegación en Phase 0 + pregunta en Phase 3. |
+| infrastructure/hermes/INFRASTRUCTURE-MANIFEST.md | UPDATED: registrados cambios de Session 2. |
