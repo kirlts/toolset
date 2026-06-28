@@ -23,7 +23,7 @@ When a user sends `/onboarding` in a WhatsApp group where Hermes is a member.
 
 ## Onboarding Flow
 
-1. Detect group JID from session origin (`remoteJid`)
+1. Detect group name from `~/.hermes/channel_aliases.json` (JID → human name)
 2. Check if JID already exists in `~/.hermes/whatsapp-groups.yaml`
    - If found: show current mapping. Ask: "Reconfigurar? (s/n)"
    - If not found: proceed as new group
@@ -34,7 +34,16 @@ When a user sends `/onboarding` in a WhatsApp group where Hermes is a member.
    d. Validate: `hermes profile list | grep <profile>` existe
    e. Ask user: "¿Skills extra? (separadas por coma, ej: kilo-code,github-pr-workflow)"
    f. Validate each skill: `hermes -p <profile> skills list | grep <skill>` existe
-4. Write updated mapping to whatsapp-groups.yaml:
+4. **Create Hindsight bank programmatically** via MCP:
+   ```
+   create_bank(
+     bank_id="<group-name>-profile",
+     name="<group-name> Worker Profile",
+     mission="Perfil worker para el grupo WhatsApp <group-name> — repo <repo>"
+   )
+   ```
+   Solo si el bank no existe ya. Si existe, no recrear (preserva contexto).
+5. Write updated mapping to whatsapp-groups.yaml:
 
    ```yaml
    groups:
@@ -45,14 +54,20 @@ When a user sends `/onboarding` in a WhatsApp group where Hermes is a member.
        skills: ["<skill1>", "<skill2>"]
    ```
 
-5. Commit and push changes to toolset repo:
+6. Commit and push changes to toolset repo:
    ```
    cd /opt/toolset-repo
    git add infrastructure/hermes/whatsapp-groups.yaml
-   git commit -m "feat: onboarding group <group-name> → repo <repo>"
+   git commit -m "feat: onboarding group <group-name> → repo <repo> (bank: <group-name>-profile)"
    git push origin main
    ```
-6. Confirm to user: "✅ Grupo configurado: <name> → <repo>. Disponible en segundos tras deploy."
+7. Confirm to user: "✅ Grupo '<group-name>' configurado → repo '<repo>' → perfil '<profile>'. Bank '<group-name>-profile' creado. Disponible en segundos tras deploy."
+
+## Reconfiguration
+
+If the group was previously configured, show the OLD values and step through
+each field (repo, profile, skills) with the same validations as a new setup.
+Overwrite the entire entry on confirmation. The bank is NOT recreated — it preserves existing context.
 
 ## Reconfiguration
 

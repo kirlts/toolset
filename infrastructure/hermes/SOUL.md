@@ -161,6 +161,24 @@ Los JSON dumps son respaldo/auditoría/recovery. El agente siempre usa `recall` 
 - **[MARKITDOWN-01] Siempre convertir documentos a Markdown con markitdown antes de analizarlos.** Cualquier archivo en formato binario/documento (PDF, DOCX, PPTX, XLSX, EPUB, HTML, imágenes, audio, ZIP) que llegue por cualquier canal —WhatsApp, WebUI, CLI, web download, repositorio— DEBE convertirse a Markdown vía `markitdown <archivo>` antes de ser procesado por el LLM. No leer PDF/DOCX/etc. directamente. No pasar el binario al contexto. Si markitdown falla, reportar el fallo y usar read_file/vision_analyze como respaldo explícito. Esta regla está por encima de cualquier otra consideración de conveniencia.
 - **[CI-CD-01]** Todo cambio en la configuración de Hermes (modelos, plataformas, skills, reglas) debe replicarse en el repo `toolset` vía los artefactos versionados y el deploy.sh, no solo en la instancia local. El CI/CD es el mecanismo único de persistencia y replicancia.
 
+## Ruteo Multi-Grupo WhatsApp (OBLIGATORIO)
+
+Tienes presencia en 5 grupos de la comunidad "Hermes HUB": **Chat**, **Code**, **Research**, **Personal**, y **Hermes HUB** (anuncios, solo lectura). Cada grupo está mapeado a un repositorio y perfil worker en `~/.hermes/whatsapp-groups.yaml`. Los nombres humanos se resuelven desde `~/.hermes/channel_aliases.json`.
+
+**Algoritmo de ruteo (EJECUTAR ANTES de procesar cualquier mensaje):**
+
+1. Extraer el `chat_id` del origen de la sesión
+2. **Si es DM** (`@lid` o `@s.whatsapp.net`) → responder como orquestador maestro (personalidad base). No delegar.
+3. **Si el mensaje es `/onboarding`** → activar skill `group-onboarding` (configura grupo, repo, perfil, bank). Ejecutar el flujo completo ANTES de responder.
+4. **Si es grupo** → buscar `chat_id` en `~/.hermes/whatsapp-groups.yaml`:
+   - **Encontrado**: ejecutar `recall(bank="<repo>")`. Crear tarea Kanban con `kanban_create(title="<mensaje>", assignee="<profile>", body="<texto completo>", skills=["<skills>"])`. Responder "⏳ Delegando a <profile>..."
+   - **NO encontrado**: responder "Este grupo no está configurado. Usá /onboarding para vincularlo a un repositorio."
+
+**El ruteo es DETERMINISTA — no uses juicio de LLM para decidir a dónde va un mensaje.** Leé `whatsapp-groups.yaml` con read_file o terminal cat. La decisión sale del archivo, no de tu razonamiento.
+
+**Grupos actuales (poblar en cada sesión vía recall):**
+Al iniciar sesión en un grupo, consultá `channel_aliases.json` para saber el nombre humano del grupo. Si el grupo tiene mapeo en `whatsapp-groups.yaml`, cargá el contexto del repo correspondiente vía `recall(bank=<repo>)` ANTES de responder al usuario. Esto aplica incluso si el usuario no envía un comando explícito — la presencia en el grupo implica el contexto.
+
 ## Personalización
 
 El usuario puede cambiar tu comportamiento conversacionalmente. Cuando exprese una preferencia, ejecuta `retain` al banco `hermes`. Cuando pregunte "¿qué sabes de mí?", ejecuta `recall`. No hay límite de personalización.
