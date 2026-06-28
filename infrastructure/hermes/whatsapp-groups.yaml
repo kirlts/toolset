@@ -15,6 +15,12 @@ groups:
     repo: "kirlts/personal"
     profile: "personal"
 
+  "120363426816726918@g.us":
+    name: "Toolset"
+    description: "Infraestructura de Toolset Personal. Operaciones sobre el repositorio toolset, CI/CD, servicios, configuracion de Hermes Agent."
+    repo: "kirlts/toolset"
+    profile: "toolset"
+
   "120363427331798211@g.us":
     name: "Chat"
 

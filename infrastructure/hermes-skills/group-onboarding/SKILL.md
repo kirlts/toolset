@@ -1,7 +1,7 @@
 ---
 name: group-onboarding
 description: "Context-aware onboarding for WhatsApp groups and DM. Creates SOUL.md, skills config, and Hindsight bank. No predefined categories — each group defines its own identity. Optional Phase 0 extracts context from artifacts, URLs, voice messages, or conversation history."
-version: 4.1.0
+version: 4.2.0
 platforms: [linux]
 metadata:
   hermes:
@@ -76,6 +76,7 @@ No categories. No predefined types. Phases 1-3 are MECE.
    - Workflow preferences
    - Evolution mode (auto / preguntar / solo explicito / custom)
    - Whether the user expects an override of default governance rules (e.g., "este perfil puede editar archivos directamente aunque el repo tenga .agents/")
+   - **Delegation criteria.** If the repo has `.agents/`, infer: "tareas multi-step sobre el repo (Kilo CLI, Kairós governance, deploy, verification) se delegan a un sub-agente via Kanban. Consultas rápidas y decisiones se responden directo." If no repo or no `.agents/`, leave as gap.
 5. **Detect gaps.** Compare what was inferred against what is required for a complete onboarding. Classify each gap:
 
    | Gap type | Example | Action |
@@ -105,6 +106,7 @@ No categories. No predefined types. Phases 1-3 are MECE.
      Worker profile: <profile>
      Workflows: <workflows>
      Evolucion: <evolution>
+     Delegacion: <delegation>
      Override de reglas default: <yes/no/details>
    
    Informacion faltante:
@@ -194,6 +196,11 @@ No categories. No predefined types. Phases 1-3 are MECE.
 3. **Workflows:** "¿Flujos de trabajo especificos? (ej: 'siempre correr tests antes de commit')"
 4. **Evolution:** "¿Como queres que este perfil aprenda y evolucione?"
    - Hermes crea skills automaticamente por defecto. Opciones: auto / preguntar / solo explicitas / custom.
+5. **Delegation:** "¿En qué casos tendria sentido delegar a un sub-agente que ejecute independientemente y reporte despues? (o 'n' para nunca delegar)"
+   - Si Phase 0 infirio criterio con repos `.agents/`, presentarlo como sugerencia y preguntar si confirma.
+   - El criterio queda documentado en el SOUL.md del perfil como una regla operativa, no como un bloqueo.
+   - Ejemplo inferido: "tareas multi-step sobre el repo (Kilo CLI, Kairós, deploy, verification) se delegan. Consultas rapidas y decisiones se responden directo."
+   - Si el usuario no tiene opinion clara, default: "El orquestador decide segun la complejidad de cada solicitud."
 
 **Exit condition:** Usuario confirma todo.
 
