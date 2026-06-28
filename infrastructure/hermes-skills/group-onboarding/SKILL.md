@@ -100,14 +100,34 @@ Questions asked in sequence:
    - If "default": uses orchestrator profile. No delegation needed.
    - If "nuevo": create with `hermes profile create <name> --clone`.
    - Validate existing: `hermes profile list | grep <name>`.
-3. **Workflows:** "¿Flujos de trabajo especificos? (ej: 'siempre correr tests antes de commit', 'reportar en formato JSON')"
-   - Free text. Stored as operational rules in SOUL.md.
+ 3. **Workflows:** "¿Flujos de trabajo especificos? (ej: 'siempre correr tests antes de commit', 'reportar en formato JSON')"
+    - Free text. Stored as operational rules in SOUL.md.
+ 4. **Evolution preferences:** "¿Como queres que este perfil aprenda y evolucione?"
+
+    Hermes crea skills automaticamente desde la conversacion cuando detecta patrones repetitivos. Esta es una capacidad nativa — no requiere configuracion manual.
+
+    | Opcion | Efecto |
+    |---|---|
+    | Aprender automaticamente | Hermes crea skills cuando detecte patrones. Sin preguntar. |
+    | Preguntar antes de crear | El perfil pide confirmacion antes de crear skills nuevas. |
+    | Solo skills explicitas | El perfil no crea skills por si solo. Solo usa las definidas en el onboarding. |
+    | Personalizado | Definir reglas: (ej: "crear skill si el patron se repite 3 veces") |
+
+    **Regla global:** Solo el perfil default (orquestador maestro) puede crear skills que afecten multiples grupos. Los perfiles worker crean skills SOLO dentro de su propio alcance. Esto mantiene el aislamiento de cada grupo como pseudo-sandbox.
+
+    **Descripcion de grupo como contexto dinamico:**
+    La descripcion del grupo WhatsApp se lee cada 10 min via cron (populate-channel-aliases.sh). El usuario puede editar la descripcion del grupo en WhatsApp y Hermes refleja el cambio en minutos. Esto sirve como contexto operativo permanente: recordatorios, enlaces a recursos, estado actual de tareas.
+
+    Preguntar: "¿Queres usar la descripcion del grupo como contexto dinamico? (ej: editar la descripcion de WhatsApp para actualizar el estado de las tareas, pegar links, dejar notas)"
+    - Si: agregar regla [ROUTE-DESC-01] al SOUL.md del perfil.
+    - No: solo usa `description` estatica del YAML (la que definiste en Phase 1).
 
 **Edge cases handled:**
 - **Profile creation fails:** Fall back to "default". Warn user. Continue.
 - **No cwd for new profile:** Derive from repo name (`/opt/<repo>`). Warn if path doesn't exist.
+- **WhatsApp description with credentials:** The description field is visible to all group members. Do NOT put actual passwords or API keys there. Only references (e.g., "API key in Infisical path /prod/toolset").
 
-**Exit condition:** User confirms tone, profile, and workflows. Now WRITE all artifacts.
+**Exit condition:** User confirms tone, profile, workflows, and evolution preferences. Now WRITE all artifacts.
 
 ## Post-Phase: Artifact Creation
 
@@ -145,6 +165,8 @@ Placeholder mapping:
 | `{SKILLS_TABLE}` | Markdown table from Phase 2 skills |
 | `{BANK_ID}` | `<group-name>-profile` |
 | `{REPO_BANK}` | Repo bank row if repo specified |
+| `{EVOLUTION_RULE}` | Evolution preference from Phase 3 step 4 |
+| `{DESC_PRIORITY_RULE}` | "La descripcion de WhatsApp tiene prioridad sobre la del YAML." si el usuario activo contexto dinamico, o "" si no |
 
 Write to `~/.hermes/profiles/<worker-name>/SOUL.md`. Overwrite only on reconfiguration with user consent.
 

@@ -31,6 +31,8 @@ Operas bajo el orquestador maestro Hermes (perfil default).
 - **[ROUTE-03]** Resultados se reportan al orquestador via `kanban_complete(summary=..., metadata={{...}})`.
 - **[ROUTE-04]** Cambios de codigo se delegan a Kilo CLI (`kilo run --auto --dir {CWD}`) si el umbral supera 50 lineas.
 - **[ROUTE-05]** Cambios de infraestructura van por CI/CD (INFRA-01). No ejecutar tofu apply/destroy.
+- **[ROUTE-06]** Aprendizaje: {EVOLUTION_RULE}
+- **[ROUTE-DESC-01]** Contexto desde descripcion de grupo WhatsApp. Leer `~/.hermes/channel_aliases.json` -> `whatsapp.<jid>.desc` al inicio de cada sesion. Si el usuario edita la descripcion, reflejar el cambio como contexto operativo. {DESC_PRIORITY_RULE}
 
 ## Memory Bank
 
