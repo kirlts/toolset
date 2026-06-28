@@ -9,7 +9,7 @@ metadata:
     triggers: ["/onboarding"]
 ---
 
-# Group Onboarding — 3-Phase MECE
+# Group Onboarding — Context-Aware 3-Phase MECE
 
 ## Activation Context
 
@@ -36,15 +36,94 @@ If `/onboarding` is invoked in a DM:
 1. Read current `~/.hermes/SOUL.md`. Show compact summary.
 2. Ask: "¿Modificar mi personalidad base? Esto me afecta en todos los canales. (si/no)"
 3. If "no" → explain what /onboarding does in groups. End.
-4. If "si" → proceed to Phase 1. Profile=default, bank=hermes, no repo.
+4. If "si" → proceed to Phase 0. Profile=default, bank=hermes, no repo.
 
-## Group Onboarding: 3-Phase Flow
+## Group Onboarding: Flow
 
-No categories. No predefined types. Each phase is MECE.
+No categories. No predefined types. Phases 1-3 are MECE.
+**Phase 0 is optional**: executes only when context exists (artifacts, conversation history, attached documents, voice messages, URLs).
+
+---
+
+### Phase 0: Context Ingestion (optional)
+
+**Goal:** Extract onboarding-relevant information from any available context. Only runs when the user provides context alongside `/onboarding` (document, voice message, URL, prior conversation, or explicit instructions like "en base a lo que conversamos, haz /onboarding").
+
+#### Context types (any, the harness resolves them):
+
+| Source | Resolution | Extracted by |
+|---|---|---|
+| Attached document (PDF, DOCX, TXT, image, audio) | `markitdown` | Hermes infra, not this skill |
+| URL | Agent fetches and extracts content | Agent's tool-use capability |
+| Voice message | STT transcription (Groq Whisper) then MarkItDown if needed | Hermes STT pipeline |
+| Prior conversation in same group | Session history from Hindsight bank | `recall(bank=<group-name>-profile)` |
+| User instructions in the `/onboarding` command itself | Parsed directly | This skill reads the message text |
+
+#### Extraction algorithm:
+
+1. **Collect context.** Gather all available sources. If none exist, skip Phase 0 entirely and proceed to Phase 1.
+2. **Infer identity.** From the context, the agent extracts:
+   - Profile name (suggested from group name or context)
+   - Description (what this profile does, in one sentence)
+   - Repository (GitHub repo name or URL, or "none")
+3. **Infer capabilities.** From the context, the agent extracts:
+   - Skills needed (names from `hermes skills list`)
+   - MCP servers beyond defaults (hindsight + composio)
+   - Constraints (what this profile MUST NOT do)
+4. **Infer operations.** From the context, the agent extracts:
+   - Communication tone (technical / conversational / minimal / custom)
+   - Worker profile requirements (new or default)
+   - Workflow preferences
+   - Evolution mode (auto / preguntar / solo explicito / custom)
+   - Whether the user expects an override of default governance rules (e.g., "este perfil puede editar archivos directamente aunque el repo tenga .agents/")
+5. **Detect gaps.** Compare what was inferred against what is required for a complete onboarding. Classify each gap:
+
+   | Gap type | Example | Action |
+   |---|---|---|
+   | Missing identity | No repo could be inferred | Ask user |
+   | Ambiguous capability | Two possible skills, context supports both | Ask user to choose |
+   | Missing constraint | No restrictions found | Offer default: "sin restricciones adicionales" |
+   | Unclear operation | Tone not inferrable | Ask user |
+
+6. **Present human review.** Show the user a complete summary of everything inferred:
+
+   ```
+   Resumen de lo que entendi del contexto:
+   
+   IDENTIDAD
+     Nombre sugerido: <name>
+     Descripcion: <description>
+     Repositorio: <repo>
+   
+   CAPACIDADES
+     Skills: <skills>
+     MCP adicionales: <mcp>
+     Restricciones: <constraints>
+   
+   OPERACION
+     Tono: <tone>
+     Worker profile: <profile>
+     Workflows: <workflows>
+     Evolucion: <evolution>
+     Override de reglas default: <yes/no/details>
+   
+   Informacion faltante:
+     - <gap 1>
+     - <gap 2>
+   
+   ¿Es correcto? Si/No (corregir)
+   ```
+
+7. **If user confirms:** Store inferred values. Proceed to Phase 1, but skip every question whose answer was already inferred and confirmed.
+8. **If user corrects:** Apply corrections. Repeat the summary with corrections applied. Proceed.
+9. **If gaps exist:** Enter Phase 1 normally. The questions that correspond to gaps are asked first; questions already answered are skipped.
+
+---
 
 ### Phase 1: Identity
 
 **Goal:** Define WHAT this profile is.
+**Scope:** Only ask questions whose answers were NOT inferred in Phase 0.
 
 1. **Name:** Auto-detected from `channel_aliases.json`. Editable by user.
 2. **Description:** "¿Que hace este perfil? Describilo en una frase."
@@ -55,17 +134,12 @@ No categories. No predefined types. Each phase is MECE.
    - Si se provee: validar con `git ls-remote https://github.com/kirlts/<repo>.git`.
    - El repo define el `terminal.cwd` para el worker y el bank adicional.
 
-**Edge cases:**
-- **No prior context:** Preguntas frescas, sin asunciones.
-- **Prior conversation context:** Usar mensajes previos como pistas para pre-llenar descripcion.
-- **Single large instruction:** Extraer keywords de la instruccion y proponer descripcion.
-- **Attached artifacts:** Si hay documentos adjuntos, usar markitdown para extraer dominio y proposito.
-
 **Exit condition:** Usuario confirma nombre, descripcion, repo (opcional).
 
 ### Phase 2: Capabilities
 
 **Goal:** Define WHAT this profile can do.
+**Scope:** Only ask questions whose answers were NOT inferred in Phase 0.
 
 1. **Skills:** "¿Skills para este perfil? (nombres separados por coma, 'n' para ninguna, '?' para ver disponibles)"
    - If "?": list skills from `hermes skills list` and external_skills_dirs.
@@ -73,12 +147,15 @@ No categories. No predefined types. Each phase is MECE.
 2. **MCP servers:** "¿Servers MCP adicionales? ('n' para los defaults: hindsight + composio)"
 3. **Constraints:** "¿Algo que este perfil NUNCA deba hacer?"
    - Store as negative rules in SOUL.md.
+   - If Phase 0 detected an override expectation (e.g., "este perfil puede editar archivos directamente"), present it explicitly:
+     "Segun el contexto, este perfil deberia poder editar archivos directamente aunque el repositorio tenga reglas de gobernanza. ¿Confirmas esta excepcion?"
 
 **Exit condition:** Usuario confirma skills, MCP servers, constraints.
 
 ### Phase 3: Operations
 
 **Goal:** Define HOW this profile operates.
+**Scope:** Only ask questions whose answers were NOT inferred in Phase 0.
 
 1. **Tone:** "¿Como debe comunicarse este perfil?" (tecnico / conversacional / minimal / custom)
 2. **Worker profile:** "¿Perfil Hermes worker? (nombre, 'default' para orquestador directo, o 'nuevo' para crear uno)"
