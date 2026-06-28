@@ -72,3 +72,6 @@ Cuando se modifica un archivo de configuracion:
 | .github/workflows/deploy.yml | ADDED: GROQ_API_KEY secret to Deploy and Sync secrets steps |
 | infrastructure/kilo.jsonc | ADDED: timeout 120000ms for hindsight-selfhosted MCP server |
 | infrastructure/hermes/config.yaml | ADDED: timeout 120s for hindsight-selfhosted MCP server |
+| infrastructure/hermes-skills/kilo-code/SKILL.md | REWRITTEN v2.0.0: governance-based delegation over line thresholds |
+| infrastructure/hermes-skills/group-onboarding/SKILL.md | REWRITTEN v4.1.0: added Phase 0 Context Ingestion |
+| .agents/templates/profile-soul.md | CHANGED: ROUTE-04 universal Kilo CLI (no line threshold) |

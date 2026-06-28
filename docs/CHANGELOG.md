@@ -5,17 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.3.0] - 2026-06-28
+## [0.4.0] - 2026-06-28
 
 ### Added
 - GROQ_API_KEY integrado como GitHub Secret → CI/CD → .env en VPS para STT
 - ffmpeg binario estático ARM64 instalado en VPS para conversión de formato de audio
 - WHATSAPP_HOME_CHANNEL persistente en .env para entregas de cron y notificaciones autónomas
+- kilo-code/SKILL.md v2.0.0: delegación basada en gobernanza (repos con .agents/ → Kilo CLI exclusivo)
+- group-onboarding/SKILL.md v4.1.0: Fase 0 opcional de ingesta de contexto (documentos, URLs, voz, historial)
 
 ### Changed
 - STT provider cambiado de `local` (faster-whisper base) a `groq` (whisper-large-v3-turbo cloud)
 - Pipeline CI/CD actualizado: GROQ_API_KEY en Deploy y Sync secrets steps
-- MCP timeout aumentado a 120s/120000ms para hindsight-selfhosted (evita timeouts en reflect/recall complejas)
+- MCP timeout aumentado a 120s/120000ms para hindsight-selfhosted
+- profile-soul.md ROUTE-04: umbral de líneas reemplazado por delegación universal a Kilo CLI
+- group-onboarding/SKILL.md: preguntas de fases 1-3 se saltean si ya fueron inferidas en Fase 0
 
 ## [0.2.0] - 2026-06-22
 
