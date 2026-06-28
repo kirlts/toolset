@@ -13,13 +13,16 @@
 
 :8080 {
     # Hindsight CP (Next.js SPA) — no auth
+    handle /dashboard {
+        reverse_proxy hindsight:9999
+    }
     handle_path /dashboard/* {
         reverse_proxy hindsight:9999
     }
-    handle_path /banks/* {
+    handle /banks/* {
         reverse_proxy hindsight:9999
     }
-    handle_path /bank/* {
+    handle /bank/* {
         reverse_proxy hindsight:9999
     }
     handle /_next/* {
