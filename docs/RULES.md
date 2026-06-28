@@ -2,6 +2,7 @@
 
 > Operational rules for artificial intelligence agents working in this repository.
 > Referenced in MASTER-SPEC §8.
+> Infrastructure files tracked in `infrastructure/hermes/INFRASTRUCTURE-MANIFEST.md`.
 
 ---
 
@@ -41,6 +42,27 @@ These rules apply to all operations performed by the artificial intelligence ass
 - **[INFRA-03] Service deployment via CI/CD:** The `deploy-services` job handles all Docker Compose changes. The agent may run `./infrastructure/deploy.sh` locally for verification purposes, but production deploys go through CI/CD.
 - **[INFRA-04] Mandatory MCP service restart after pipeline modifications:** After any change to SOUL.md, config.yaml, external skills, or .env, the hermes-gateway systemd service is restarted via `systemctl kill -s KILL` + `systemctl start`. This ensures the new configuration is picked up without requiring a full node restart.
 - **Rationale:** Session 2026-06-22 demonstrated that local `tofu taint` + `tofu apply` caused SSH lockout, boot volume quota exhaustion, and ~2 hours of unrecoverable downtime. Observability and reproducibility require all infrastructure mutations to be traceable through GitHub Actions logs.
+
+### Infrastructure Manifest & Versioning
+
+- **[MANIFEST-01] The `infrastructure/hermes/INFRASTRUCTURE-MANIFEST.md` file is the single source of truth for all Hermes configuration files.** Every operational .md, .yaml, .sh, and .json file that affects Hermes behavior MUST be listed there. Before modifying any configuration file, read the manifest to understand its sync mechanism and dependencies.
+- **[MANIFEST-02]** After ANY change to a Hermes configuration file, the manifest's `Current Session Changes` section MUST be updated with the file path, nature of the change, and date. This creates an auditable trail of what changed and when.
+- **[MANIFEST-03] No configuration change lives only on the VPS.** Every file that affects Hermes behavior must be versioned in the repo and deployed via CI/CD (`deploy.sh` or `external_skills_dirs`). The manifest documents the sync mechanism for each file.
+- **[MANIFEST-04]** The manifest is checked during `/document` workflow. If the manifest's listed files don't match the actual repo state, the mismatch is flagged as a documentary debt item.
+
+### WhatsApp Multi-Group Routing
+
+- **[ROUTE-01] Deterministic routing:** All WhatsApp group messages are routed based on `~/.hermes/whatsapp-groups.yaml`, not by LLM judgment. The SOUL.md algorithm reads the YAML file and routes accordingly. No LLM decision is involved in determining the destination profile or group type.
+- **[ROUTE-02] Message origin tracking:** Every Kanban task created by the `whatsapp-router` skill includes `metadata.originating_group` set to the WhatsApp group JID. When a worker completes the task, the orchestrator reads this metadata and routes the response to the correct WhatsApp group.
+- **[ROUTE-03] Group types:** Each group has a `type` field in `whatsapp-groups.yaml`: `coding` (repo + worker + Kilo CLI), `research` (investigation + skills), `personal` (orchestrator only), `custom` (free description), or `announcements` (read-only, ignored).
+- **[ROUTE-04] Description as context:** The WhatsApp group description (from `channel_aliases.json`) is loaded as operational context at the start of every session. The user can edit the WhatsApp group description at any time; the change is reflected within 10 minutes via the populate-channel-aliases cron job.
+- **[ROUTE-05] Only the default profile (master orchestrator) creates global skills.** Worker profiles create skills scoped to their own profile only. This maintains pseudo-sandbox isolation between groups.
+
+### /onboarding Command
+
+- **[ONBOARD-01]** The `/onboarding` command in a WhatsApp group configures that group via a 3-phase MECE process (Identity, Capabilities, Operations). It creates a Hindsight bank, generates a profile SOUL.md from `.agents/templates/profile-soul.md`, and writes the mapping to `whatsapp-groups.yaml`.
+- **[ONBOARD-02]** If `/onboarding` is invoked in a DM, it modifies the master orchestrator's `SOUL.md` directly. The user must explicitly confirm before any change is written. A backup is created at `~/.hermes/SOUL.md.bak.<timestamp>`.
+- **[ONBOARD-03]** Banks are created programmatically via Hindsight MCP `create_bank()`. On reconfiguration, existing banks are preserved (context is never discarded).
 
 ### CLI Interaction with Hermes Agent
 
