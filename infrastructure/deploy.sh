@@ -567,7 +567,12 @@ if [ -f "$POPULATE_SCRIPT_SRC" ]; then
   echo "[DEPLOY] Ensuring populate-cron entry..."
   ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     "${SSH_HOST}" \
-    "(crontab -l 2>/dev/null | grep -q 'populate-channel-aliases') && echo '  cron already set' || (crontab -l 2>/dev/null; echo '*/10 * * * * bash /home/opc/.hermes/scripts/populate-channel-aliases.sh > /dev/null 2>&1') | crontab - && echo '  cron added'"
+    "if crontab -l 2>/dev/null | grep -q 'populate-channel-aliases'; then \
+       echo '  cron already set'; \
+     else \
+       (crontab -l 2>/dev/null; echo '*/10 * * * * bash /home/opc/.hermes/scripts/populate-channel-aliases.sh > /dev/null 2>&1') | crontab -; \
+       echo '  cron added'; \
+     fi"
 fi
 
 # --- Write Hermes .env on remote (always overwrite — Hermes creates a default template) ---
@@ -872,59 +877,29 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
 echo "[DEPLOY] Config protection applied."
 
 # --- Create worker profiles for WhatsApp group routing ---
+# Cada worker profile hereda config/env/SOUL/skills del default via --clone.
+# Solo se diferencian en terminal.cwd (apunta al repo correspondiente).
+# Skills de external_skills_dirs están disponibles globalmente — no se instalan.
 echo "[DEPLOY] Creating/verifying worker profiles..."
-WORKER_PROFILES_JSON=$(cat << WORKERJSON
-{
-  "toolset-worker": {"cwd": "/opt/toolset-repo", "skills": ["kilo-code", "github-pr-workflow"]},
-  "researchit-worker": {"cwd": "/opt/researchit-repo", "skills": ["standard-research", "markitdown-converter"]}
-}
-WORKERJSON
+WORKER_PROFILES=(
+  "toolset-worker:/opt/toolset-repo"
+  "researchit-worker:/opt/researchit"
 )
-echo "$WORKER_PROFILES_JSON" | python3 -c "
-import json, sys, subprocess, os
-profiles = json.load(sys.stdin)
-for name, cfg in profiles.items():
-    # Verificar si el perfil existe
-    r = subprocess.run(['ssh'] + '${SSH_HOST}'.split() + ['hermes profile list 2>/dev/null || true'],
-                       capture_output=True, text=True, shell=False, timeout=15)
-    # Usar hermes directamente via ssh
-    check = subprocess.run(
-        ['ssh', '-oStrictHostKeyChecking=no', '-oUserKnownHostsFile=/dev/null',
-         '${SSH_HOST}',
-         f'export PATH=/usr/local/bin:/home/opc/.local/bin:\$PATH; hermes profile list 2>/dev/null || echo NOT_FOUND'],
-        capture_output=True, text=True, timeout=15
-    )
-    exists = name in check.stdout
-    if not exists:
-        print(f'  Creating profile: {name}')
-        subprocess.run(
-            ['ssh', '-oStrictHostKeyChecking=no', '-oUserKnownHostsFile=/dev/null',
-             '${SSH_HOST}',
-             f'export PATH=/usr/local/bin:/home/opc/.local/bin:\$PATH; '
-             f'hermes profile create {name} --clone-from default --no-skills 2>&1'],
-            check=False, timeout=30
-        )
-        # Configurar cwd del perfil
-        subprocess.run(
-            ['ssh', '-oStrictHostKeyChecking=no', '-oUserKnownHostsFile=/dev/null',
-             '${SSH_HOST}',
-             f'export PATH=/usr/local/bin:/home/opc/.local/bin:\$PATH; '
-             f'hermes -p {name} config set terminal.cwd {cfg[\"cwd\"]} 2>&1'],
-            check=False, timeout=30
-        )
-        # Instalar skills
-        for skill in cfg.get('skills', []):
-            subprocess.run(
-                ['ssh', '-oStrictHostKeyChecking=no', '-oUserKnownHostsFile=/dev/null',
-                 '${SSH_HOST}',
-                 f'export PATH=/usr/local/bin:/home/opc/.local/bin:\$PATH; '
-                 f'hermes -p {name} skills install {skill} 2>&1'],
-                check=False, timeout=30
-            )
-        print(f'  ✅ {name} created with cwd={cfg[\"cwd\"]}')
-    else:
-        print(f'  ✅ {name} already exists')
-"
+for PROFILE_ENTRY in "${WORKER_PROFILES[@]}"; do
+  IFS=':' read -r PROFILE_NAME PROFILE_CWD <<< "$PROFILE_ENTRY"
+  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    "${SSH_HOST}" \
+    "export PATH=/usr/local/bin:/home/opc/.local/bin:\$PATH; \
+     if hermes profile list 2>/dev/null | grep -q '${PROFILE_NAME}'; then \
+       echo '  ✓ ${PROFILE_NAME} already exists'; \
+     else \
+       echo '  Creating ${PROFILE_NAME}...'; \
+       hermes profile create ${PROFILE_NAME} --clone 2>&1 && \
+       hermes -p ${PROFILE_NAME} config set terminal.cwd ${PROFILE_CWD} 2>&1 && \
+       echo '  ✓ ${PROFILE_NAME} created with cwd=${PROFILE_CWD}' || \
+       echo "  ⚠ ${PROFILE_NAME} creation failed"; \
+     fi" || echo "  ⚠ ${PROFILE_NAME}: deploy continued despite profile creation issue"
+done
 echo "[DEPLOY] Worker profiles ready."
 
 # --- Restart hermes-gateway (post-config changes) ---
