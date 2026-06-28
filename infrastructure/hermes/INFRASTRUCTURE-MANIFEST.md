@@ -75,3 +75,6 @@ Cuando se modifica un archivo de configuracion:
 | infrastructure/hermes-skills/kilo-code/SKILL.md | REWRITTEN v2.0.0: governance-based delegation over line thresholds |
 | infrastructure/hermes-skills/group-onboarding/SKILL.md | REWRITTEN v4.1.0: added Phase 0 Context Ingestion |
 | .agents/templates/profile-soul.md | CHANGED: ROUTE-04 universal Kilo CLI (no line threshold) |
+| infrastructure/hermes/cloned-repos.yaml | CREATED: manifest for repo cloning (native tools + cloned repos) |
+| infrastructure/deploy.sh | REPLACED ad-hoc ResearchIt clone with clone_repos() reading cloned-repos.yaml |
+| infrastructure/hermes/scripts/repo-pull-cron.sh | CREATED: silent git pull cron (5min, only notifies on conflict, max 1x/day) |

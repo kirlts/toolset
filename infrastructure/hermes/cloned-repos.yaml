@@ -1,0 +1,27 @@
+# infrastructure/hermes/cloned-repos.yaml
+# Manifest of repos cloned on the VPS for Hermes profiles.
+# type: native = permanent toolset tool (toolset, researchit, webui)
+#       cloned = user repo, added via onboarding (sandbox optional)
+# deploy.sh reads this to ensure all repos exist and are up-to-date.
+# onboarding appends entries here.
+
+repos:
+  toolset-repo:
+    url: https://github.com/kirlts/toolset.git
+    path: /opt/toolset-repo
+    type: native
+    sync: ci_cd
+  researchit:
+    url: https://github.com/kirlts/researchit.git
+    path: /opt/researchit
+    type: native
+    sync: deploy
+    env:
+      OPENCODE_GO_API_KEY: "${OPENCODE_GO_API_KEY}"
+      COMPOSIO_API_KEY: "${COMPOSIO_API_KEY}"
+      COMPOSIO_REDDIT_CONNECTION_ID: "reddit_hight-mudden"
+  hermes-webui:
+    url: https://github.com/kirlts/hermes-webui.git
+    path: /opt/hermes-webui
+    type: native
+    sync: deploy

@@ -131,24 +131,58 @@ else
   HERMES_ARTIFACTS_DEPLOYED=false
 fi
 
-# --- Clone / pull ResearchIt repo ---
-echo "[DEPLOY] Syncing ResearchIt..."
-ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-  "${SSH_HOST}" \
-  "sudo mkdir -p /opt/researchit && sudo chown opc:opc /opt/researchit && \
-   cd /opt/researchit && \
-   if [ -d .git ]; then \
-     git pull origin main 2>&1 || echo '  pull failed (non-fatal)'; \
-   else \
-     gh repo clone kirlts/researchit /tmp/researchit-tmp 2>/dev/null && \
-     cp -a /tmp/researchit-tmp/. /opt/researchit/ && \
-     rm -rf /tmp/researchit-tmp; \
-   fi && \
-   set -a && source /home/opc/.hermes/.env && set +a && \
-   export COMPOSIO_REDDIT_CONNECTION_ID=${COMPOSIO_REDDIT_CONNECTION_ID:-reddit_hight-mudden} && \
-   env | grep -E '^(OPENCODE_GO_API_KEY|COMPOSIO_API_KEY|COMPOSIO_REDDIT)' | \
-   while IFS='=' read -r k v; do echo \"\$k=\$v\" >> /opt/researchit/.env; done" 2>&1 | sed 's/^/  [RESEARCHIT] /'
-echo "[DEPLOY] ResearchIt synced."
+# --- Clone / pull repos from cloned-repos.yaml manifest ---
+clone_repos() {
+  local manifest="${REMOTE_DIR}/infrastructure/hermes/cloned-repos.yaml"
+
+  # Get list of repo keys from YAML
+  local keys
+  keys=$(grep -oP '^\s+\K[a-z][a-z0-9_-]+(?=:)' "$manifest" 2>/dev/null || true)
+
+  for key in $keys; do
+    local url path type sync
+    url=$(awk "/^  ${key}:/{f=1} f{ if(\$1==\"url:\"){print \$2; exit}} f && /^  [a-z]/{exit}" "$manifest" 2>/dev/null)
+    path=$(awk "/^  ${key}:/{f=1} f{ if(\$1==\"path:\"){print \$2; exit}} f && /^  [a-z]/{exit}" "$manifest" 2>/dev/null)
+    type=$(awk "/^  ${key}:/{f=1} f{ if(\$1==\"type:\"){print \$2; exit}} f && /^  [a-z]/{exit}" "$manifest" 2>/dev/null)
+    sync=$(awk "/^  ${key}:/{f=1} f{ if(\$1==\"sync:\"){print \$2; exit}} f && /^  [a-z]/{exit}" "$manifest" 2>/dev/null)
+
+    # toolset-repo is handled by CI/CD deploy pipeline
+    [ "$sync" = "ci_cd" ] && continue
+
+    echo "[MANIFEST] Syncing ${key} (${type}, ${sync})"
+    ssh "${SSH_HOST}" \
+      "sudo mkdir -p $(dirname "${path}") && sudo chown opc:opc $(dirname "${path}") && \
+       if [ -d '${path}/.git' ]; then \
+         cd '${path}' && git pull --ff-only 2>&1 | tail -1; \
+       else \
+         sudo git clone '${url}' '${path}-tmp' 2>/dev/null && \
+         sudo cp -a '${path}-tmp/.' '${path}/' && \
+         sudo rm -rf '${path}-tmp' && \
+         sudo chown -R opc:opc '${path}'; \
+       fi" 2>&1 | sed "s/^/  [${key}] /"
+
+    # Inject env vars if defined in manifest
+    local env_block
+    env_block=$(awk "/^  ${key}:/{f=1} f{ if(\$1==\"env:\"){env=1; next} env && /^      [a-z]/{print; next} env && /^  [a-z]/{exit}}" "$manifest" 2>/dev/null || true)
+    if [ -n "$env_block" ]; then
+      echo "$env_block" | while IFS=': ' read -r var val; do
+        [ -n "$var" ] && ssh "${SSH_HOST}" "echo '${var}=${val}' >> '${path}/.env'" 2>/dev/null || true
+      done
+    fi
+
+    # Check governance directory on cloned repos
+    if [ "${type}" = "cloned" ]; then
+      local agents_ok
+      agents_ok=$(ssh "${SSH_HOST}" "[ -d '${path}/.agents' ] && echo yes || echo no")
+      if [ "${agents_ok}" = "no" ]; then
+        echo "  [WARN] ${key}: no .agents/ directory (governance rules may not apply)"
+      fi
+    fi
+  done
+}
+
+echo "[DEPLOY] Syncing repos from manifest..."
+clone_repos
 
 # --- Pull images ---
 echo "[DEPLOY] Pulling container images..."
@@ -945,6 +979,18 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
      (crontab -l 2>/dev/null; echo \"\$CRON_CMD\") | crontab - && \
      echo '[cron] Consolidation cron installed (every 5 min)')"
 echo "[DEPLOY] Memory consolidation cron configured."
+
+# --- Install repo-pull cron (every 5 minutes, silent unless conflict) ---
+echo "[DEPLOY] Installing repo-pull cron..."
+CRON_CMD='*/5 * * * * bash /home/opc/.hermes/scripts/repo-pull-cron.sh > /dev/null 2>&1'
+ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  "${SSH_HOST}" \
+  "mkdir -p /home/opc/.hermes/scripts && \
+   (crontab -l 2>/dev/null | grep -q repo-pull-cron && \
+     echo '[cron] repo-pull already installed' || \
+     (crontab -l 2>/dev/null; echo \"$CRON_CMD\") | crontab - && \
+     echo '[cron] repo-pull cron installed (every 5 min)')"
+echo "[DEPLOY] Repo-pull cron configured."
 
 FUNNEL_TARGET="http://localhost:8080"
 echo "[DEPLOY] Ensuring Tailscale Funnel -> Caddy (${FUNNEL_TARGET})..."

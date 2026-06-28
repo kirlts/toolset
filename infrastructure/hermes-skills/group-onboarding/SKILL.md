@@ -133,6 +133,36 @@ No categories. No predefined types. Phases 1-3 are MECE.
 3. **Repository:** "¿Repositorio GitHub asociado? (nombre corto, URL completa, o 'n' para ninguno)"
    - Si se provee: validar con `git ls-remote https://github.com/kirlts/<repo>.git`.
    - El repo define el `terminal.cwd` para el worker y el bank adicional.
+   - **Registrar en cloned-repos.yaml:**
+     ```
+     cd /opt/toolset-repo
+     # Add entry with yq if available, otherwise append raw YAML
+     if command -v yq &>/dev/null; then
+       yq -i '.repos.<name>.url = "https://github.com/kirlts/<name>.git"' \
+         infrastructure/hermes/cloned-repos.yaml
+       yq -i '.repos.<name>.path = "/opt/<name>"' \
+         infrastructure/hermes/cloned-repos.yaml
+       yq -i '.repos.<name>.type = "cloned"' \
+         infrastructure/hermes/cloned-repos.yaml
+       yq -i '.repos.<name>.sync = "cron"' \
+         infrastructure/hermes/cloned-repos.yaml
+       yq -i '.repos.<name>.sandbox = "optional"' \
+         infrastructure/hermes/cloned-repos.yaml
+     else
+       # Fallback: append raw YAML block
+       cat >> infrastructure/hermes/cloned-repos.yaml << YAML
+       <name>:
+         url: https://github.com/kirlts/<name>.git
+         path: /opt/<name>
+         type: cloned
+         sync: cron
+         sandbox: optional
+     YAML
+     fi
+     git add infrastructure/hermes/cloned-repos.yaml
+     git commit -m "feat: register <name> repo for <group-name> via onboarding"
+     git push origin main
+     ```
 
 **Exit condition:** Usuario confirma nombre, descripcion, repo (opcional).
 

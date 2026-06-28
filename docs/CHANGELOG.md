@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - WHATSAPP_HOME_CHANNEL persistente en .env para entregas de cron y notificaciones autónomas
 - kilo-code/SKILL.md v2.0.0: delegación basada en gobernanza (repos con .agents/ → Kilo CLI exclusivo)
 - group-onboarding/SKILL.md v4.1.0: Fase 0 opcional de ingesta de contexto (documentos, URLs, voz, historial)
+- cloned-repos.yaml: manifest de repos clonados (tools nativas + repos de usuario)
+- deploy.sh clone_repos(): función genérica que lee el manifest y clona/pulea cada repo
+- repo-pull-cron.sh: cron silencioso cada 5min, solo notifica conflictos máx 1x/día
 
 ### Changed
 - STT provider cambiado de `local` (faster-whisper base) a `groq` (whisper-large-v3-turbo cloud)
