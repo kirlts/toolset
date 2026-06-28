@@ -67,3 +67,6 @@ Cuando se modifica un archivo de configuracion:
 | docs/MASTER-SPEC.md | Updated 7.1 with multi-group routing, deterministic routing, onboarding |
 | .github/workflows/deploy.yml | Removed **.md from paths-ignore (blocked SOUL.md + SKILL.md deploys) |
 | infrastructure/deploy.sh | Added bridge patch, worker profiles, cron setup, whatsapp-groups.yaml deploy |
+| infrastructure/deploy.sh | ADDED: GROQ_API_KEY to .env, ffmpeg static binary install for audio STT |
+| infrastructure/hermes/config.yaml | CHANGED: stt.provider to groq, groq.model to whisper-large-v3-turbo |
+| .github/workflows/deploy.yml | ADDED: GROQ_API_KEY secret to Deploy and Sync secrets steps |

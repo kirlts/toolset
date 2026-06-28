@@ -470,14 +470,14 @@ streaming:
 stt:
   enabled: true
   groq:
-    model: whisper-large-v3
+    model: whisper-large-v3-turbo
   local:
     model: base
   mistral:
     model: voxtral
   openai:
     model: whisper-1
-  provider: local
+  provider: groq
 telegram:
   allowed_users: []
   enabled: false

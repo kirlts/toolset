@@ -608,6 +608,7 @@ WHATSAPP_ENABLED=true
 WHATSAPP_HOME_CHANNEL=163217431068839@lid
 COMPOSIO_API_KEY=${COMPOSIO_API_KEY:-}
 COMPOSIO_MCP_KEY=${COMPOSIO_MCP_KEY:-}
+GROQ_API_KEY=${GROQ_API_KEY:-}
 HERMESENV
 echo "[DEPLOY] Hermes .env written."
 
@@ -674,6 +675,16 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     sudo chown -R opc:opc /usr/local/lib/hermes-agent 2>/dev/null || true
     # Ensure Whisper STT is installed (for WhatsApp voice message transcription)
     /home/opc/.local/bin/uv pip install --python /usr/local/lib/hermes-agent/venv/bin/python3 faster-whisper -q 2>/dev/null || true
+
+    # ---- Install static ffmpeg binary (for audio format conversion) ----
+    if ! command -v ffmpeg &>/dev/null; then
+      echo '[hermes] Installing static ffmpeg binary...' | sudo tee -a ${HERMES_LOG}
+      curl -sL "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linuxarm64-gpl.tar.xz" -o /tmp/ffmpeg.tar.xz 2>/dev/null || true
+      tar xf /tmp/ffmpeg.tar.xz -C /tmp/ 2>/dev/null || true
+      sudo cp /tmp/ffmpeg-master-latest-linuxarm64-gpl/bin/ffmpeg /usr/local/bin/ffmpeg 2>/dev/null || true
+      sudo chmod +x /usr/local/bin/ffmpeg 2>/dev/null || true
+      rm -rf /tmp/ffmpeg.tar.xz /tmp/ffmpeg-master-latest-linuxarm64-gpl 2>/dev/null || true
+    fi
     \
     # ---- Add opc to docker group for sandbox access ----
     sudo usermod -aG docker opc 2>/dev/null

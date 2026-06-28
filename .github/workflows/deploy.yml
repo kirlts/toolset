@@ -175,6 +175,7 @@ jobs:
           WHATSAPP_ALLOWED_USERS: ${{ secrets.WHATSAPP_ALLOWED_USERS }}
           COMPOSIO_API_KEY: ${{ secrets.COMPOSIO_API_KEY }}
           COMPOSIO_MCP_KEY: ${{ secrets.COMPOSIO_MCP_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           GH_CLI_TOKEN: ${{ secrets.GH_CLI_TOKEN }}
           FUNNEL_DOMAIN: ${{ secrets.FUNNEL_DOMAIN }}
         working-directory: ${{ env.INFRA_DIR }}
@@ -194,6 +195,7 @@ jobs:
           WHATSAPP_ALLOWED_USERS: ${{ secrets.WHATSAPP_ALLOWED_USERS }}
           COMPOSIO_API_KEY: ${{ secrets.COMPOSIO_API_KEY }}
           COMPOSIO_MCP_KEY: ${{ secrets.COMPOSIO_MCP_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
         run: |
           python3 scripts/sync-infisical-secrets.py push
           python3 scripts/sync-infisical-secrets.py verify
