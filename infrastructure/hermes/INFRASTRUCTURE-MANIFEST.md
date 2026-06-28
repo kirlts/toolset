@@ -59,7 +59,7 @@ Cuando se modifica un archivo de configuracion:
 | infrastructure/hermes/SOUL.md | REFACTORED: 254 -> 72 lineas. Routing ahora detecta grupos sin profile como "no configurado". |
 | infrastructure/hermes-context.md | REFACTORED: referencia operativa completa. Nuevo Workers Profile Inventory. Banks actualizados (hermes: 0). |
 | infrastructure/hermes/whatsapp-groups.yaml | LIMPIADO: sin profiles ni skills. Grupos conocidos pero no configurados hasta /onboarding. |
-| infrastructure/deploy.sh | REMOVIDA: creacion de workers profiles (code-worker, research-worker). Ya no se pre-crean. Onboarding es unico camino. |
+| infrastructure/deploy.sh | REMOVIDA: creacion de workers profiles. FIX: bridge patch independiente del populate. |
 | infrastructure/hermes-skills/group-onboarding/SKILL.md | MEJORADO: lee descripcion de WhatsApp desde channel_aliases.json como sugerencia en Phase 1. |
 | infrastructure/hermes/whatsapp-groups.yaml | Domain-abstract types (coding/research/personal/custom/announcements) |
 | infrastructure/hermes/CRONS.md | Added populate-channel-aliases cron |
