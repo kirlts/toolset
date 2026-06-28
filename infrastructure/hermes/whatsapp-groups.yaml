@@ -14,7 +14,7 @@ groups:
     name: "Code"
     type: "coding"
     repo: "toolset"
-    profile: "toolset-worker"
+    profile: "code-worker"
     skills: ["kilo-code", "github-pr-workflow"]
     description: "Desarrollo de infraestructura toolset. Código, tests, deploys."
 
@@ -22,7 +22,7 @@ groups:
     name: "Research"
     type: "research"
     repo: "researchit"
-    profile: "researchit-worker"
+    profile: "research-worker"
     skills: ["standard-research", "markitdown-converter"]
     description: "Investigación profunda con SearXNG + deepseek-v4-flash. Papers, fact-checking."
 

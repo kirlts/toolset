@@ -893,8 +893,8 @@ echo "[DEPLOY] Config protection applied."
 # Skills de external_skills_dirs están disponibles globalmente — no se instalan.
 echo "[DEPLOY] Creating/verifying worker profiles..."
 WORKER_PROFILES=(
-  "toolset-worker:/opt/toolset-repo"
-  "researchit-worker:/opt/researchit"
+  "code-worker:/opt/toolset-repo"
+  "research-worker:/opt/researchit"
 )
 for PROFILE_ENTRY in "${WORKER_PROFILES[@]}"; do
   IFS=':' read -r PROFILE_NAME PROFILE_CWD <<< "$PROFILE_ENTRY"

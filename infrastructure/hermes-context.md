@@ -10,7 +10,7 @@ Project context file loaded at session start. Contains operational configuration
 | MCP Composio | 7 tools | SEARCH_TOOLS, MULTI_EXECUTE_TOOL, etc. Via gateway |
 | WhatsApp | Bot 56936414929 | User 56994172921. Via gateway. Multi-group: 5 grupos en comunidad Hermes HUB |
 | WhatsApp Multigrupo | 6 grupos + DM | Ruteo determinista via whatsapp-router skill. Tipos: coding/research/personal/custom/announcements |
-| Kanban | Perfiles worker | toolset-worker, researchit-worker. Dispatch via gateway. Inter-profile delegation |
+| Kanban | Perfiles worker | code-worker, research-worker. Dispatch via gateway. Inter-profile delegation |
 | Onboarding | /onboarding | 3 fases MECE. Crea bank + SOUL.md + whatsapp-groups.yaml. DM modifica SOUL.md maestro |
 | WebUI | https://${FUNNEL_DOMAIN:-toolset-oci-1-1.tail2d4c18.ts.net}/hermes/ | Via gateway + Caddy |
 | gh CLI | On host | Authenticated as kirlts |
@@ -32,7 +32,7 @@ Commands run directly on host (OL9) as user opc. Full filesystem access.
 |---|---|---|
 | Gateway | Host OL9. Systemd service. | MCP, conversations, memory, platforms, Kanban dispatch |
 | Terminal | Host OL9. User opc. | Full filesystem, gh, git, Kilo, bash, Docker |
-| Workers | Perfiles Hermes | toolset-worker (cwd:/opt/toolset-repo), researchit-worker (cwd:/opt/researchit) |
+| Workers | Perfiles Hermes | code-worker (cwd:/opt/toolset-repo), research-worker (cwd:/opt/researchit) |
 
 Docker sandbox available for port-isolated code execution. Deterministic routing: `whatsapp-groups.yaml` + `channel_aliases.json` -> `kanban_create(metadata={originating_group: jid})`.
 
