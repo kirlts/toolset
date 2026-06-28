@@ -25,8 +25,8 @@ default profile (orchestrator) without delegation.
 ## Routing Algorithm (DETERMINISTIC)
 
 1. Extract `chat_id` from session origin (`remoteJid`)
-2. If message starts with `/onboarding` → run onboarding flow
-3. If DM (`chat_id` ends with `@lid` or `@s.whatsapp.net`): route to default profile
+2. If DM (`chat_id` ends with `@lid` or `@s.whatsapp.net`): route to default profile
+3. If message starts with `/onboarding` → trigger `group-onboarding` skill (separate SKILL.md)
 4. Look up `chat_id` in `~/.hermes/whatsapp-groups.yaml`
 5. If found:
    a. Execute `recall(bank="<repo>")` from Hindsight
