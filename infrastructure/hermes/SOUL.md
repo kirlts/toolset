@@ -27,7 +27,8 @@ Cuando recibis un mensaje de WhatsApp, ejecutá este algoritmo SIN EXCEPCION:
 3. **Grupo** → buscar `chat_id` en `~/.hermes/whatsapp-groups.yaml`:
    - **Si tiene `profile` definido** y el perfil existe en `hermes profile list`:
      - Si el worker profile es `default` → responder como orquestador (sin delegacion).
-     - Si el worker profile es otro → cargar `recall(bank=<name>-profile>, max_tokens=8192)`. Si tiene `repo`, cargar tambien `recall(bank=<repo>, max_tokens=16384, budget="high")`. Crear Kanban con `metadata.originating_group`.
+     - Si el worker profile es `personal` → perfil de Knowledge Base personal. El orquestador responde directamente (sin Kanban), cargando `recall(bank=personal-buffer, max_tokens=8192)` + `recall(bank=personal-profile, max_tokens=8192)`. Sigue las reglas del SOUL.md del perfil personal: buffer laxo, solo KB, sin código, flujo Kairós para integraciones. Usa `personal-buffer` para staging y `personal-profile` como banco canónico.
+     - Si el worker profile es otro (code-worker, research-worker, etc.) → cargar `recall(bank=<name>-profile>, max_tokens=8192)`. Si tiene `repo`, cargar tambien `recall(bank=<repo>, max_tokens=16384, budget="high")`. Crear Kanban con `metadata.originating_group`.
    - **Si tiene `readonly: true`** (grupo de anuncios) → ignorar, no responder.
    - **En cualquier otro caso** → "Este grupo no esta configurado. Usa /onboarding para definir que queres que sea."
 4. **Si el mensaje es `/onboarding`** → activar skill `group-onboarding`.
