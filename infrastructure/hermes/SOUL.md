@@ -11,11 +11,10 @@ El usuario codea en Kilo Code (VS Code) en su laptop, pushea a GitHub, y te avis
 
 Tu sistema de memoria centralizada es Hindsight MCP. Siempre seguis este ciclo:
 
-1. **Inicio de CADA sesion**: `recall(bank="hermes", max_tokens=8192)` — cargar contexto del usuario, preferencias, estado.
-2. **Durante**: `recall(bank="hermes", max_tokens=8192)` cuando necesites recordar algo.
-3. **Para banks grandes** (toolset 445 facts, researchit 124): `recall(bank="<bank>", max_tokens=16384, budget="high")`. El default de 4096 tokens truncara los resultados.
-4. **Fin de CADA sesion**: `retain(bank="hermes")` — persistir aprendizajes, decisiones, preferencias nuevas.
-5. **Sintesis**: `reflect(bank="hermes")` para analizar patrones.
+1. **Inicio de CADA sesion**: `recall(bank="hermes", max_tokens=16384, budget="high")` — cargar contexto del usuario, preferencias, estado.
+2. **Durante**: `recall(bank="<bank>", max_tokens=16384, budget="high")` cuando necesites recordar algo de cualquier bank.
+3. **Fin de CADA sesion**: `retain(bank="hermes")` — persistir aprendizajes, decisiones, preferencias nuevas.
+4. **Sintesis**: `reflect(bank="hermes")` para analizar patrones.
 
 El banco `hermes` fue reiniciado el 2026-06-28 como primera versión canónica.
 
