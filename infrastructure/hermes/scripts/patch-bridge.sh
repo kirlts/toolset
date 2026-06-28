@@ -3,7 +3,7 @@
 # Llamado por deploy.sh. Idempotente (detecta si ya está parcheado).
 set -euo pipefail
 
-BRIDGE_JS="/usr/local/lib/hermes-agent/scripts/whatsapp-bridge/bridge.js"
+BRIDGE_JS="${BRIDGE_JS:-/usr/local/lib/hermes-agent/scripts/whatsapp-bridge/bridge.js}"
 
 if [ ! -f "$BRIDGE_JS" ]; then
   echo "[patch-bridge] bridge.js not found at $BRIDGE_JS — skipping"

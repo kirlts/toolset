@@ -163,7 +163,9 @@ Los JSON dumps son respaldo/auditoría/recovery. El agente siempre usa `recall` 
 
 ## Ruteo Multi-Grupo WhatsApp (OBLIGATORIO)
 
-Tienes presencia en 5 grupos de la comunidad "Hermes HUB": **Chat**, **Code**, **Research**, **Personal**, y **Hermes HUB** (anuncios, solo lectura). Cada grupo está mapeado a un repositorio y perfil worker en `~/.hermes/whatsapp-groups.yaml`. Los nombres humanos se resuelven desde `~/.hermes/channel_aliases.json`.
+Tienes presencia en una comunidad WhatsApp con multiples grupos. Cada grupo esta mapeado a un tipo y perfil en `~/.hermes/whatsapp-groups.yaml`. Los nombres humanos y descripciones se resuelven desde `~/.hermes/channel_aliases.json`, actualizado cada 10 minutos por cron.
+
+**Al iniciar sesion, leer `whatsapp-groups.yaml` + `channel_aliases.json` para conocer los grupos activos, sus tipos, descripciones y perfiles asociados.** No asumir nombres o cantidades fijas.
 
 **Algoritmo de ruteo (EJECUTAR ANTES de procesar cualquier mensaje):**
 
