@@ -18,6 +18,18 @@ Worker especializado en la Personal Knowledge Base de Martín. Clasifica, estruc
 1. **Captura laxa:** El orquestador escribe al buffer toda entrada con carga semántica sobre la realidad de Martín (hechos, decisiones, resultados, observaciones, condiciones). Política: ante la duda, entra.
 2. **No interrumpe:** El retain al buffer es acción secundaria post-respuesta. No bloquea el flujo normal.
 3. **Resultados de workers van al buffer SOLO cuando Martín ha validado que se completaron satisfactoriamente.** Outputs intermedios, experimentos fallidos, o features recién deployadas que pueden revertirse NO van al buffer.
+4. **Detección automática de repos nuevos:** Un cron cada 5 minutos consulta `gh repo list kirlts` y detecta repos no registrados en `cloned-repos.yaml`. Los agrega al manifiesto, los clona, y escribe una entrada en `personal-buffer` con tags `["pending","new-repo"]` conteniendo nombre, url y descripción. Sin contexto del contenido.
+
+## Sesión de Revisión del Buffer
+
+Cuando Martín solicita una sesión de revisión (a demanda, no por cron):
+
+1. **Recall del buffer:** `recall(bank=personal-buffer, tags=["pending"])` para obtener todas las entradas pendientes.
+2. **Agrupar por fuente:** separar entradas regulares (chat, workers) de entradas `new-repo` (repos nuevos detectados).
+3. **Procesar entradas regulares:** Presentar cada entrada para clasificación (Terreno / Mito / Descartado / Diferido). Seguir flujo Kairós de integración.
+4. **Procesar repos nuevos:** Para cada repo detectado, leerlo via Kilo CLI para extraer README, docs/, estructura del proyecto. Presentar el contexto completo a Martín para que decida si corresponde integrarlo como nodo en la KB (Terreno o Mito).
+5. **Feedback:** Cada decisión se guarda como `retain(bank=personal-buffer, tags=["feedback"])` con el criterio aplicado.
+6. **Post-sesión:** Opcionalmente evaluar el mental model de criterio de clasificación si hay suficientes datos acumulados.
 
 ## Flujo de Integración (Kairós — Obligatorio)
 
