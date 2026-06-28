@@ -5,10 +5,13 @@ Project context file loaded at session start. Contains operational configuration
 ## Capabilities
 
 | Category | Available | Details |
-|---|---|---|
+|---|---|---|---|
 | MCP Hindsight | 37 tools | recall, retain, reflect, list_banks, get_bank, etc. Via gateway, no extra auth |
 | MCP Composio | 7 tools | SEARCH_TOOLS, MULTI_EXECUTE_TOOL, etc. Via gateway |
-| WhatsApp | Bot 56936414929 | User 56994172921. Via gateway |
+| WhatsApp | Bot 56936414929 | User 56994172921. Via gateway. Multi-group: 5 grupos en comunidad Hermes HUB |
+| WhatsApp Multigrupo | 6 grupos + DM | Ruteo determinista via whatsapp-router skill. Tipos: coding/research/personal/custom/announcements |
+| Kanban | Perfiles worker | toolset-worker, researchit-worker. Dispatch via gateway. Inter-profile delegation |
+| Onboarding | /onboarding | 3 fases MECE. Crea bank + SOUL.md + whatsapp-groups.yaml. DM modifica SOUL.md maestro |
 | WebUI | https://${FUNNEL_DOMAIN:-toolset-oci-1-1.tail2d4c18.ts.net}/hermes/ | Via gateway + Caddy |
 | gh CLI | On host | Authenticated as kirlts |
 | git clone/push | On host | git clone git@github.com:kirlts/<repo> |
@@ -19,6 +22,7 @@ Project context file loaded at session start. Contains operational configuration
 | MarkItDown | CLI + skill | PDF, DOCX, PPTX, XLSX, EPUB, HTML, CSV, JSON, XML, images, audio, ZIP to Markdown |
 | Infisical | CLI on host | infisical <cmd> |
 | tofu/terraform | NOT available | INFRA-01: infra goes through CI/CD |
+| Descripcion grupos | Bridge + cron | `populate-channel-aliases.sh` cada 10 min. `channel_aliases.json` guarda {name, desc} por grupo |
 
 ## Architecture
 
@@ -26,34 +30,42 @@ Commands run directly on host (OL9) as user opc. Full filesystem access.
 
 | Layer | Environment | Access |
 |---|---|---|
-| Gateway | Host OL9. Systemd service. | MCP, conversations, memory, platforms |
+| Gateway | Host OL9. Systemd service. | MCP, conversations, memory, platforms, Kanban dispatch |
 | Terminal | Host OL9. User opc. | Full filesystem, gh, git, Kilo, bash, Docker |
+| Workers | Perfiles Hermes | toolset-worker (cwd:/opt/toolset-repo), researchit-worker (cwd:/opt/researchit) |
 
-Docker sandbox available for port-isolated code execution.
+Docker sandbox available for port-isolated code execution. Deterministic routing: `whatsapp-groups.yaml` + `channel_aliases.json` -> `kanban_create(metadata={originating_group: jid})`.
+
+No LLM judgment for routing. Routing decisions come from whatsapp-groups.yaml.
 
 ## Memory — Multi-repo Bank System
 
-Hindsight is centralized memory. Each active repo has its own isolated bank, named by repo.
+Hindsight is centralized memory. Each active repo + each WhatsApp group has its own isolated bank.
 
 ### Banks
 
 | Bank | Purpose | Facts |
 |---|---|---|
-| **hermes** | **[AGENT MEMORY]** User profile, agent state, preferences, personal context, consolidated working memory | ~34 |
-| **toolset** | **[INFRASTRUCTURE]** Toolset IaC: OCI, CI/CD, services, architecture decisions, deploy state | ~194 |
-| kairos | Kairos governance: rules, workflows, skills, templates | new |
-| researchit | Deep research engine: SearXNG, deepseek-v4-flash, Typst | ~48 |
-| cl-concerts-db | UAH, docta music, Flask | ~9 |
-| yacv | YaCV resume builder | new |
-| evidencia-zero | EvidenciaZero: data sanitization, Ley Karin | new |
-| witral | Messaging to storage data routing | new |
+| **hermes** | **[AGENT MEMORY]** User profile, agent state, preferences, personal context, consolidated working memory | ~241 |
+| **toolset** | **[INFRASTRUCTURE]** Toolset IaC: OCI, CI/CD, services, architecture decisions, deploy state | ~445 |
+| **code-profile** | Worker profile for Code WhatsApp group — desarrollo toolset | created on /onboarding |
+| **research-profile** | Worker profile for Research WhatsApp group — investigacion profunda | created on /onboarding |
+| kairos | Kairos governance: rules, workflows, skills, templates | ~68 |
+| researchit | Deep research engine: SearXNG, deepseek-v4-flash, Typst | ~124 |
+| cl-concerts-db | UAH, docta music, Flask | ~45 |
+| yacv | YaCV resume builder | ~29 |
+| evidencia-zero | EvidenciaZero: data sanitization, Ley Karin | ~30 |
+| witral | Messaging to storage data routing | ~11 |
 
 ### Rules
 
 - Every skill working with code MUST start with `recall(bank=<repo>)` and end with `retain(bank=<repo>)`.
-- Session init: obligatory `recall(query="full user context, agent state, preferences, active projects", bank="hermes")`.
-- When user mentions a repo: `recall(query="<project context>", bank="<repo-name>")`.
-- Bank hierarchy: hermes > toolset > repo-specific.
+- Session init (grupo WhatsApp): `recall(query="full user context, agent state, preferences, active projects", bank="hermes")` + `read whatsapp-groups.yaml` + `load description from channel_aliases.json`.
+- Cuando un worker completa Kanban con `metadata.originating_group`, el orquestador enruta la respuesta al grupo WhatsApp de origen.
+- `/onboarding` en DM modifica SOUL.md del orquestador con confirmacion explicita.
+- `/onboarding` en grupo crea bank `<group-name>-profile` + SOUL.md del perfil + entrada en whatsapp-groups.yaml.
+- Solo el perfil default (orquestador) crea skills globales. Workers skills aisladas por perfil.
+- Bank hierarchy: hermes > toolset > repo-specific > group-profile.
 
 ## Platform
 
@@ -66,11 +78,18 @@ Hindsight is centralized memory. Each active repo has its own isolated bank, nam
 ### Infrastructure
 
 | Rule | Description |
-|---|---|
+|---|---|---|
 | INFRA-01 | No local tofu apply/destroy. All infra mutations via CI/CD. |
 | INFRA-02 | Remote state in OCI Object Storage is authoritative. |
 | INFRA-03 | Service deployment via CI/CD (deploy.sh). Local only for verification. |
 | INFRA-04 | Mandatory MCP service restart after pipeline modifications. |
+| ROUTE-01 | Cada sesion comienza con `recall(bank="<repo>")` (grupo configurado) o `recall(bank="hermes")` (DM). |
+| ROUTE-02 | Cada sesion termina con `retain(bank="<bank>")`. |
+| ROUTE-03 | Resultados de workers se reportan al orquestador via `kanban_complete(metadata={originating_group: ...})`. |
+| ROUTE-04 | Cambios de codigo >50 lineas -> Kilo CLI (`kilo run --auto --dir <path>`). |
+| ROUTE-05 | Cambios de infraestructura van por CI/CD. No ejecutar tofu apply/destroy. |
+| ROUTE-06 | Aprendizaje configurable por perfil (auto / preguntar / solo explicito / custom). |
+| ROUTE-DESC-01 | Descripcion de grupo WhatsApp se lee de `channel_aliases.json` al iniciar sesion. Si el usuario edita la descripcion en WhatsApp, Hermes lo refleja en minutos (cron cada 10). |
 
 ### Git Governance
 
