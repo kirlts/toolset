@@ -70,3 +70,5 @@ Cuando se modifica un archivo de configuracion:
 | infrastructure/deploy.sh | ADDED: GROQ_API_KEY to .env, ffmpeg static binary install for audio STT |
 | infrastructure/hermes/config.yaml | CHANGED: stt.provider to groq, groq.model to whisper-large-v3-turbo |
 | .github/workflows/deploy.yml | ADDED: GROQ_API_KEY secret to Deploy and Sync secrets steps |
+| infrastructure/kilo.jsonc | ADDED: timeout 120000ms for hindsight-selfhosted MCP server |
+| infrastructure/hermes/config.yaml | ADDED: timeout 120s for hindsight-selfhosted MCP server |

@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - STT provider cambiado de `local` (faster-whisper base) a `groq` (whisper-large-v3-turbo cloud)
 - Pipeline CI/CD actualizado: GROQ_API_KEY en Deploy y Sync secrets steps
+- MCP timeout aumentado a 120s/120000ms para hindsight-selfhosted (evita timeouts en reflect/recall complejas)
 
 ## [0.2.0] - 2026-06-22
 

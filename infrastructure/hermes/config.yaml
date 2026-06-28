@@ -364,6 +364,7 @@ mcp_servers:
     url: https://connect.composio.dev/mcp
   hindsight-selfhosted:
     url: https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/mcp/
+    timeout: 120
 memory:
   hindsight:
     bank: hermes

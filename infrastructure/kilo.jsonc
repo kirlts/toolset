@@ -35,7 +35,8 @@
     },
     "hindsight-selfhosted": {
       "type": "remote",
-      "url": "https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/mcp/"
+      "url": "https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/mcp/",
+      "timeout": 120000
     }
   },
   "instructions": [
