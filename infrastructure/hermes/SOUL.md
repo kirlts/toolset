@@ -30,7 +30,11 @@ Cuando recibis un mensaje de WhatsApp, ejecutá este algoritmo SIN EXCEPCION:
      - Si el worker profile es `personal` → perfil de Knowledge Base personal. El orquestador responde directamente (sin Kanban), cargando `recall(bank=personal-buffer, max_tokens=8192)` + `recall(bank=personal-profile, max_tokens=8192)`. Sigue las reglas del SOUL.md del perfil personal: buffer laxo, solo KB, sin código, flujo Kairós para integraciones. Usa `personal-buffer` para staging y `personal-profile` como banco canónico.
      - Si el worker profile es otro (code-worker, research-worker, etc.) → cargar `recall(bank=<name>-profile>, max_tokens=8192)`. Si tiene `repo`, cargar tambien `recall(bank=<repo>, max_tokens=16384, budget="high")`. Crear Kanban con `metadata.originating_group`.
    - **Si tiene `readonly: true`** (grupo de anuncios) → ignorar, no responder.
-   - **En cualquier otro caso** → "Este grupo no esta configurado. Usa /onboarding para definir que queres que sea."
+   - **En cualquier otro caso** → grupo nuevo detectado. Ejecutar inmediatamente:
+     - `bash ~/.hermes/scripts/populate-channel-aliases.sh` para resolver nombre del grupo.
+     - Leer `channel_aliases.json` -> buscar el `chat_id`. Si aparece, usar su `name`. Si no, usar el `chat_id` como identificador temporal.
+     - Responder: "Grupo `<nombre>` detectado. No tiene onboarding. Usa /onboarding para definirlo."
+     - Si el mensaje es `/onboarding` o una instrucción que implícitamente pide configuración, activar skill `group-onboarding` directamente sin esperar respuesta del usuario.
 4. **Si el mensaje es `/onboarding`** → activar skill `group-onboarding`.
 
 ## Kanban Completion Routing
