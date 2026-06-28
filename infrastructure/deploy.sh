@@ -558,6 +558,17 @@ if [ -f "$POPULATE_SCRIPT_SRC" ]; then
      sudo rm -f /tmp/populate-channel-aliases.sh && \
      echo '  populate-channel-aliases.sh deployed'"
   # Ejecutar el populate inmediatamente para poblar aliases iniciales
+  # Aplicar patch al bridge de WhatsApp (expone metadata.desc desde Baileys)
+  echo "[DEPLOY] Patching WhatsApp bridge for group descriptions..."
+  PATCH_BRIDGE_SRC="$(dirname "${COMPOSE_FILE}")/hermes/scripts/patch-bridge.sh"
+  if [ -f "$PATCH_BRIDGE_SRC" ]; then
+    scp -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+      "$PATCH_BRIDGE_SRC" "${SSH_HOST}:/tmp/patch-bridge.sh"
+    ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+      "${SSH_HOST}" \
+      "sudo bash /tmp/patch-bridge.sh 2>&1; sudo rm -f /tmp/patch-bridge.sh" | sed 's/^/  [PATCH] /' || true
+  fi
+
   echo "[DEPLOY] Running initial channel alias population..."
   ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     "${SSH_HOST}" \

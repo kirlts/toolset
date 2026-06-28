@@ -1,171 +1,218 @@
 ---
 name: group-onboarding
-description: "Domain-abstract setup for WhatsApp groups. Hermes can be whatever you want — not just code repos."
-version: 2.0.0
+description: "3-phase MECE onboarding for WhatsApp groups and DM. Creates SOUL.md, skills config, and Hindsight bank."
+version: 3.0.0
 platforms: [linux]
 metadata:
   hermes:
-    tags: [onboarding, setup, whatsapp, groups]
+    tags: [onboarding, setup, whatsapp, groups, soul]
     triggers: ["/onboarding"]
 ---
 
-# WhatsApp Group Onboarding — Domain-Abstract
+# Group Onboarding — 3-Phase MECE
 
-## When Activated
+## Activation Context
 
-When a user sends `/onboarding` in a WhatsApp group where Hermes is a member.
+| Context | Behavior |
+|---|---|
+| WhatsApp group | Onboarding for that group. Creates/updates group config + bank + profile SOUL.md. |
+| WhatsApp DM | Master orchestrator SOUL.md modification. Requires explicit user confirmation. |
+| WebUI / CLI | Not supported. Redirect to WhatsApp group or DM. |
 
-## Prerequisites
+## Files Involved
 
-- `~/.hermes/whatsapp-groups.yaml` exists (created by deploy.sh)
-- Hindsight MCP tools available (`create_bank`, `list_banks`)
-- Hermes profiles exist (created by deploy.sh or manually)
+| File | Purpose |
+|---|---|
+| `~/.hermes/whatsapp-groups.yaml` | Group → type + profile mapping |
+| `~/.hermes/profiles/<name>/SOUL.md` | Per-profile identity and rules |
+| `~/.hermes/channel_aliases.json` | JID → {name, desc} resolution |
+| Hindsight `create_bank()` / `list_banks()` | Memory bank per group |
+| `.agents/templates/profile-soul.md` | SOUL.md template (repo toolset) |
 
-## Onboarding Flow
+## Pre-Flight: DM Handler
 
-### Step 1: Detect and check existing config
+If `/onboarding` is invoked in a DM:
 
-1. Get group JID from session origin (`remoteJid`)
-2. Get human-readable name from `~/.hermes/channel_aliases.json`
-3. Check if JID already exists in `~/.hermes/whatsapp-groups.yaml`
-   - **If found**: show current config. Ask "¿Reconfigurar? (si/no)"
-   - **If not found**: proceed as new group
+1. Read current `~/.hermes/SOUL.md`. Extract key sections (identity, rules, tone).
+2. Respond with a compact summary of current SOUL.md state.
+3. Ask: "¿Modificar mi personalidad base? Esto me afecta en todos los canales. (si/no)"
+4. If "no" → explain what /onboarding does in groups. End.
+5. If "si" → proceed directly to Phase 1 below. **Skip group type selection.** Target is ALWAYS `type: personal` with `profile: default` and `repo: hermes`. The user defines everything else.
 
-### Step 2: Choose group type
+## Group Onboarding: 3-Phase Flow
 
-Preguntar: "¿Qué querés que sea este grupo?"
+Each phase is MECE (Mutually Exclusive, Collectively Exhaustive). The process advances linearly through all 3 phases. No phase is skipped. No phase is repeated unless the user explicitly requests reconfiguration.
 
-| Opción | type | Significado |
-|---|---|---|
-| 💻 Coding | `coding` | Repositorio GitHub + perfil worker + Kilo CLI |
-| 🔬 Research | `research` | Investigación profunda + búsqueda + análisis |
-| 👤 Personal | `personal` | Orquestador maestro (sin delegación) |
-| ⚙️ Custom | `custom` | Lo que vos quieras — describilo libremente |
+### Phase 1: Identity
 
-### Step 3: Follow-up questions by type
+**Goal:** Define WHAT this profile is. Zero execution in this phase.
 
-#### If `coding`:
-a. "¿Qué repositorio GitHub? (nombre corto, ej: toolset)"
-   → Validar: `git ls-remote https://github.com/kirlts/<repo>.git`
-b. "¿Perfil worker? (enter para 'default')"
-   → Validar: `hermes profile list | grep <profile>` si no es default
-c. "¿Skills extra? (separadas por coma, ej: kilo-code,github-pr-workflow, o 'n')"
-   → Validar cada skill si se especifican
-d. "¿Descripción? (una línea sobre qué hace este grupo)"
+Questions asked in sequence:
 
-#### If `research`:
-a. "¿Área de investigación? (ej: IA, ciberseguridad, música docta)"
-   → Campo libre, sin validación
-b. "¿Repositorio asociado? (opcional, enter para ninguno)"
-   → Si se provee, validar con `git ls-remote`
-c. "¿Perfil worker? (enter para 'default')"
-d. "¿Skills extra? (separadas por coma o 'n')"
-e. "¿Descripción?"
+1. **Group type:** "¿Que tipo de perfil?" → coding / research / personal / custom
+2. **Name:** Auto-detected from `channel_aliases.json`. Editable by user.
+3. **Domain/description:** "¿Que hace este perfil? Describilo en una frase."
+4. **Repository:** Solo si type=coding o type=research. "¿Repositorio GitHub? (nombre corto o URL completa, o 'n' para ninguno)"
+   - Validate: `git ls-remote https://github.com/kirlts/<repo>.git` responde 200.
 
-#### If `personal`:
-a. "¿Descripción? (una línea sobre para qué usás este grupo)"
+**Edge cases handled:**
+- **No prior context:** Fresh questions, no assumptions.
+- **Prior conversation context:** Use context from previous messages as hints. Ask: "Basado en lo que hablamos, ¿esto es coding, research, personal o custom?"
+- **Single large instruction:** Parse the instruction for intent keywords. Propose type + description. Ask: "¿Es correcto?"
+- **Attached artifacts:** If documents are attached, run `markitdown` per [MARKITDOWN-01]. Extract domain and purpose. Propose type + description.
 
-#### If `custom`:
-a. "¿Descripción? (describí libremente qué querés que Hermes sea en este grupo)"
-b. "¿Perfil worker? (enter para 'default')"
-c. "¿Skills extra? (separadas por coma o 'n')"
+**Exit condition:** User confirms type, name, description, and (optional) repo. No changes written yet. Proceed to Phase 2.
 
-### Step 4: Create Hindsight bank
+### Phase 2: Capabilities
 
-Para TODOS los tipos, crear bank programáticamente vía MCP:
+**Goal:** Define WHAT this profile can do. Skills, tools, constraints.
+
+Questions asked in sequence:
+
+1. **Skills:** "¿Skills para este perfil? (nombres separados por coma, 'n' para ninguna, '?' para ver disponibles)"
+   - If "?": list skills from `hermes skills list` and from external_skills_dirs.
+   - Validate each: `hermes skills list | grep <skill>` existe.
+   - Pre-fill defaults per type:
+     - coding: kilo-code
+     - research: standard-research, markitdown-converter
+     - personal: (ninguna)
+     - custom: (ninguna)
+2. **MCP servers:** "¿Servers MCP adicionales? ('n' para los defaults: hindsight + composio)"
+3. **Constraints:** "¿Algo que este perfil NUNCA deba hacer?"
+   - Store as negative constraints in SOUL.md (e.g., "The file_delete tool is permanently disabled.")
+
+**Edge cases handled:**
+- **No skills hub access:** If `hermes skills install` fails, warn but continue. Skills from external_skills_dirs are always available.
+- **Invalid skill name:** Suggest similar names via substring match. Offer to skip.
+- **MCP server unreachable:** Warn. Defer to runtime.
+
+**Exit condition:** User confirms skills, MCP servers, and constraints. No changes written yet. Proceed to Phase 3.
+
+### Phase 3: Operations
+
+**Goal:** Define HOW this profile operates. Tone, rules, workflows.
+
+Questions asked in sequence:
+
+1. **Tone:** "¿Como debe comunicarse este perfil?"
+   - Options: tecnico / conversacional / minimal / custom. Free text accepted.
+2. **Worker profile:** "¿Perfil Hermes worker? (nombre, 'default', o 'nuevo' para crear uno)"
+   - If "default": uses orchestrator profile. No delegation needed.
+   - If "nuevo": create with `hermes profile create <name> --clone`.
+   - Validate existing: `hermes profile list | grep <name>`.
+3. **Workflows:** "¿Flujos de trabajo especificos? (ej: 'siempre correr tests antes de commit', 'reportar en formato JSON')"
+   - Free text. Stored as operational rules in SOUL.md.
+
+**Edge cases handled:**
+- **Profile creation fails:** Fall back to "default". Warn user. Continue.
+- **No cwd for new profile:** Derive from repo name (`/opt/<repo>`). Warn if path doesn't exist.
+
+**Exit condition:** User confirms tone, profile, and workflows. Now WRITE all artifacts.
+
+## Post-Phase: Artifact Creation
+
+After Phase 3 confirmation, write all artifacts in a single atomic block. If any write fails, report error and stop. Do not leave partial state.
+
+### Step 1: Hindsight Bank
 
 ```
-list_banks() → verificar si "<group-name>-profile" ya existe
+list_banks() -> verificar si "<group-name>-profile" ya existe.
 Si no existe:
   create_bank(
     bank_id="<group-name>-profile",
     name="<group-name> Worker Profile",
-    mission="<description proporcionada por el usuario>"
+    mission="<description>"
   )
 ```
+Bank stores operational memory for this profile. Not recreated on reconfiguration.
 
-Si el bank ya existe (reconfiguración), no recrear — preserva contexto histórico.
+### Step 2: Profile SOUL.md
 
-### Step 5: Initialize per-profile identity (coding + custom types)
+Generate from `.agents/templates/profile-soul.md` template. Fill all `{PLACEHOLDERS}` with Phase 1-3 answers.
 
-Si el grupo usa un perfil worker específico (no 'default'):
+Placeholder mapping:
 
-```
-# Crear SOUL.md personalizado para el perfil si no existe
-cat > ~/.hermes/profiles/<profile>/SOUL.md << 'SOULEOF'
-# <profile> — Worker Profile
+| Placeholder | Source |
+|---|---|
+| `{PROFILE_NAME}` | Worker profile name from Phase 3 |
+| `{DOMAIN}` | Description from Phase 1 |
+| `{TYPE}` | Type from Phase 1 |
+| `{GROUP_NAME}` | Auto-detected group name |
+| `{REPO}` | Repo from Phase 1, or "none" |
+| `{DESCRIPTION}` | Description from Phase 1 |
+| `{CWD}` | Worker profile cwd |
+| `{BANKS}` | `<group-name>-profile` + repo bank if applicable |
+| `{SKILLS_TABLE}` | Markdown table from Phase 2 skills |
+| `{BANK_ID}` | `<group-name>-profile` |
+| `{REPO_BANK}` | Repo bank row if repo specified |
 
-Sos el perfil worker para el grupo WhatsApp "<group-name>".
-Tu propósito: <description>
+Write to `~/.hermes/profiles/<worker-name>/SOUL.md`. Overwrite only on reconfiguration with user consent.
 
-## Contexto
-<description proporcionada por el usuario>
+### Step 3: whatsapp-groups.yaml
 
-## Repositorio
-<repo> (si aplica)
-
-## Reglas
-- Usá recall(bank="<group-name>-profile") al iniciar cada sesión
-- Usá retain(bank="<group-name>-profile") al finalizar
-- Reportá resultados al orquestador vía kanban_complete()
-
-SOULEOF
-```
-
-Si SOUL.md ya existe, no sobrescribir — preservar personalización previa.
-
-### Step 6: Write mapping
-
-Escribir entrada en `~/.hermes/whatsapp-groups.yaml`:
+Write or update entry:
 
 ```yaml
 groups:
   "<jid>":
     name: "<group-name>"
     type: "<type>"
-    description: "<user description>"
-    repo: "<repo>"          # solo si aplica
-    profile: "<profile>"
-    skills: ["<skill1>", "<skill2>"]  # solo si se especificaron
+    description: "<description>"
+    repo: "<repo>"           # optional
+    profile: "<worker-name>"
+    skills: ["<skill1>", ...]
 ```
 
-### Step 7: Commit and push
+### Step 4: Master SOUL.md (DM only)
+
+If onboarding was invoked in DM: overwrite `~/.hermes/SOUL.md` with the generated content. Keep a backup at `~/.hermes/SOUL.md.bak.<timestamp>`.
+
+### Step 5: Commit
 
 ```
 cd /opt/toolset-repo
 git add infrastructure/hermes/whatsapp-groups.yaml
-git add infrastructure/hermes/banks/ 2>/dev/null || true
-git commit -m "feat: onboarding group <group-name> → <type> (bank: <group-name>-profile)"
+git add .agents/templates/profile-soul.md 2>/dev/null || true
+git commit -m "feat: onboarding <group-name> -> <type> (profile: <worker-name>, bank: <group-name>-profile)"
 git push origin main
 ```
 
-### Step 8: Confirm
+### Step 6: Confirm
 
-Responder con resumen:
+Single confirmation message:
 
-"✅ Grupo '<group-name>'
-   Tipo: <type>
-   <si es coding/research con repo>: Repo: <repo>
-   Perfil: <profile>
-   Bank: '<group-name>-profile' creado
-   <si skills>: Skills: <skills>
-   Disponible ahora mismo."
+"Perfil `<worker-name>` configurado.
+Tipo: `<type>` | Repo: `<repo>` | Skills: `<skills>` | Bank: `<group-name>-profile`
+SOUL.md: `~/.hermes/profiles/<worker-name>/SOUL.md`
+Disponible inmediatamente."
 
 ## Reconfiguration
 
-If the group was previously configured, show the OLD values before asking each
-question. On confirmation:
-- Overwrite YAML entry
-- Bank is NOT recreated (preserves existing context)
-- SOUL.md is NOT overwritten (preserves customizations)
+If group already has a mapping in whatsapp-groups.yaml:
 
-## Error Handling
+1. Show current config in compact format.
+2. "¿Reconfigurar desde cero? (si/no)"
+3. If "si": restart from Phase 1. Overwrite all artifacts.
+4. If "no": "¿Ajustar algo especifico? (skills / tone / description / cancelar)"
+5. Targeted update: modify only the specified field. Write YAML. Do NOT recreate bank or SOUL.md.
+
+## Error Table
 
 | Error | Response |
 |---|---|
-| Repo doesn't exist | "❌ <repo> no existe en GitHub. ¿Escribiste bien el nombre?" |
-| Profile doesn't exist | "❌ <profile> no existe. Creá el perfil primero o usá 'default'." |
-| Skill not installed | "❌ <skill> no está en <profile>. Instalala primero o salteala." |
-| Git push fails | "❌ No pude pushear. ¿Tengo acceso de escritura al repo toolset?" |
-| YAML file missing | "❌ No encuentro whatsapp-groups.yaml. El deploy debería crearlo." |
-| Hindsight unreachable | "❌ No pude crear el bank. ¿Hindsight está corriendo? Intentá de nuevo." |
+| Repo unreachable | "`<repo>` no responde en GitHub. ¿Escribiste bien el nombre? (nombre corto, ej: toolset)" |
+| Profile creation fails | "No pude crear `<profile>`. Usando 'default'. ¿OK?" |
+| Skill not found | "`<skill>` no esta instalada. Skills disponibles: `<list>`. ¿Cual usar?" |
+| Git push fails | "No pude pushear a GitHub. Verificare acceso de escritura. El perfil funciona localmente." |
+| Hindsight unreachable | "No pude crear el bank. ¿Hindsight esta corriendo? El perfil funciona, pero sin memoria persistente." |
+| YAML not found | "No encuentro whatsapp-groups.yaml. El deploy deberia crearlo en ~/.hermes/." |
+
+## Anti-Patterns
+
+| Don't | Do instead |
+|---|---|
+| Preguntar "¿estas seguro?" mas de una vez | Una confirmacion al final de Phase 3 |
+| Sugerir valores por defecto sin mostrarlos | Mostrar el default entre parentesis: "(default: kilo-code)" |
+| Extender el proceso mas alla de 3 fases | Si el usuario quiere mas detalle, sugerir editar SOUL.md directamente |
+| Pedir confirmacion para cada skill individual | Validar en lote. Reportar errores juntos |
+| Generar SOUL.md verboso con parrafos de advertencia | Template conciso. Max 40 lineas. Reglas como tabla |

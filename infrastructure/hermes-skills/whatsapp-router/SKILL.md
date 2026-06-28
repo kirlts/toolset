@@ -1,59 +1,47 @@
 ---
 name: whatsapp-router
-description: "Deterministic routing of WhatsApp group messages based on group type. Zero LLM judgment for routing decisions."
-version: 2.0.0
+description: "Deterministic routing of WhatsApp group messages based on group type. Includes Kanban metadata for response routing back to originating group."
+version: 3.0.0
 platforms: [linux]
 metadata:
   hermes:
-    tags: [routing, whatsapp, kanban, multi-profile]
-    triggers: ["message", "/onboarding"]
+    tags: [routing, whatsapp, kanban]
+    triggers: ["message"]
 ---
 
 # WhatsApp Group Router
 
-## When Activated
+## Routing Algorithm
 
-This skill fires when the SOUL.md routing algorithm determines a WhatsApp group
-message needs processing. DMs route to default profile (orchestrator).
+1. Extract `chat_id` from session origin.
+2. DM (`@lid` or `@s.whatsapp.net`) → orchestrator. No delegation.
+3. Group → read `~/.hermes/whatsapp-groups.yaml`.
+4. Lookup `chat_id`. Route by `type` field.
 
-## Files
+### Routing by type
 
-- `~/.hermes/whatsapp-groups.yaml` — mapping: JID → type + config
-- `~/.hermes/channel_aliases.json` — JID → human-readable name
-- `~/.hermes/channel_directory.json` — auto-discovered channels
+| type | Action | Delegation | Bank |
+|---|---|---|---|
+| `coding` | `recall(bank=<repo>)` → Kanban to `<profile>` | Yes | `<repo>` + `<name>-profile` |
+| `research` | `recall(bank=<name>-profile>)` → Kanban | Yes | `<name>-profile` |
+| `personal` | Respond as orchestrator | No | `<name>-profile` |
+| `custom` | Load `description` as context | No | `<name>-profile` |
+| `announcements` | Ignore | No | — |
 
-## Routing by Group Type (DETERMINISTIC)
+### Kanban Task Metadata
 
-After SOUL.md identifies the group type from whatsapp-groups.yaml:
+Every `kanban_create()` from this router includes:
 
-### `type: coding`
-1. Execute `recall(bank="<repo>")`
-2. Create Kanban: `kanban_create(title="<msg>", assignee="<profile>", body="<msg>", skills=["<skills>"])`
-3. Respond "⏳ <profile> procesando..."
+```
+metadata = {
+  "originating_group": "<chat_id>",
+  "originating_channel": "whatsapp",
+  "group_name": "<human name from channel_aliases.json>"
+}
+```
 
-### `type: research`
-1. Execute `recall(bank="<group-name>-profile")`
-2. If repo specified: also `recall(bank="<repo>")`
-3. Delegate via Kanban with research skills
-4. Respond "🔬 Investigando..."
+The orchestrator uses `originating_group` to route the Kanban completion response back to the correct WhatsApp group.
 
-### `type: personal`
-1. Respond as orchestrator (no delegation)
-2. Use bank `<group-name>-profile` for memory
-3. Load group `description` as context
+## Group Description
 
-### `type: custom`
-1. Load `description` as context
-2. No automatic delegation
-3. Use bank `<group-name>-profile` for memory
-4. Hermes decides based on context + description
-
-### `type: announcements` or `readonly: true`
-1. Ignore completely — no response
-
-## Rules
-
-- **No LLM judgment for routing.** Type and target come from whatsapp-groups.yaml.
-- Every group has a bank: `<group-name>-profile`
-- `description` field is loaded as context for every group type
-- DMs ALWAYS route to orchestrator (SOUL.md default personality)
+Every group type loads `description` from `channel_aliases.json` (populated by `populate-channel-aliases.sh` via bridge `GET /chat/:id`). The description originates from WhatsApp group metadata (`groupMetadata().desc`).
