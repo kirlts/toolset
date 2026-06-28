@@ -146,6 +146,28 @@ Este cron se entrega exclusivamente al canal Personal porque pertenece al ámbit
 
 ---
 
+## 7. `discover-new-repos` — Detección automática de repos nuevos en GitHub
+
+| Campo | Valor |
+|---|---|
+| **Script** | `discover-new-repos.sh` |
+| **Schedule** | Cada 5 minutos (crontab del sistema) |
+| **No-agent** | `true` |
+| **Deliver** | `local` (escribe a personal-buffer vía Hermes one-shot) |
+| **Estado** | ✅ Activo |
+
+### Qué hace
+1. Consulta `gh repo list kirlts --limit 50 --json name,description,createdAt,isPrivate`
+2. Filtra repos creados desde el 2026-06-28 (fecha actual)
+3. Compara contra `cloned-repos.yaml` para evitar duplicados
+4. Si hay un repo nuevo: lo agrega al manifiesto, lo clona (`gh repo clone` para privados), escribe una entrada a `personal-buffer` con tags `["pending","new-repo"]`
+5. Pushea los cambios a toolset
+
+### Nota de diseño
+Este cron solo detecta repos nuevos. Los repos existentes antes del 2026-06-28 no se registran ni clonan. Durante la sesión de revisión del buffer se decide si el repo se mantiene clonado o se remueve.
+
+---
+
 ## Estándar de gestión de cron
 
 | Aspecto | Regla |

@@ -1,9 +1,9 @@
 # infrastructure/hermes/cloned-repos.yaml
 # Manifest of repos cloned on the VPS for Hermes profiles.
 # type: native = permanent toolset tool (toolset, researchit, webui)
-#       cloned = user repo, added via onboarding or auto-discovered
+#       cloned = user repo, added via onboarding (sandbox optional)
 # deploy.sh reads this to ensure all repos exist and are up-to-date.
-# onboarding appends entries here. Auto-discovery script also appends.
+# onboarding appends entries here. auto-discovery script appends new repos.
 
 repos:
   toolset-repo:
@@ -28,125 +28,5 @@ repos:
   personal:
     url: https://github.com/kirlts/personal.git
     path: /home/opc/personal
-    type: cloned
-    sync: cron
-  kairos:
-    url: https://github.com/kirlts/kairos.git
-    path: /opt/kairos
-    type: cloned
-    sync: cron
-  jarvis:
-    url: https://github.com/kirlts/jarvis.git
-    path: /opt/jarvis
-    type: cloned
-    sync: cron
-  saucogroup:
-    url: https://github.com/kirlts/saucogroup.git
-    path: /opt/saucogroup
-    type: cloned
-    sync: cron
-  traza-ambiental:
-    url: https://github.com/kirlts/traza-ambiental.git
-    path: /opt/traza-ambiental
-    type: cloned
-    sync: cron
-  conversorDivisas:
-    url: https://github.com/kirlts/conversorDivisas.git
-    path: /opt/conversorDivisas
-    type: cloned
-    sync: cron
-  evidenciaZero:
-    url: https://github.com/kirlts/evidenciaZero.git
-    path: /opt/evidenciaZero
-    type: cloned
-    sync: cron
-  cl-concerts-db:
-    url: https://github.com/kirlts/cl-concerts-db.git
-    path: /opt/cl-concerts-db
-    type: cloned
-    sync: cron
-  Postulacion-VIU:
-    url: https://github.com/kirlts/Postulacion-VIU.git
-    path: /opt/Postulacion-VIU
-    type: cloned
-    sync: cron
-  findWord:
-    url: https://github.com/kirlts/findWord.git
-    path: /opt/findWord
-    type: cloned
-    sync: cron
-  YaCV:
-    url: https://github.com/kirlts/YaCV.git
-    path: /opt/YaCV
-    type: cloned
-    sync: cron
-  rendercv:
-    url: https://github.com/kirlts/rendercv.git
-    path: /opt/rendercv
-    type: cloned
-    sync: cron
-  karate-moreno:
-    url: https://github.com/kirlts/karate-moreno.git
-    path: /opt/karate-moreno
-    type: cloned
-    sync: cron
-  mac-antigravity:
-    url: https://github.com/kirlts/mac-antigravity.git
-    path: /opt/mac-antigravity
-    type: cloned
-    sync: cron
-  prometheus:
-    url: https://github.com/kirlts/prometheus.git
-    path: /opt/prometheus
-    type: cloned
-    sync: cron
-  i-uto:
-    url: https://github.com/kirlts/i-uto.git
-    path: /opt/i-uto
-    type: cloned
-    sync: cron
-  javi-site:
-    url: https://github.com/kirlts/javi-site.git
-    path: /opt/javi-site
-    type: cloned
-    sync: cron
-  witral:
-    url: https://github.com/kirlts/witral.git
-    path: /opt/witral
-    type: cloned
-    sync: cron
-  task-manager:
-    url: https://github.com/kirlts/task-manager.git
-    path: /opt/task-manager
-    type: cloned
-    sync: cron
-  wirin-dev:
-    url: https://github.com/kirlts/wirin-dev.git
-    path: /opt/wirin-dev
-    type: cloned
-    sync: cron
-  w2m:
-    url: https://github.com/kirlts/w2m.git
-    path: /opt/w2m
-    type: cloned
-    sync: cron
-  proyect-crawl:
-    url: https://github.com/kirlts/proyect-crawl.git
-    path: /opt/proyect-crawl
-    type: cloned
-    sync: cron
-  validadorQM:
-    url: https://github.com/kirlts/validadorQM.git
-    path: /opt/validadorQM
-    type: cloned
-    sync: cron
-  automation-n8n:
-    url: https://github.com/kirlts/automation-n8n.git
-    path: /opt/automation-n8n
-    type: cloned
-    sync: cron
-  accounting-AI-demo:
-    url: https://github.com/kirlts/accounting-AI-demo.git
-    path: /opt/accounting-AI-demo
     type: cloned
     sync: cron

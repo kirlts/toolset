@@ -82,6 +82,7 @@ Cuando se modifica un archivo de configuracion:
 | infrastructure/hermes/SOUL.md | UPDATED: eliminada excepción hardcodeada de personal por regla universal de delegación según tarea. |
 | infrastructure/hermes/whatsapp-groups.yaml | UPDATED: agregado grupo Toolset (JID 120363426816726918@g.us) con profile toolset, repo kirlts/toolset. |
 | infrastructure/hermes-skills/group-onboarding/SKILL.md | UPDATED v4.2.0: added delegation criteria inference en Phase 0 y pregunta en Phase 3. |
-|| infrastructure/hermes/profiles/toolset/SOUL.md | CREATED: SOUL.md del perfil toolset con dominio exclusivo, Kilo CLI obligatorio, Kanban para tareas multi-step. |
-|| infrastructure/hermes/profiles/toolset/SOUL.md | UPDATED: merged CI/CD section with deploy monitoring rule (REGLAMENTARIO). |
-|| infrastructure/hermes/INFRASTRUCTURE-MANIFEST.md | UPDATED: registrados cambios de Session 2. |
+|| infrastructure/hermes/scripts/discover-new-repos.sh | UPDATED: cutoff por fecha absoluta (2026-06-28), no relativa. |
+|| infrastructure/hermes/cloned-repos.yaml | RESTORED: solo toolset, researchit, hermes-webui, personal. Repos viejos removidos. |
+|| infrastructure/hermes/CRONS.md | UPDATED: agregado cron discover-new-repos con documentación. |
+|| infrastructure/hermes/INFRASTRUCTURE-MANIFEST.md | UPDATED: registrados cambios de Session 3. |
