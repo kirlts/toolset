@@ -9,6 +9,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 *Nothing pending.*
 
+## [0.5.0] - 2026-06-29
+
+### Added
+- Deterministic routing via bridge injection: `patch-bridge.sh` injects full profile SOUL.md as `=== PROFILE ACTIVATION: <name> ===` block into every WhatsApp group message with a configured profile.
+- SOUL.md RULE 0 in English: profile activation is mandatory (not optional). Memory cycle scoped to active profile. Cross-profile delegation via Kanban for out-of-scope tasks.
+- `scope:` field in `whatsapp-groups.yaml` defines each profile's operational boundary (knowledge_base, infrastructure).
+- Systemd TimeoutStopSec=210 fix in deploy.sh (idempotent) prevents SIGKILL during gateway drain.
+- Composio MCP session-based endpoint: migrated from `connect.composio.dev/mcp` (static key, deprecated) to `backend.composio.dev/tool_router/{id}/mcp` (`x-api-key` header).
+
+### Changed
+- `patch-bridge.sh` extended with Patch 2: reads profile SOUL.md from `~/.hermes/profiles/<name>/SOUL.md` and injects its full content before `const event = { body, ... }` construction.
+- `bridge.js` fix: replaced `fs.readFileSync()` with `readFileSync()` (bridge uses ES6 `import { readFileSync } from 'fs'`, not CommonJS `require`).
+- `.agents/templates/profile-soul.md`: ROUTE-03 updated (direct operation, no orchestrator reporting). ROUTE-03a updated (mandatory cross-profile delegation).
+- `infrastructure/hermes/config.yaml`: Composio URL, header, and API key updated.
+- `infrastructure/kilo.jsonc`: Composio URL and header updated (`x-api-key`, `{env:COMPOSIO_API_KEY}`).
+- `inject-composio-key.py`: Composio URL and header updated (was hardcoded; now writes correct session-based endpoint).
+- `docs/MASTER-SPEC.md §7.1`: Updated architecture (bridge injection + [ROUTING] identity).
+- `docs/RULES.md ROUTE-01/02/03`: Updated for bridge injection, identity routing, scope isolation.
+- `wsapp-groups.yaml`: keys and headers for composio api changed.
+
+### Fixed
+- Root cause of routing failure: `event.body` assignment after `const event` was not persisting. Fixed by modifying `body` variable before event construction.
+- Root cause of persistent injection failure: bridge.js uses ES6 `import { readFileSync } from 'fs'` : `fs` is undefined. Fixed by removing the `fs.` prefix.
+- Composio MCP 401: endpoint changed by Composio from static API key to session-based tool router. Fixed by creating session via SDK and updating config.
+- Stale systemd unit: `TimeoutStopSec=90s` vs `drain_timeout=180s`. Systemd was SIGKILLing the gateway mid-drain. Fixed by setting `TimeoutStopSec=210`.
+
+### Removed
+- Old `[ROUTING] profile=X scope=Y` metadata injection (replaced by full profile SOUL.md injection).
+- Old `event.body = ...` assignment (was silently failing after `const event`).
+
 ## [0.4.0] - 2026-06-28
 
 ### Added

@@ -898,7 +898,23 @@ if [ -d "$BANKS_DIR" ]; then
     fi
   done
 fi
- 
+
+# --- Sync profile SOUL.md files to VPS ---
+echo "[DEPLOY] Syncing profile SOUL.md files to VPS..."
+PROFILES_DIR="$(dirname "${COMPOSE_FILE}")/hermes/profiles"
+if [ -d "$PROFILES_DIR" ]; then
+  for profile_dir in "$PROFILES_DIR"/*/; do
+    profile_name=$(basename "$profile_dir")
+    echo "  Syncing profile '$profile_name'..."
+    ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+      "${SSH_HOST}" "mkdir -p ~/.hermes/profiles/${profile_name}" 2>/dev/null
+    scp -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+      "${profile_dir}SOUL.md" \
+      "${SSH_HOST}:~/.hermes/profiles/${profile_name}/SOUL.md"
+  done
+  echo "[DEPLOY] Profile SOUL.md files synced"
+fi
+
 # --- Hermes runtime config (idempotent) ---
 echo "[DEPLOY] Configuring Hermes runtime..."
 # Transfer standalone inject-composio-key.py to remote server
