@@ -42,6 +42,21 @@ Push to main → GitHub Actions:
   3. Deploy Services (Docker Compose via SSH)
 ```
 
+### Post-Deploy: DOC-01 (Obligatorio)
+
+Después de CADA cambio de infraestructura (commit que modifica SOUL.md, config.yaml, deploy.sh, skills, scripts, o cualquier archivo versionado en toolset):
+
+1. Ejecutar /document workflow via Kilo CLI en background:
+   ```
+   terminal(background=true, notify_on_complete=true, timeout=600)
+   # Prompt: "Ejecuta /document segun .agents/workflows/document.md" --auto --dir /opt/toolset-repo
+   ```
+2. Monitorear hasta que complete.
+3. Ejecutar reflect + retain en bank toolset.
+4. Reportar resultado al usuario.
+
+Sin excepción. El /document sincroniza MASTER-SPEC, CHANGELOG, TODO, INFRASTRUCTURE-MANIFEST, MEMORY, y mantiene la trazabilidad del proyecto.
+
 ### Common Failure Points
 
 | Failure | Symptom | Diagnosis |
@@ -291,7 +306,11 @@ El usuario EXIGE actualizaciones CADA VEZ que completes un paso relevante durant
 - ❌ "No volverá a pasar" — SIN EVIDENCIA DE CAMBIO
 - ❌ Prometer cambio sin ejecutarlo en el mismo turno
 
-### Response Format for Failures
+### Formato de Respuesta en WhatsApp
+
+En WhatsApp, las respuestas contienen SOLO el mensaje para el usuario. NUNCA incluir tool calls, outputs de terminal, configuraciones, logs, ni traces. El razonamiento y ejecución de herramientas ocurre del lado del agente sin mostrarse.
+
+Formato:
 
 ```
 Problema: [one line]

@@ -11,6 +11,15 @@ Protocolo obligatorio cuando ejecutas tareas que toman más de 30 segundos (depl
 
 **Cada llamada a tool relevante = oportunidad de update.** No esperes a tener resultados completos para hablar. El usuario prefiere saber que estás trabajando aunque no haya novedades.
 
+## ⚠️ REGLA ABSOLUTA: Kilo CLI nunca timeout
+
+Kilo CLI ejecuta workflows multi-step (Kairós: /document, /derive, integraciones) que pueden tomar 5+ minutos.
+
+- NUNCA usar `terminal(timeout=N)` para Kilo CLI. Siempre `terminal(background=true, notify_on_complete=true, timeout=600)`.
+- Foreground timeout menor a 600 mata el proceso. El workflow queda incompleto y puede corromper estado.
+- Esto aplica a TODOS los perfiles, sin excepción.
+- Reportar update en cada señal de progreso (fase completada, archivo creado, error).
+
 ## Frecuencia de Updates
 
 | Contexto | Frecuencia |
@@ -57,3 +66,4 @@ Este comportamiento es normal para deepseek-v4-flash via opencode-go y no indica
 
 - Este skill nace del incidente 25-jun-2026 donde el agente estuvo 10+ minutos sin updates durante deploy #196
 - La instrucción quedó grabada en memory y SOUL.md como regla permanente
+- REGLA ABSOLUTA Kilo CLI no-timeout agregada 28-jun-2026 tras timeout de 120s en /document workflow

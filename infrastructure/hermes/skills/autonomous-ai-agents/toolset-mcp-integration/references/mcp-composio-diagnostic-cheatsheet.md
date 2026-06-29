@@ -40,11 +40,56 @@ Si arrancó ANTES de que se inyectara la key correcta, está usando la key vieja
          │   └── NO → Bug extraño. Revisar si el MCP discovery del gateway
          │            está funcionando (mcp_discovery_timeout en config.yaml).
          │
-         └── NO (401) → ¿Gateway arrancó después de la inyección de key?
-                         ├── SÍ → La key es inválida. Regenerar en Composio.
-                         └── NO → Gateway necesita restart.
-                                  Referencia: references/gateway-restart-requirement.md
+         └── NO (401) → ¿Cuándo arrancó el gateway?
+                         ├── Antes de la inyección → Gateway necesita restart.
+                         │   Referencia: references/gateway-restart-requirement.md
+                         └── Después de la inyección → Dos sub-casos:
+                              ├── Un restart falla → Key inválida. Regenerar.
+                              └── TODOS los restarts fallan (múltiples PIDs,
+                              │   misma key, mismo 401 por horas) → **Problema
+                              │   del lado de Composio, no local.**
+                              │   - Verificar con Python directo (ver abajo)
+                              │   - Esperar a que Composio se recupere
+                              │   - No cambiar config
+                              └── Gateway crash con "Failed with result 'signal'"
+                                  → Stale systemd unit (TimeoutStopSec mismatch).
+                                  Fix: `hermes gateway service install --replace`
 ```
+
+## Verificación Directa de Validez de Key
+
+Este test prueba la key contra el endpoint MCP sin depender del gateway:
+
+```bash
+python3 -c "
+import urllib.request
+# Extraer key del config yaml
+with open('/home/opc/.hermes/config.yaml') as f:
+    for line in f:
+        if 'x-consumer-api-key:' in line:
+            key = line.split(': ')[-1].strip()
+            break
+
+req = urllib.request.Request(
+    'https://connect.composio.dev/mcp',
+    headers={'x-consumer-api-key': key}
+)
+try:
+    with urllib.request.urlopen(req, timeout=10) as r:
+        print('OK - Status', r.status)
+except urllib.error.HTTPError as e:
+    body = e.read()[:300]
+    print(f'ERR {e.code} - {body}')
+except Exception as e:
+    print(f'NETWORK ERROR - {e}')
+"
+```
+
+| Resultado | Significado |
+|-----------|-------------|
+| `OK - Status 200` o `ERR 400` | Key VÁLIDA. Endpoint responde. El 400 es esperado (MCP requiere session ID) |
+| `ERR 401` | Key INVÁLIDA / expirada. Regenerar en Composio |
+| Timeout / conexión rechazada | Red/endpoint caído |
 
 ## Errores Conocidos de Diagnóstico
 
@@ -54,6 +99,9 @@ Si arrancó ANTES de que se inyectara la key correcta, está usando la key vieja
 | El usuario ejecutó /new y no funciona | /new crea sesión pero no reinicia gateway. MCP connections se cachean al iniciar el gateway. |
 | config.yaml tiene la key correcta | El gateway cargó su config al arrancar. Cambios posteriores en disco no se reflejan hasta restart. |
 | `systemctl restart hermes-gateway` falla desde Hermes | El gateway bloquea restart desde procesos hijos. Usar cronjob no_agent o SSH externo. |
+| `Failed with result 'signal'` en journalctl | **Stale systemd unit**: TimeoutStopSec=90s vs drain_timeout=180s mismatch. Fix: `hermes gateway service install --replace` |
+| Key válida (prueba directa = 400) pero gateway 401 persistente (>3 restarts) | **Interrupción del lado de Composio**. Esperar recuperación (~3-4 hrs observado). No cambiar config. |
+| Infisical falla en inject-composio-key.py | El script tiene fallback: lee COMPOSIO_MCP_KEY de `/home/opc/.hermes/.env`. Verificar que el .env tenga la key actualizada. |
 
 ## Post-Restart Verificación
 

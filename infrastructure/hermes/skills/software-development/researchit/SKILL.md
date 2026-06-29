@@ -146,6 +146,17 @@ python -m src.research "tema" --max-sources 30 --reddit-file vault/reddit_tema.j
 
 Los secrets de Composio (API key, connection_id) se manejan vía Infisical/env vars, NO hardcodeados.
 
+## Cron Integration
+
+ResearchIt puede ejecutarse como cron job semanal para entregar informes periódicos vía WhatsApp. El patrón típico:
+
+1. Cron job con skill `researchit` cargada y `deliver: origin`
+2. El prompt del cron recolecta contexto dinámico (gh CLI, banks de Hindsight) antes de invocar ResearchIt
+3. ResearchIt genera PDF en `vault/`
+4. El agente del cron encuentra el PDF más reciente y lo entrega con `MEDIA:/path/to/file`
+
+Ver `references/weekly-cron-patterns.md` para el patrón completo de inteligencia laboral semanal y ejemplos de configuración.
+
 ## Mobile PDF — Formato para WhatsApp
 
 El PDF está optimizado para lectura en teléfonos móviles:

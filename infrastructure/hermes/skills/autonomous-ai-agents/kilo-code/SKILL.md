@@ -104,7 +104,9 @@ set -a && source /home/opc/.hermes/.env && set +a && \
 
 ## Monitoreo de Kilo en Background
 
-**⚠️ REGLA ABSOLUTA:** El usuario exige updates CADA 3 MINUTOS durante ejecuciones largas. Textual: "necesito que me avises cada tres minutos qué es lo que está haciendo Kilo y necesito saber inmediatamente si es que ocurre algún problema o si es que se detiene abruptamente el proceso. Es inaceptable que no hables durante el proceso."
+**⚠️ REGLA ABSOLUTA 1:** El usuario exige updates CADA 3 MINUTOS durante ejecuciones largas. Textual: "necesito que me avises cada tres minutos qué es lo que está haciendo Kilo y necesito saber inmediatamente si es que ocurre algún problema o si es que se detiene abruptamente el proceso. Es inaceptable que no hables durante el proceso."
+
+**⚠️ REGLA ABSOLUTA 2: NUNCA poner timeout a Kilo CLI.** Kilo CLI ejecuta workflows multi-step que pueden tomar 5+ minutos. Usar SIEMPRE `terminal(background=true, notify_on_complete=true, timeout=600)`. Foreground timeout menor a 600 mata el proceso y deja el workflow incompleto. Esto aplica a TODOS los perfiles, sin excepción.
 
 **Esto es OBLIGATORIO, no opcional.** Si han pasado 3 minutos desde tu último update y la tarea sigue corriendo, manda un update aunque sea para decir que no hay cambios.
 

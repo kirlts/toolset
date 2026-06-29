@@ -1,7 +1,7 @@
 ---
 name: toolset-mcp-integration
 description: "How Hermes Agent integrates with MCP services in the Toolset Personal — Hindsight (recall/retain/reflect) and Composio. Architecture, tool semantics, known issues, and operational principles."
-version: 1.1.0
+version: 1.2.0
 author: Toolset Personal
 license: MIT
 metadata:
@@ -125,13 +125,28 @@ All secrets (API keys, tokens, connection IDs) are managed via Infisical, not ha
 GitHub Secrets → CI/CD (deploy.yml) → deploy.sh → Infisical → .env at runtime
 ```
 
+The Composio MCP key injection uses a two-attempt fallback chain:
+1. **Attempt 1 — Infisical API**: `inject-composio-key.py` reads `INFISICAL_SERVICE_TOKEN` + `INFISICAL_PID` from `/opt/toolset/.env` and calls the local Infisical API (`localhost:8081`) for `COMPOSIO_MCP_KEY`
+2. **Attempt 2 — Hermes .env fallback**: If Infisical is down or unreachable, reads `COMPOSIO_MCP_KEY` directly from `/home/opc/.hermes/.env`
+
+If Infisical fails (e.g. container down, DB connection issue), the **fallback `.env` file is the active source**. The `.env` is populated by `deploy.sh` via `export COMPOSIO_MCP_KEY=***` and sourced at deploy time.
+
+**To check which source is active:**
+```bash
+# Check if Infisical is alive
+curl -sf http://localhost:8081/api/status || echo "Infisical DOWN"
+
+# Check the fallback env key
+grep COMPOSIO_MCP_KEY /home/opc/.hermes/.env
+```
+
 Never hardcode secrets in configs, skills, or scripts.
 
-## MCP Connectivity Verification Procedure
+### MCP Connectivity Verification Procedure
 
 **Problema detectado (25 Jun 2026):** Testear Composio MCP con `curl -H "x-consumer-api-key: ..."` al endpoint HTTP da un **falso positivo**. El curl prueba conectividad HTTP, no disponibilidad de tools MCP desde el gateway.
 
-### Protocolo de Verificación Correcto (3 niveles)
+### Protocolo de Verificación Correcto (4 niveles)
 
 ```
 Nivel 1: Gateway tiene el MCP server configurado?
@@ -142,21 +157,46 @@ Nivel 2: Gateway pudo conectarse al MCP server?
   → journalctl -u hermes-gateway --no-pager | grep -i "composio"
   → Debe mostrar "connected successfully" o similar. NO debe mostrar 401.
 
+Nivel 2.5: Verificación directa de validez de la key (independiente del gateway)
+  → python3 -c "
+import urllib.request, json
+key = open('/home/opc/.hermes/config.yaml').read().split(\"x-consumer-api-key: \")[1].split('\\n')[0].strip()
+req = urllib.request.Request('https://connect.composio.dev/mcp', headers={'x-consumer-api-key': key})
+try:
+    with urllib.request.urlopen(req, timeout=10) as r: print('Status:', r.status)
+except urllib.error.HTTPError as e:
+    print('HTTP Error:', e.code, '- Body:', e.read()[:200])
+except Exception as e:
+    print('Connection error:', e)
+"
+  → **400 (Bad Request: MCP session required)** = key válida, endpoint responde
+  → **401 (Unauthorized)** = key rechazada por Composio (expirada/inválida)
+  → **4xx/5xx genérico o timeout** = problema de red o servicio Composio caído
+
 Nivel 3: MCP tools están disponibles en la sesión?
   → Listar las tools disponibles (revisar my tool list en el system prompt)
   → Si hay tools prefijadas "mcp_composio_*" → disponibles
   → Si solo hay "mcp_hindsight_selfhosted_*" y NO "mcp_composio_*" → no disponibles
 ```
 
-**Tres escenarios:**
+**Cinco escenarios:**
 
-| Nivel 1 | Nivel 2 | Nivel 3 | Diagnóstico |
-|---------|---------|---------|-------------|
-| ✅ Config OK | ✅ Connected | ✅ Tools presentes | Todo funcional |
-| ✅ Config OK | ❌ 401 | ❌ Tools ausentes | **Key inválida o gateway no se reinició post-inyección** |
-| ❌ Sin config | — | ❌ Tools ausentes | MCP server no configurado en config.yaml |
+| Nivel 1 | Nivel 2.5 | Nivel 2 | Nivel 3 | Diagnóstico |
+|---------|-----------|---------|---------|-------------|
+| ✅ Config OK | 400 | ✅ Connected | ✅ Tools presentes | **Todo funcional** |
+| ✅ Config OK | 400 | ✅ Connected | ❌ Tools ausentes | Bug discovery interno del gateway (mcp_discovery_timeout?) |
+| ✅ Config OK | 400 | ❌ 401 | ❌ Tools ausentes | **Key válida pero gateway cargó key stale.** Gateway necesita restart. |
+| ✅ Config OK | 401 | ❌ 401 | ❌ Tools ausentes | **Key inválida/expirada.** Regenerar en Composio. |
+| ❌ Sin config | — | — | ❌ Tools ausentes | MCP server no configurado en config.yaml |
 
-**⚠️ NO confundir:** Un test de curl que devuelve 200 NO significa que el MCP funcione. El gateway usa un cliente MCP (JSON-RPC sobre SSE) que es independiente del REST. La verificación real es Nivel 2 + Nivel 3.
+**⚠️ NO confundir:** Un test de curl que devuelve 200 NO significa que el MCP funcione. El gateway usa un cliente MCP (JSON-RPC sobre SSE) que es independiente del REST. La verificación real es Nivel 2 + Nivel 3. La prueba Python (Nivel 2.5) es más precisa que curl porque diferencia 401 (key inválida) de 400 (MCP protocolo — key válida).
+
+**Escenario adicional: 401 PERSISTENTE en TODOS los restarts con key válida (Nivel 2.5 = 400, Nivel 2 = 401 tras múltiples restarts del gateway):** Esto indica una **interrupción del lado de Composio**, no un problema local de configuración. El endpoint `connect.composio.dev/mcp` puede rechazar autenticación durante períodos de degradación. Síntomas:
+  - Múltiples instancias del gateway (diferentes PIDs) todas con el mismo 401
+  - La key es válida (prueba Nivel 2.5 devuelve 400)
+  - El patrón de restart (por crash o manual) no cambia el resultado
+  - Duración típica observada: ~3-4 horas
+  - **Resolución:** esperar (el servicio Composio se recupera solo). No cambiar config.
 
 ### Diagnóstico Rápido de Tools MCP Ausentes
 
@@ -169,6 +209,17 @@ journalctl -u hermes-gateway --no-pager | grep -i "composio" | tail -5
 
 # 3. Si hay 401 pero la key en disco es válida → gateway necesita restart
 #    (no se puede hacer desde dentro: ver references/gateway-restart-requirement.md)
+
+# 4. Para diagnóstico avanzado: probar key directo contra endpoint MCP
+python3 -c "
+import urllib.request
+key = open('/home/opc/.hermes/config.yaml').read().split(\"x-consumer-api-key: \")[1].split(chr(10))[0].strip()
+req = urllib.request.Request('https://connect.composio.dev/mcp', headers={'x-consumer-api-key': key})
+try:
+    with urllib.request.urlopen(req, timeout=10) as r: print('OK', r.status)
+except urllib.error.HTTPError as e:
+    print('ERR', e.code, e.read()[:150])
+"
 ```
 
 ## Composio Gmail File Attachment via Google Drive (Workaround)
@@ -237,3 +288,24 @@ como host temporal para el archivo. **Esto funciona** porque:
    - Schedule a cronjob with `no_agent=true` that runs the restart
    - Use `sudo systemd-run --unit=hermes-restart sudo systemctl restart hermes-gateway`
    - SSH from an external machine
+
+10. **Stale systemd unit: TimeoutStopSec mismatch** — The gateway logs this warning at startup:
+    ```
+    WARNING gateway.run: Stale systemd unit detected: hermes-gateway.service has
+    TimeoutStopSec=90s but drain_timeout=180s (expected >=210s). systemd may
+    SIGKILL the gateway mid-drain.
+    ```
+    This causes `systemd[1]: hermes-gateway.service: Failed with result 'signal'`
+    crashes when systemd kills the process before the gateway finishes draining
+    MCP connections. The fix is to regenerate the systemd unit:
+    ```bash
+    hermes gateway service install --replace
+    ```
+    The unit lives in `/etc/systemd/system/hermes-gateway.service`. After
+    regeneration, systemd picks up the corrected `TimeoutStopSec` value.
+    This warning is **informational** — it does not block session startup.
+    But the `Failed with result 'signal'` can cascade: gateway restarts →
+    repeated 401 on Composio if the key was stale when the original unit was
+    generated (each restart creates a new gateway process that re-fetches
+    config, but the 90s timeout can kill it mid-connect). Fix the unit and
+    the restart pattern stabilizes.

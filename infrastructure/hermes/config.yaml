@@ -253,6 +253,9 @@ display:
   persistent_output: true
   persistent_output_max_lines: 200
   personality: ''
+  platforms:
+    whatsapp:
+      tool_progress: false
   reasoning_full: false
   resume_display: full
   resume_exchanges: 10
@@ -265,9 +268,6 @@ display:
   timestamps: false
   tui_agents_nudge: true
   tui_auto_resume_recent: false
-  platforms:
-    whatsapp:
-      tool_progress: off
 email:
   email: ''
   enabled: false
@@ -295,6 +295,7 @@ gateway:
   strict: false
   trust_recent_files: true
   trust_recent_files_seconds: 600
+home: /opt/toolset-repo
 homeassistant:
   allow_write: false
   enabled: false
@@ -367,7 +368,6 @@ mcp_servers:
     url: https://backend.composio.dev/tool_router/trs_MQn50-FzafCa/mcp
   hindsight-selfhosted:
     url: https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/mcp/
-    timeout: 120
 memory:
   hindsight:
     bank: hermes
@@ -584,4 +584,3 @@ x_search:
 youtube:
   api_key: ''
   fetch_transcripts: true
-home: /opt/toolset-repo
