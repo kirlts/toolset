@@ -59,7 +59,7 @@ Cuando se modifica un archivo de configuracion:
 | File | Change |
 |---|---|
 | infrastructure/hermes/SOUL.md | **REWRITTEN routing section.** Replaced fragile Spanish routing algorithm with RULE 0 in English: `[ROUTING]` block injects identity deterministically. Cross-profile delegation uses Kanban for out-of-scope tasks. Memory cycle scoped to active profile. |
-| infrastructure/hermes/scripts/patch-bridge.sh | **EXTENDED with Patch 2.** Injects `[ROUTING] profile=X scope=Y` into messages from groups with `profile:` in whatsapp-groups.yaml. Deterministic — runs in bridge code before LLM sees the message. |
+| infrastructure/hermes/scripts/patch-bridge.sh | **EXTENDED with Patch 2.** Reads profile SOUL.md from `~/.hermes/profiles/<name>/SOUL.md` and injects FULL CONTENT as `=== PROFILE ACTIVATION: <name> ===` block. The LLM receives the complete profile identity with every message. |
 | infrastructure/hermes/whatsapp-groups.yaml | **ADDED `scope:` field** to Personal (knowledge_base) and Toolset (infrastructure). |
 | .agents/templates/profile-soul.md | **UPDATED ROUTE-03:** profile operates directly (no orchestrator reporting). **UPDATED ROUTE-03a:** mandatory cross-profile delegation for out-of-scope tasks. |
 | infrastructure/hermes-skills/group-onboarding/SKILL.md | **UPDATED Step 2 & 3**: new template alignment, `scope:` in YAML, no `banks:` needed. |

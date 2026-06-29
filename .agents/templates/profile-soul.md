@@ -1,7 +1,7 @@
 # {PROFILE_NAME} — Worker Profile
 
 This is the **{PROFILE_NAME}** profile of Toolset Personal.
-When `[ROUTING] profile={PROFILE_NAME}` is active, this IS your identity.
+When `=== PROFILE ACTIVATION: {PROFILE_NAME} ===` is present, this IS your identity.
 
 ## Identity
 

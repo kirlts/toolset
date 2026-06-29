@@ -44,7 +44,7 @@ else
   echo "[patch-bridge] Patch 1 (desc) already applied"
 fi
 
-# --- PATCH 2: Inject [ROUTING] block for groups with profile ---
+# --- PATCH 2: Inject full profile SOUL.md for groups with profile ---
 if ! grep -q "ROUTING INJECTION" "$BRIDGE_JS" 2>/dev/null; then
   sudo python3 << 'PYEOF'
 path = "/usr/local/lib/hermes-agent/scripts/whatsapp-bridge/bridge.js"
@@ -61,11 +61,22 @@ new = """      // === ROUTING INJECTION ===
           const jidIdx = groupsRaw.indexOf('"' + chatId + '"');
           if (jidIdx !== -1) {
             const block = groupsRaw.substring(jidIdx, jidIdx + 500);
-            const pm = block.match(/profile:\s*"(\\w+)"/);
+            const pm = block.match(/profile:\\s*"(\\w+)"/);
             if (pm) {
-              const sm = block.match(/scope:\s*"(\\w+)"/);
-              const sp = sm ? '\\nscope=' + sm[1] : '';
-              event.body = '[ROUTING]\\nprofile=' + pm[1] + sp + '\\n[/ROUTING]\\n\\n' + event.body;
+              const profileName = pm[1];
+              const profilePath = process.env.HOME +
+                '/.hermes/profiles/' + profileName + '/SOUL.md';
+              let profileContent = '';
+              try {
+                profileContent = fs.readFileSync(profilePath, 'utf8').trim();
+              } catch(e) {
+                console.error('[routing] no profile SOUL.md for ' + profileName, e.message);
+              }
+              if (profileContent) {
+                event.body = '=== PROFILE ACTIVATION: ' + profileName + ' ===\\n' +
+                  profileContent +
+                  '\\n=== END PROFILE ===\\n\\n' + event.body;
+              }
             }
           }
         } catch(e) {
@@ -78,11 +89,11 @@ if old in content:
     content = content.replace(old, new)
     with open(path, "w") as f:
         f.write(content)
-    print("[patch-bridge] Applied — [ROUTING] injection added")
+    print("[patch-bridge] Applied — profile SOUL.md injection added")
 else:
-    print("[patch-bridge] WARNING: could not find push pattern for [ROUTING] patch")
-    print("[patch-bridge] Bridge may have been updated — manual review required")
+    print("[patch-bridge] WARNING: could not find push pattern for routing patch")
+    print("[patch-bridge] Manual review required")
 PYEOF
 else
-  echo "[patch-bridge] Patch 2 ([ROUTING]) already applied"
+  echo "[patch-bridge] Patch 2 (profile SOUL.md injection) already applied"
 fi
