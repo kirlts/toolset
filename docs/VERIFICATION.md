@@ -83,7 +83,7 @@
   - *Verificación:* ✅ Implementado. Funnel activo. MCP reachable. (🤖 Verified by curl; 2026-06-22)
 - 🔲 `[DEV.CR.10.LLM]` Verificar integración de Infisical con servicios en runtime.
 - 🔲 `[DEV.CR.11.LLM]` Verificar Tailscale SSH funcional en Oracle Linux 9 con SELinux.
-- 🔲 `[DEV.CR.12.LLM]` ~~OIDC~~ Cerrado. API key estática mantenida. (2026-06-26)
+- ✅ `[DEV.CR.12.LLM]` ~~OIDC~~ Cerrado (DT-001). API key estática mantenida. (2026-06-26)
 
 ### Verificaciones de Pipeline CI/CD (EPIC-007)
 

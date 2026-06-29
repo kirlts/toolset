@@ -48,3 +48,7 @@ The response always returns to the WhatsApp group where the user sent the first 
 ## Group Description
 
 Every group loads `description` from `channel_aliases.json`. The user can edit the WhatsApp group description at any time; Hermes picks it up within 10 minutes via cron.
+
+## Regla de Comunicación (OBLIGATORIO — aplica a todos los perfiles)
+
+En WhatsApp, las respuestas contienen SOLO el mensaje para el usuario. NUNCA incluir tool calls, outputs de terminal, configuraciones, logs, ni traces. El razonamiento y ejecución de herramientas ocurre del lado del agente sin mostrarse. La respuesta final debe ser concisa y directa, como una conversación normal de WhatsApp.

@@ -52,7 +52,7 @@ Cuando se modifica un archivo de configuracion:
 
 ---
 
-## Current Session Changes (2026-06-28)
+## Current Session Changes (2026-06-29)
 
 | File | Change |
 |---|---|
@@ -82,7 +82,13 @@ Cuando se modifica un archivo de configuracion:
 | infrastructure/hermes/SOUL.md | UPDATED: eliminada excepción hardcodeada de personal por regla universal de delegación según tarea. |
 | infrastructure/hermes/whatsapp-groups.yaml | UPDATED: agregado grupo Toolset (JID 120363426816726918@g.us) con profile toolset, repo kirlts/toolset. |
 | infrastructure/hermes-skills/group-onboarding/SKILL.md | UPDATED v4.2.0: added delegation criteria inference en Phase 0 y pregunta en Phase 3. |
-|| infrastructure/hermes/scripts/discover-new-repos.sh | UPDATED: cutoff por fecha absoluta (2026-06-28), no relativa. |
-|| infrastructure/hermes/cloned-repos.yaml | RESTORED: solo toolset, researchit, hermes-webui, personal. Repos viejos removidos. |
-|| infrastructure/hermes/CRONS.md | UPDATED: agregado cron discover-new-repos con documentación. |
-|| infrastructure/hermes/INFRASTRUCTURE-MANIFEST.md | UPDATED: registrados cambios de Session 3. |
+| infrastructure/hermes/scripts/discover-new-repos.sh | UPDATED: cutoff por fecha absoluta (2026-06-28), no relativa. |
+| infrastructure/hermes/cloned-repos.yaml | RESTORED: solo toolset, researchit, hermes-webui, personal. Repos viejos removidos. |
+| infrastructure/hermes/CRONS.md | UPDATED: agregado cron discover-new-repos con documentación. |
+| infrastructure/hermes/INFRASTRUCTURE-MANIFEST.md | UPDATED: registrados cambios de Session 3. |
+| **Session 3 — /document fixes** | |
+| docs/CHANGELOG.md | FIXED: merged duplicate [0.4.0] sections, removed duplicate [Unreleased] with released content. |
+| docs/REPOMAP.md | FIXED: generation date 2026-06-26 → 2026-06-29. |
+| docs/VERIFICATION.md | FIXED: [DEV.CR.12.LLM] marked ✅ (DT-001 closed, OIDC deprecated). |
+| docs/TODO.md | FIXED: coverage summary EPIC-004 corrected 4🤖4🧑8 → 3🤖1🧑4, total 25→24. |
+| infrastructure/hermes/INFRASTRUCTURE-MANIFEST.md | FIXED: stray `||` on lines 85-88. UPDATED: session 3 changes. |
