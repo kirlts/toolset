@@ -45,13 +45,31 @@ else
 fi
 
 # --- PATCH 2: Inject full profile SOUL.md for groups with profile ---
-if ! grep -q "ROUTING INJECTION" "$BRIDGE_JS" 2>/dev/null; then
+if ! grep -q "PROFILE ACTIVATION" "$BRIDGE_JS" 2>/dev/null; then
   sudo python3 << 'PYEOF'
 path = "/usr/local/lib/hermes-agent/scripts/whatsapp-bridge/bridge.js"
 with open(path) as f:
     content = f.read()
 
-old = """      messageQueue.push(event);"""
+old = """      // === ROUTING INJECTION ===
+      if (isGroup) {
+        try {
+          const groupsRaw = fs.readFileSync(
+            process.env.HOME + '/.hermes/whatsapp-groups.yaml', 'utf8');
+          const jidIdx = groupsRaw.indexOf('"' + chatId + '"');
+          if (jidIdx !== -1) {
+            const block = groupsRaw.substring(jidIdx, jidIdx + 500);
+            const pm = block.match(/profile:\\s*"(\\w+)"/);
+            if (pm) {
+              const sm = block.match(/scope:\\s*"(\\w+)"/);
+              const sp = sm ? '\\nscope=' + sm[1] : '';
+              event.body = '[ROUTING]\\nprofile=' + pm[1] + sp + '\\n[/ROUTING]\\n\\n' + event.body;
+            }
+          }
+        } catch(e) {
+          console.error('[routing]', e.message);
+        }
+      }"""
 
 new = """      // === ROUTING INJECTION ===
       if (isGroup) {
@@ -82,8 +100,7 @@ new = """      // === ROUTING INJECTION ===
         } catch(e) {
           console.error('[routing]', e.message);
         }
-      }
-      messageQueue.push(event);"""
+      }"""
 
 if old in content:
     content = content.replace(old, new)
@@ -91,8 +108,12 @@ if old in content:
         f.write(content)
     print("[patch-bridge] Applied — profile SOUL.md injection added")
 else:
-    print("[patch-bridge] WARNING: could not find push pattern for routing patch")
-    print("[patch-bridge] Manual review required")
+    print("[patch-bridge] WARNING: could not find old routing pattern")
+    print("[patch-bridge] Checking if already applied...")
+    if "PROFILE ACTIVATION" in content:
+        print("[patch-bridge] Already applied (PROFILE ACTIVATION found)")
+    else:
+        print("[patch-bridge] Pattern changed — manual review required")
 PYEOF
 else
   echo "[patch-bridge] Patch 2 (profile SOUL.md injection) already applied"
