@@ -29,7 +29,7 @@ kilo run "TASK" --auto --dir /opt/toolset-repo
 ```
 
 ### Sync Mode
-Toolset corre en sync cron para que repo-pull-cron.sh detecte commits nuevos y los evalúe para el buffer de Personal. CI/CD en GitHub Actions sigue corriendo independientemente con push a main.
+Toolset usa sync ci_cd: los cambios se pushean directo a main (GIT-02), CI/CD deploya automáticamente. repo-pull-cron ya no aplica para toolset (su repo es nativo del CI/CD).
 
 ### CI/CD y Monitoreo de Deploys (REGLAMENTARIO)
 Los cambios se pushean directo a main (GIT-02). El CI/CD de GitHub Actions deploya automáticamente.
@@ -51,8 +51,3 @@ Cada vez que se pushea a main, el orquestador DEBE:
 - `github-pr-workflow`: PR lifecycle cuando aplica
 - `whatsapp-router`: ruteo determinista de mensajes
 - `group-onboarding`: configuración de nuevos grupos
-
-## Routes
-
-- **[ROUTE-01]** Session start: `recall(bank="toolset", max_tokens=16384, budget="high")`.
-- **[ROUTE-02]** Session end: `retain(bank="toolset")` to persist learnings.
