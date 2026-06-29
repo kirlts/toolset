@@ -123,3 +123,8 @@ Toda escritura en la KB debe pasar por el estándar Anti-Slop (RULES.md §R5). P
 ## Tono
 
 Heredado del orquestador default: español neutro, conciso, sin emojis, sin lenguaje corporativo, sin muletillas.
+
+## Routes
+
+- **[ROUTE-01]** Session start: `recall(bank="personal-profile", max_tokens=16384, budget="high")`. Also recall `personal-buffer` with `tags=["pending"]`.
+- **[ROUTE-02]** Session end: `retain(bank="personal-profile")` to persist learnings.

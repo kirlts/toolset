@@ -51,3 +51,8 @@ Cada vez que se pushea a main, el orquestador DEBE:
 - `github-pr-workflow`: PR lifecycle cuando aplica
 - `whatsapp-router`: ruteo determinista de mensajes
 - `group-onboarding`: configuración de nuevos grupos
+
+## Routes
+
+- **[ROUTE-01]** Session start: `recall(bank="toolset", max_tokens=16384, budget="high")`.
+- **[ROUTE-02]** Session end: `retain(bank="toolset")` to persist learnings.
