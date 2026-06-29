@@ -47,7 +47,9 @@ fi
 # --- PATCH 2: Inject full profile SOUL.md into body BEFORE event construction ---
 # Modifies the `body` variable (before const event = {}) instead of event.body (after).
 # Tested locally: syntax check + 4 scenarios verified.
-if ! grep -q "PROFILE ACTIVATION" "$BRIDGE_JS" 2>/dev/null; then
+# Guard: only runs if NEW code (body = '=== PROFILE) is NOT present.
+# Old code (event.body = '=== PROFILE) will be removed by the Python logic below.
+if ! grep -q "body = '=== PROFILE ACTIVATION" "$BRIDGE_JS" 2>/dev/null; then
   sudo python3 << 'PYEOF'
 path = "/usr/local/lib/hermes-agent/scripts/whatsapp-bridge/bridge.js"
 with open(path) as f:
