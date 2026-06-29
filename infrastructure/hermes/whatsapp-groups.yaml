@@ -25,6 +25,7 @@ groups:
 
   "120363427331798211@g.us":
     name: "Chat"
+    profile: "chat"
 
   "120363408844901511@g.us":
     name: "Hermes HUB"
