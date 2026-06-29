@@ -186,7 +186,7 @@ clone_repos
 
 # --- Sync cloned-repos.yaml to Hermes home ---
 echo "[DEPLOY] Syncing cloned-repos.yaml to Hermes home..."
-MANIFEST="${REMOTE_DIR}/infrastructure/hermes/cloned-repos.yaml"
+MANIFEST="$(dirname "${COMPOSE_FILE}")/hermes/cloned-repos.yaml"
 if [ -f "$MANIFEST" ]; then
   scp -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     "$MANIFEST" "${SSH_HOST}:/tmp/cloned-repos.yaml" 2>/dev/null
