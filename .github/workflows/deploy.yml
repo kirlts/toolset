@@ -129,7 +129,10 @@ jobs:
           echo "changed files: $(echo "$CHANGED" | tr '\n' ' ')"
 
       - name: Tailscale
-        uses: tailscale/github-action@v2
+        uses: tailscale/github-action@v3
+        with:
+          authkey: ${{ secrets.TAILSCALE_AUTH_KEY }}
+          hostname: githubdeploy
       - run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
@@ -221,7 +224,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Tailscale
-        uses: tailscale/github-action@v2
+        uses: tailscale/github-action@v3
+        with:
+          authkey: ${{ secrets.TAILSCALE_AUTH_KEY }}
+          hostname: githubdeploy
       - run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
