@@ -65,8 +65,6 @@ Cuando se modifica un archivo de configuracion:
 | infrastructure/hermes-skills/group-onboarding/SKILL.md | **UPDATED Step 2 & 3**: new template alignment, `scope:` in YAML, no `banks:` needed. |
 | docs/MASTER-SPEC.md | UPDATED §7.1: routing architecture replaced with bridge injection + [ROUTING] identity. |
 | docs/RULES.md | UPDATED ROUTE-01/02/03: bridge injection, identity routing, scope isolation. |
-| infrastructure/hermes-skills/group-onboarding/SKILL.md | **FIXED Step 5**: profile SOUL.md now committed + conditional git push/PR strategy per repo rules (GIT-01 branch+PR, GIT-02 direct main). **FIXED Step 1**: same conditional push strategy. |
-| infrastructure/deploy.sh | **ADDED profile SOUL.md sync**: `infrastructure/hermes/profiles/*/SOUL.md` copied to `~/.hermes/profiles/<name>/` on every deploy. |
 | infrastructure/hermes/INFRASTRUCTURE-MANIFEST.md | UPDATED: current session changes. |
 
 ### Session 1 — Onboarding Infrastructure

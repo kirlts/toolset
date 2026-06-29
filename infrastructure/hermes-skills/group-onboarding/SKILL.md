@@ -160,20 +160,10 @@ No categories. No predefined types. Phases 1-3 are MECE.
          sync: cron
          sandbox: optional
      YAML
-      fi
-      git add infrastructure/hermes/cloned-repos.yaml
-      git commit -m "feat: register <name> repo for <group-name> via onboarding"
-      # Push strategy: GIT-02 (toolset) → direct main; GIT-01 → branch + PR
-      if [ -f .agents/rules/01-behavior.md ] && grep -q "GIT-02" .agents/rules/ 2>/dev/null; then
-        git push origin main
-      else
-        BRANCH="hermes-repo-<name>-$(date +%s)"
-        git checkout -b "$BRANCH"
-        git push origin "$BRANCH"
-        gh pr create --title "feat: register repo <name>" \
-          --body "Register <name> via onboarding for group <group-name>" \
-          --base main
-      fi
+     fi
+     git add infrastructure/hermes/cloned-repos.yaml
+     git commit -m "feat: register <name> repo for <group-name> via onboarding"
+     git push origin main
      ```
 
 **Exit condition:** Usuario confirma nombre, descripcion, repo (opcional).
@@ -275,24 +265,8 @@ Overwrite `~/.hermes/SOUL.md`. Backup en `~/.hermes/SOUL.md.bak.<timestamp>`.
 ```
 cd /opt/toolset-repo
 git add infrastructure/hermes/whatsapp-groups.yaml
-git add infrastructure/hermes/profiles/<profile>/SOUL.md
-
-# Determine push strategy based on repo governance rules:
-# If GIT-02 applies (toolset): direct push to main.
-# If GIT-01 applies (any other governed repo): branch hermes-* + PR to main + await approval.
-if [ -f .agents/rules/01-behavior.md ] && grep -q "GIT-02" .agents/rules/ 2>/dev/null; then
-  git commit -m "feat: onboarding <group-name> (profile: <profile>, bank: <name>-profile)"
-  git push origin main
-else
-  BRANCH="hermes-onboarding-<profile>-$(date +%s)"
-  git checkout -b "$BRANCH"
-  git commit -m "feat: onboarding <group-name> (profile: <profile>, bank: <name>-profile)"
-  git push origin "$BRANCH"
-  gh pr create --title "feat: onboarding <group-name>" \
-    --body "Adds profile <profile> for group <group-name>: bank <name>-profile, repo <repo>" \
-    --base main
-  echo "PR created at $(gh pr view --json url --jq .url)"
-fi
+git commit -m "feat: onboarding <group-name> (profile: <profile>, bank: <name>-profile)"
+git push origin main
 ```
 
 ### Step 6: Confirm

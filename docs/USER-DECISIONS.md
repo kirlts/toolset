@@ -345,21 +345,3 @@
 **Discarded alternatives:** Usar API de WhatsApp Business para obtener descripciones (descartado: no hay API pública para grupos de comunidad).
 **Consequences:** Cualquier herramienta que consulte el bridge obtiene descripciones. Sin LLM involvement.
 **Reversion conditions:** Si Hermes actualiza el bridge.js y el parche ya no aplica (patch-bridge.sh detecta y falla grácilmente).
-
----
-
-## [UD-022] Bridge injection para ruteo determinístico de grupos WhatsApp
-
-**Date:** 2026-06-29
-**Context:** El ruteo multi-grupo basado en instrucciones en SOUL.md (español, texto interpretativo por el LLM) fallaba ~30% de las veces — el LLM no ejecutaba el algoritmo de ruteo y respondía como orquestador default en grupos con perfil configurado. La causa raíz documentada en `hermes-routing-root-cause.md`: el ruteo es una función pura (JID → profile → banks) delegada a un LLM probabilístico.
-**Decision:** El bridge.js inyecta el profile SOUL.md completo (`=== PROFILE ACTIVATION: <name> ===`) en cada mensaje de grupo con perfil. El LLM no decide qué perfil cargar — la identidad está literalmente en el mensaje. SOUL.md RULE 0 en inglés (máxima adherencia lingüística documentada). Banks se derivan por convención (`{profile}-profile`).
-**Discarded alternatives:**
-- Mantener ruteo basado solo en SOUL.md (descartado: probabilístico, ~30% falla).
-- Pre-processor gateway externo (descartado: más complejo que modificar bridge.js).
-- Separación física por containers (descartado: sobreingeniería para el problema actual).
-**Consequences:**
-- Ruteo 100% determinístico para grupos con perfil.
-- Cada mensaje cuesta ~2500 tokens extra (profile SOUL.md).
-- bridge.js modificado vía patch-bridge.sh (idempotente, CI/CD).
-- Si Hermes Agent actualiza bridge.js, el parche puede fallar; patch-bridge.sh lo detecta.
-**Reversion conditions:** Si Hermes Agent incorpora ruteo nativo multi-perfil.
