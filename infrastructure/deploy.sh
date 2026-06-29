@@ -184,6 +184,19 @@ clone_repos() {
 echo "[DEPLOY] Syncing repos from manifest..."
 clone_repos
 
+# --- Sync cloned-repos.yaml to Hermes home ---
+echo "[DEPLOY] Syncing cloned-repos.yaml to Hermes home..."
+MANIFEST="${REMOTE_DIR}/infrastructure/hermes/cloned-repos.yaml"
+if [ -f "$MANIFEST" ]; then
+  scp -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    "$MANIFEST" "${SSH_HOST}:/tmp/cloned-repos.yaml" 2>/dev/null
+  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    "${SSH_HOST}" \
+    "cp /tmp/cloned-repos.yaml /home/opc/.hermes/cloned-repos.yaml && \
+     rm -f /tmp/cloned-repos.yaml && \
+     echo '  cloned-repos.yaml deployed'"
+fi
+
 # --- Pull images ---
 echo "[DEPLOY] Pulling container images..."
 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \

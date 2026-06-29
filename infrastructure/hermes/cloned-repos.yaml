@@ -6,7 +6,7 @@
 # onboarding appends entries here. auto-discovery script appends new repos.
 
 repos:
-  toolset-repo:
+  toolset:
     url: https://github.com/kirlts/toolset.git
     path: /opt/toolset-repo
     type: native
