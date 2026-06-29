@@ -120,36 +120,35 @@
 
 **Status:** ✅ Implementado y operativo
 
-**Purpose:** Actuar como punto de entrada conversacional persistente para procesar ordenes, rutear mensajes de grupo WhatsApp a workers especializados, y coordinar subagentes asincronos.
+**Purpose:** Actuar como punto de entrada conversacional persistente para procesar ordenes, rutear mensajes de grupo WhatsApp a perfiles determinísticamente, y coordinar subagentes asincronos.
 
 **Interface:**
 ```
- HermesInputReceiver -> whatsapp-router skill (determinista) -> kanban_create() -> worker profile -> sendResponse()
+ WhatsApp -> bridge.js (inyecta [ROUTING] block) -> Hermes LLM (adopta perfil via RULE 0 en SOUL.md) -> responde o delega via Kanban
 ```
 
 **Platforms activas:** WhatsApp (bot number 56936414929), WebUI (https://toolset-oci-1-1.tail2d4c18.ts.net:8787/).
-**WhatsApp multi-group:** 6 grupos detectados en comunidad "Hermes HUB": Chat, Code, Research, Personal, Hermes HUB (anuncios), + DM legacy. Ruteo determinista via `whatsapp-router` skill + `whatsapp-groups.yaml` (versionado en `infrastructure/hermes/`).
-**Deterministic routing:** `channel_aliases.json` resuelve JID → nombre humano via `GET /chat/:id` en bridge (Baileys groupMetadata). `whatsapp-groups.yaml` mapea JID → repo → perfil worker. 0% LLM en decisiones de ruteo.
-**Worker profiles:** perfiles Hermes creados bajo demanda via `/onboarding` (3 fases MECE). Cada perfil con `terminal.cwd` al repo clonado y skills especificas. Tareas delegadas via Kanban `kanban_create()`. Ningun perfil worker se pre-crea en deploy.
-**Onboarding:** comando `/onboarding` en cualquier grupo WhatsApp permite vincular el grupo a un repositorio sin intervención del deploy. Valida repo, perfil, skills antes de escribir y pushear `whatsapp-groups.yaml`.
-**WebUI deploy:** deploy.sh actualiza hermes-webui via `git pull --ff-only` en cada deploy, tanto en instalacion inicial como en reinicio del servicio.
+**WhatsApp multi-group:** 6 grupos en comunidad "Hermes HUB": Chat, Code, Research, Personal, Hermes HUB (anuncios), + DM legacy.
+**Deterministic routing:** `patch-bridge.sh` modifica bridge.js para inyectar `[ROUTING] profile=X scope=Y` en cada mensaje de grupo con perfil. El lookup es en código JS (bridge), no en LLM. El SOUL.md (RULE 0) fuerza al LLM a adoptar el perfil como identidad. Banks se derivan por convención: `{profile}-profile`. 0% LLM en decisión de ruteo.
+**Worker profiles:** perfiles Hermes creados bajo demanda via `/onboarding` (3 fases MECE). Cada perfil tiene su SOUL.md con reglas operativas. El LLM adopta el perfil directamente (no via Kanban).
+**Onboarding:** comando `/onboarding` en cualquier grupo WhatsApp. Crea Hindsight bank, genera profile SOUL.md desde `.agents/templates/profile-soul.md`, escribe `whatsapp-groups.yaml` con `profile:` y `scope:`. El bridge inyecta `[ROUTING]` automáticamente desde el próximo mensaje.
+**WebUI deploy:** deploy.sh actualiza hermes-webui via `git pull --ff-only` en cada deploy.
 **MCP servers:** hindsight-selfhosted (36 tools), composio (7 tools).
-**Memory bank:** hermes (Hindsight, 30 facts seedeados).
-**Bank discovery:** deploy.sh descubre banks desde `infrastructure/hermes/banks/` (versionado en repo) y los crea en Hindsight si no existen.
+**Memory bank:** hermes (Hindsight, ~0 facts canonical v1). Por perfil: `{profile}-profile`.
+**Bank discovery:** deploy.sh descubre banks desde `infrastructure/hermes/banks/` y los crea en Hindsight si no existen.
 **Modelo default:** deepseek-v4-flash via OpenCode Go.
-**SOUL.md:** Identidad y algoritmo de ruteo en `~/.hermes/SOUL.md` (~70 lineas). Contenido operacional movido a `~/.hermes/context.md`.
-**context.md (AGENTS.md):** Contexto operacional del proyecto (capacidades, arquitectura, reglas, banks) cargado como context file de Hermes via auto-descubrimiento desde el repo clonado.
+**SOUL.md:** RULE 0 en inglés para procesamiento de `[ROUTING]`. Default identity solo para DM/grupos sin perfil.
+**context.md (AGENTS.md):** Contexto operacional del proyecto. Cargado como context file de Hermes via auto-descubrimiento.
 **External skills:** Dos directorios vía `external_skills_dirs`: `/opt/toolset-repo/infrastructure/hermes-skills/` y `/opt/toolset-repo/.agents/skills/`.
-**Configuration manifest:** Todos los archivos de configuracion de Hermes se trackean en `infrastructure/hermes/INFRASTRUCTURE-MANIFEST.md`. No modificar un archivo de config sin actualizar el manifest.
+**Configuration manifest:** Todos los archivos de configuracion de Hermes se trackean en `infrastructure/hermes/INFRASTRUCTURE-MANIFEST.md`.
 
 **MCP Lifecycle:**
-1. deploy.sh sincroniza SOUL.md (identidad) y context.md (operacional) al servidor.
-1b. deploy.sh copia `whatsapp-groups.yaml` a `~/.hermes/` y ejecuta `populate-channel-aliases.sh` para construir `channel_aliases.json`.
-1c. deploy.sh verifica que NO existan perfiles worker pre-creados. Perfiles se crean bajo demanda via /onboarding.
-2. inject-composio-key.py actualiza config.yaml con MCP servers, approvals mode, y external_skills_dirs.
-3. Gateway se reinicia (`systemctl kill -s KILL` + `systemctl start`) para recoger cambios.
+1. deploy.sh sincroniza SOUL.md y context.md al servidor.
+1b. deploy.sh copia `whatsapp-groups.yaml` a `~/.hermes/` y ejecuta `populate-channel-aliases.sh`.
+1c. deploy.sh ejecuta `patch-bridge.sh` para aplicar parches de descripción y `[ROUTING]`.
+2. inject-composio-key.py actualiza config.yaml.
+3. Gateway se reinicia (`systemctl kill -s KILL` + `systemctl start`).
 4. Health check verifica que el gateway responda activamente.
-5. preflight.sh ejecuta validación post-deploy de invariantes MASTER-SPEC.
 
 **Dependencies:** Tailscale, Infisical, Docker (sandbox), Hindsight, Composio, OpenCode Go.
 

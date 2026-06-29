@@ -52,9 +52,9 @@ These rules apply to all operations performed by the artificial intelligence ass
 
 ### WhatsApp Multi-Group Routing
 
-- **[ROUTE-01] Deterministic routing:** All WhatsApp group messages are routed based on `~/.hermes/whatsapp-groups.yaml`, not by LLM judgment. The SOUL.md algorithm reads the YAML file and routes accordingly. No LLM decision is involved in determining the destination profile or group type.
-- **[ROUTE-02] Message origin tracking:** Every Kanban task created by the `whatsapp-router` skill includes `metadata.originating_group` set to the WhatsApp group JID. When a worker completes the task, the orchestrator reads this metadata and routes the response to the correct WhatsApp group.
-- **[ROUTE-03] Group types:** Each group has a `type` field in `whatsapp-groups.yaml`: `coding` (repo + worker + Kilo CLI), `research` (investigation + skills), `personal` (orchestrator only), `custom` (free description), or `announcements` (read-only, ignored).
+- **[ROUTE-01] Deterministic routing via bridge injection:** `patch-bridge.sh` modifies bridge.js to inject a `[ROUTING] profile=<name> scope=<scope>` block into every WhatsApp group message that has a configured profile. The LLM adopts this as its identity via SOUL.md RULE 0. No LLM judgment in routing — the bridge resolves the profile in code.
+- **[ROUTE-02] Cross-profile delegation:** When a task falls outside the active profile's scope, it MUST delegate via `kanban_create(assignee="<target-profile>", metadata={originating_group: "<jid>"})`. The executing profile responds in its own group and sends a short notification to the originating group.
+- **[ROUTE-03] Scope isolation via identity injection:** `scope:` field in `whatsapp-groups.yaml` (injected into `[ROUTING]`) defines the profile's operational boundary. The LLM operates directly as the named profile — no dual orchestrator/worker identity.
 - **[ROUTE-04] Description as context:** The WhatsApp group description (from `channel_aliases.json`) is loaded as operational context at the start of every session. The user can edit the WhatsApp group description at any time; the change is reflected within 10 minutes via the populate-channel-aliases cron job.
 - **[ROUTE-05] Only the default profile (master orchestrator) creates global skills.** Worker profiles create skills scoped to their own profile only. This maintains pseudo-sandbox isolation between groups.
 

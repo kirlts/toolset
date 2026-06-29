@@ -216,7 +216,13 @@ Si no existe:
 
 ### Step 2: Profile SOUL.md
 
-Generate from `.agents/templates/profile-soul.md`. Placeholders:
+Generate from `.agents/templates/profile-soul.md`. The template already includes:
+- ROUTE-03: the profile operates directly (no orchestrator reporting)
+- ROUTE-03a: mandatory cross-profile delegation for out-of-scope tasks
+- ROUTE-04: Kilo CLI for repo operations (if a repo exists)
+- Memory cycle (recall/retain tied to profile banks)
+
+Placeholders:
 
 | Placeholder | Source |
 |---|---|
@@ -241,10 +247,14 @@ groups:
   "<jid>":
     name: "<group-name>"
     description: "<description>"
-    repo: "<repo>"
+    repo: "<repo>"          # optional: omit if no repo
     profile: "<profile>"
-    skills: ["<skill1>", ...]
+    scope: "<scope>"        # optional: conversation_kb, infrastructure, research, etc.
 ```
+
+The bridge reads `profile` and `scope` to inject the `[ROUTING]` block.
+The LLM derives banks by convention: `<profile>-profile` + repo bank if applicable.
+No `banks:` field needed — it's derived deterministically.
 
 ### Step 4: Master SOUL.md (DM only)
 
