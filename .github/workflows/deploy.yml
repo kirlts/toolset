@@ -130,9 +130,12 @@ jobs:
 
       - name: Tailscale
         run: |
-          curl -fsSL https://tailscale.com/install.sh | sh
-          sudo tailscale up --authkey="${{ secrets.TAILSCALE_AUTH_KEY }}" --hostname="actions-runner" --accept-routes 2>&1
-          echo "Tailscale connected: $(tailscale ip -4)"
+          curl -fsSL https://tailscale.com/install.sh | sh 2>/dev/null
+          sudo tailscale up --authkey="${{ secrets.TAILSCALE_AUTH_KEY }}" --hostname="actions-runner" 2>&1
+          for i in $(seq 1 6); do
+            IP=$(tailscale ip -4 2>/dev/null) && echo "Connected: $IP" && break
+            sleep 5
+          done
       - run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
@@ -225,9 +228,12 @@ jobs:
       - uses: actions/checkout@v4
       - name: Tailscale
         run: |
-          curl -fsSL https://tailscale.com/install.sh | sh
-          sudo tailscale up --authkey="${{ secrets.TAILSCALE_AUTH_KEY }}" --hostname="actions-runner" --accept-routes 2>&1
-          echo "Tailscale connected: $(tailscale ip -4)"
+          curl -fsSL https://tailscale.com/install.sh | sh 2>/dev/null
+          sudo tailscale up --authkey="${{ secrets.TAILSCALE_AUTH_KEY }}" --hostname="actions-runner" 2>&1
+          for i in $(seq 1 6); do
+            IP=$(tailscale ip -4 2>/dev/null) && echo "Connected: $IP" && break
+            sleep 5
+          done
       - run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
