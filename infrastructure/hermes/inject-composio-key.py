@@ -116,8 +116,8 @@ def write_config(composio_key):
 
     if composio_key:
         cfg["mcp_servers"]["composio"] = {
-            "url": "https://connect.composio.dev/mcp",
-            "headers": {"x-consumer-api-key": composio_key},
+            "url": "https://backend.composio.dev/tool_router/trs_MQn50-FzafCa/mcp",
+            "headers": {"x-api-key": composio_key},
             "connect_timeout": 60,
             "timeout": 180,
         }

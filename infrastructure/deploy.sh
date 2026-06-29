@@ -756,6 +756,7 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
         echo '[hermes] Enabling Hermes systemd service...' | sudo tee -a ${HERMES_LOG}
         printf 'Y\nY\n' | sudo /usr/local/bin/hermes gateway install --system 2>&1 | sudo tee -a ${HERMES_LOG}
         sudo sed -i '/^Group=opc$/a SupplementaryGroups=docker' /etc/systemd/system/hermes-gateway.service 2>/dev/null
+        sudo sed -i 's/^TimeoutStopSec=.*/TimeoutStopSec=210/' /etc/systemd/system/hermes-gateway.service 2>/dev/null
         sudo systemctl daemon-reload 2>/dev/null
       else
         echo '[hermes] Gateway service already enabled' | sudo tee -a ${HERMES_LOG}

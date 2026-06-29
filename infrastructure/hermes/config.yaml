@@ -362,9 +362,9 @@ mcp_servers:
   composio:
     connect_timeout: 60
     headers:
-      x-consumer-api-key: PLACEH...PLOY
+      x-api-key: ak_yNpeinf1smABGNxDhWf_
     timeout: 180
-    url: https://connect.composio.dev/mcp
+    url: https://backend.composio.dev/tool_router/trs_MQn50-FzafCa/mcp
   hindsight-selfhosted:
     url: https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/mcp/
     timeout: 120

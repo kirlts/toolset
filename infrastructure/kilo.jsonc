@@ -28,9 +28,9 @@
   "mcp": {
     "composio": {
       "type": "remote",
-      "url": "https://connect.composio.dev/mcp",
+      "url": "https://backend.composio.dev/tool_router/trs_MQn50-FzafCa/mcp",
       "headers": {
-        "x-consumer-api-key": "{env:COMPOSIO_MCP_KEY}"
+        "x-api-key": "{env:COMPOSIO_API_KEY}"
       }
     },
     "hindsight-selfhosted": {
