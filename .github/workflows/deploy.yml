@@ -129,9 +129,7 @@ jobs:
           echo "changed files: $(echo "$CHANGED" | tr '\n' ' ')"
 
       - name: Tailscale
-        uses: tailscale/github-action@v3
-        with:
-          authkey: ${{ secrets.TAILSCALE_AUTH_KEY }}
+        uses: tailscale/github-action@v2
       - run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
@@ -212,7 +210,7 @@ jobs:
         run: |
           RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           ssh ${{ env.SSH_OPTS }} ${{ env.SSH_HOST }} \
-            "hermes -z 'Notifica por WhatsApp: Pipeline falló en toolset. $RUN_URL'" 2>/dev/null || true
+            "hermes send -t whatsapp:56994172921@s.whatsapp.net 'Pipeline falló en toolset. $RUN_URL'" 2>/dev/null || true
 
   preflight:
     name: Preflight Checks
@@ -223,9 +221,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Tailscale
-        uses: tailscale/github-action@v3
-        with:
-          authkey: ${{ secrets.TAILSCALE_AUTH_KEY }}
+        uses: tailscale/github-action@v2
       - run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
