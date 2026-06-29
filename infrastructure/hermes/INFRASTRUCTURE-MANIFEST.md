@@ -66,6 +66,8 @@ Cuando se modifica un archivo de configuracion:
 | docs/MASTER-SPEC.md | UPDATED §7.1: routing architecture replaced with bridge injection + [ROUTING] identity. |
 | docs/RULES.md | UPDATED ROUTE-01/02/03: bridge injection, identity routing, scope isolation. |
 | infrastructure/hermes/INFRASTRUCTURE-MANIFEST.md | UPDATED: current session changes. |
+| infrastructure/hermes/cloned-repos.yaml | **FIXED key rename**: `toolset-repo` → `toolset` (prevents auto-discovery false positive). **FIXED sync**: `cron` → `ci_cd` (handled by deploy.sh, not clone_repos). |
+| infrastructure/deploy.sh | **ADDED** `cloned-repos.yaml` sync to `~/.hermes/` on every deploy. **FIXED** comment reference to match renamed key. |
 
 ### Session 1 — Onboarding Infrastructure
 
