@@ -1138,18 +1138,19 @@ if [ "$DEPLOY_FAILED" = "true" ]; then
      fi"
 fi
 
-# --- Preflight checks (post-deploy verification) ---
+# --- Preflight checks (post-deploy verification via single SSH session) ---
 PREFLIGHT_SCRIPT="$(dirname "$0")/preflight.sh"
 if [ -f "$PREFLIGHT_SCRIPT" ]; then
   echo "[DEPLOY] Running preflight checks..."
-  if bash "$PREFLIGHT_SCRIPT"; then
+  # Run on VPS via single SSH connection (avoids N individual SSH calls)
+  scp -q "$PREFLIGHT_SCRIPT" "${SSH_HOST}:/tmp/preflight.sh"
+  if ssh "${SSH_HOST}" "bash /tmp/preflight.sh 2>&1; rm -f /tmp/preflight.sh"; then
     echo "[DEPLOY] All preflight checks passed"
   else
     echo "[DEPLOY] ❌ Preflight failed"
     DEPLOY_FAILED=true
-    # Attempt rollback again from preflight failure
-    ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-      "${SSH_HOST}" \
+    # Attempt rollback from preflight failure
+    ssh "${SSH_HOST}" \
       "if [ -f ${ROLLBACK_FILE} ]; then \
          sudo cp ${ROLLBACK_FILE} ${REMOTE_DIR}/docker-compose.yml && \
          cd ${REMOTE_DIR} && sudo docker compose up -d --remove-orphans 2>&1; \
