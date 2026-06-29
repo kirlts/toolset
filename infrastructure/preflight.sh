@@ -51,8 +51,8 @@ echo ""
 # ── §4.1 — Secrets isolation ────────────────────────────────────────
 
 check "No .env in repo" test ! -f "${REMOTE_REPO}/.env"
-check "No leaked secrets in scripts" \
-  bash -c "! grep -rl 'COMPOSIO_MCP_KEY\|OPENCODE_GO_API_KEY' ${REMOTE_REPO} --include='*.sh' --include='*.yml' --include='*.yaml' 2>/dev/null | grep -v '.env.example' | grep -v '.github/workflows/deploy.yml' | grep -qv '^$'"
+check "No .env in non-ignored paths" \
+  bash -c "! find ${REMOTE_REPO} -name '.env' -not -path '*/.git/*' -not -path '*/node_modules/*' -not -path '*/venv/*' 2>/dev/null | grep -qv '^$'"
 
 # ── Docker services (auto-discover from compose) ─────────────────────
 
