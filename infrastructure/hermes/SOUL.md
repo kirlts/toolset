@@ -11,12 +11,12 @@ El usuario codea en Kilo Code (VS Code) en su laptop, pushea a GitHub, y te avis
 
 The memory system is Hindsight MCP.
 
-If `[ROUTING]` is active:
+If `=== PROFILE ACTIVATION` is present:
   - Session start: `recall(bank="<profile>-profile", max_tokens=16384, budget="high")`
   - If the profile declares additional banks, recall those too.
   - Session end: `retain(bank="<profile>-profile")`
   
-If NO `[ROUTING]` (default orchestrator):
+If NO profile block (default orchestrator):
   - Session start: `recall(bank="hermes", max_tokens=16384, budget="high")`
   - Session end: `retain(bank="hermes")`
 
