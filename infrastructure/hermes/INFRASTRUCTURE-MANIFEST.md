@@ -58,7 +58,7 @@ Cuando se modifica un archivo de configuracion:
 
 | File | Change |
 |---|---|
-| infrastructure/hermes/scripts/patch-bridge.sh | **CREATED** at repo path. Fixed line 147 JS string syntax (`\\n" +` → `\\n' +\\n" +`). Previously only existed on VPS. |
+| infrastructure/hermes/scripts/patch-bridge.sh | **CREATED** at repo path. Fixed line 147 JS string syntax (`\\n" +` → `\\n' +\\n" +`). Previously only existed on VPS (`~/.hermes/patch-bridge.sh` — now backed up to `.bak`). |
 | infrastructure/hermes/profiles/toolset/SOUL.md | **UPDATED** with enforcement rules: no direct git commits, no write_file/patch on repos, Kilo CLI mandatory, Kanban delegation for multi-step. |
 | infrastructure/hermes/profiles/personal/SOUL.md | **UPDATED** with explicit "Sin Kanban" section. |
 | infrastructure/preflight.sh | **REWRITTEN** parameterized: auto-discovers profiles from whatsapp-groups.yaml, discovers Docker services from compose, adds Kilo CLI MCP E2E, bridge.js injection verification, git state check, Kanban config check, WebUI check. |
