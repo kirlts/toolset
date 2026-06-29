@@ -281,7 +281,7 @@
 | EPIC-001 | TASK-001 a TASK-003 | Completed | 4 | 1 | 0 | 5 |
 | EPIC-002 | TASK-004 | Completed | 1 | 1 | 0 | 2 |
 | EPIC-003 | TASK-005 | Completed | 1 | 0 | 0 | 1 |
-| EPIC-004 | TASK-006 | Completed | 4 | 1 | 0 | 5 |
+| EPIC-004 | TASK-006 | Completed | 3 | 1 | 0 | 4 |
 | EPIC-005 | TASK-007 | Completed | 0 | 0 | 1 | 1 |
 | EPIC-006 | TASK-008 a TASK-011 | In Progress | 4 | 0 | 0 | 4 |
 | EPIC-007 | TASK-012 | Completed | 7 | 0 | 0 | 7 |
@@ -289,4 +289,4 @@
 | EPIC-009 | TASK-014 | Por definir | 0 | 0 | 0 | 0 |
 | EPIC-010 | TASK-015 | Por definir | 0 | 0 | 0 | 0 |
 | EPIC-011 | TASK-016 | Por definir | 0 | 0 | 0 | 0 |
-| **TOTAL** | | | **21** | **3** | **1** | **25** |
+| **TOTAL** | | | **20** | **3** | **1** | **24** |

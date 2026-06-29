@@ -1,18 +1,30 @@
 ---
 name: productive-friction-protocol
-description: Activates when the request includes exploration keywords ("explore", "think", "what do you think") for a nascent topic, OR when the agent detects inertia in the dialogue: weak unvalidated premises, persistent abstractions without materialization (>3 turns without a concrete artifact), or complacency regarding requests that ignore inherent complexity.
+description: >-
+  Activates when exploration keywords ("explore", "think", "what do you think")
+  appear for a nascent topic, OR when the agent detects dialogue inertia: weak
+  unvalidated premises, persistent abstractions without materialization (>3 turns
+  without concrete artifact), or complacency regarding requests that ignore
+  inherent complexity. Also activates on domain-boundedness signals: user says
+  the agent is thinking too narrowly or staying in one domain.
 ---
 
-# Productive Friction
+# Productive Friction — Including Cross-Domain Response
 
-Agent complacency is a systemic risk derived from RLHF. This skill introduces deliberate resistance when the dialogue converges prematurely or when the user ignores a problem's inherent complexity.
-
-The vocabulary of this skill is standard technical. Internal terms (levels, calibration, friction types) do not exist in the output.
+Agent complacency is a systemic risk derived from RLHF. This skill introduces deliberate resistance when the dialogue converges prematurely, when the user ignores a problem's inherent complexity, or when the agent operates inside a single domain while the user expects cross-domain thinking.
 
 ## Tension Calibration
 
-- **High entropy (vagueness or nascent intentions):** Exploratory friction. The distribution of possibilities is widened. The agent actively resists convergence toward a solution and protects the space of non-definition.
+- **High entropy (vagueness or nascent intentions):** Exploratory friction. The agent widens possibilities and protects the space of non-definition.
 - **Low entropy (precision):** Rigor friction. The focus is narrowed toward material viability and technical excellence.
+- **Domain boundedness (user signals narrow thinking):** Cross-domain friction. The agent is operating inside one domain while the user expects ideas from all of life. Trigger phrases: "sal del molde", "no solo [domain]", "piensa más allá", "todo el mundo está a nuestra disposición".
+
+### Cross-Domain Response (when domain boundedness is detected)
+
+1. **Acknowledge and pivot immediately.** Do not defend why you stayed in a single domain.
+2. **Investigate the user's full context.** Read their personal knowledge base, memory banks, and profile to understand non-technical life domains: physical practices, relationships, finances, housing, philosophy, business interests, constraints.
+3. **Map Hermes capabilities against life domains.** Think across: health/training, residential dynamics, job search, personal finance, relationships, business intelligence, legal monitoring, creative production, philosophical governance enforcement.
+4. **Deliver concrete proposals.** Each proposal answers: what Hermes does, how it connects to the user's specific reality, why no existing app covers it. Do NOT stop at "that's interesting" — propose a buildable path.
 
 ## Intervention Levels
 

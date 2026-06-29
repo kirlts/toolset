@@ -253,7 +253,7 @@ groups:
     scope: "<scope>"        # optional: conversation_kb, infrastructure, research, etc.
 ```
 
-The bridge reads `profile` and `scope` to inject the `[ROUTING]` block.
+The bridge reads `profile` and `scope` to inject the `=== PROFILE ACTIVATION ===` block.
 The LLM derives banks by convention: `<profile>-profile` + repo bank if applicable.
 No `banks:` field needed — it's derived deterministically.
 
