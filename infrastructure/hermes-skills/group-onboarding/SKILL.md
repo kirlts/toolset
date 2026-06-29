@@ -216,7 +216,8 @@ Si no existe:
 
 ### Step 2: Profile SOUL.md
 
-Generate from `.agents/templates/profile-soul.md`. The template already includes:
+Generate from `.agents/templates/profile-soul.md` (if the template exists) or generate programmatically. The template/source already includes:
+- **CONSULT-01: Si el perfil tiene repositorio asociado, la fuente de consulta PRIMARIA debe ser la filesystem del repo (con read_file/search_files). Hindsight queda como fuente SECUNDARIA (indice de busqueda semantica). El buffer es siempre write-only. Esto evita respuestas genericas por banco Hindsight vacio.**
 - ROUTE-03: the profile operates directly (no orchestrator reporting)
 - ROUTE-03a: mandatory cross-profile delegation for out-of-scope tasks
 - ROUTE-04: Kilo CLI for repo operations (if a repo exists)
