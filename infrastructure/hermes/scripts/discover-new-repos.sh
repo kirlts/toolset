@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Discover new GitHub repos for kirlts and register them.
 # Runs every 5 minutes via crontab.
-# Only detects repos created within the last 48 hours.
+# Only detects repos created on or after 2026-06-28 (toolset era).
 set -uo pipefail
 
 MANIFEST="/opt/toolset-repo/infrastructure/hermes/cloned-repos.yaml"
