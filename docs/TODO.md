@@ -119,17 +119,6 @@
 - [x] Test flujo completo: WhatsApp → clonar repo → responder pregunta. ✅ Hermes clonó researchit y contó 8 archivos .py. 2026-06-26 [🤖 Verified via hermes -z]
 - [x] Test `kilo run "Run tests" --auto` desde terminal VPS. ✅ Ejecutó python3 hello.py → "hello world". 2026-06-26 [🤖 Verified via SSH]
 - [x] Implementar model discovery: No necesario. El stack usa exclusivamente deepseek-v4-flash via OpenCode Go. No hay selección de modelos. 2026-06-26 [🔄 Cerrado por decisión arquitectónica]
-- [x] WhatsApp multi-group routing: 6 grupos en comunidad Hermes HUB. Ruteo determinista via whatsapp-groups.yaml. Sin tipos predefinidos. 2026-06-28 [🤖 Verified by tool]
-- [x] 3-phase MECE onboarding v4: sin categorías. Group descriptions auto-sugeridas desde WhatsApp. 2026-06-28 [🤖 Verified by tool]
-- [x] Inter-profile delegation: kanban con metadata.originating_group propagation. 2026-06-28 [🤖 Verified by tool]
-- [x] Bridge patch: metadata.desc expuesto desde Baileys groupMetadata. 2026-06-28 [🤖 Verified by deploy]
-- [x] Channel alias population: populate-channel-aliases.sh con {name, desc} por grupo. Cron 10 min. 2026-06-28 [🤖 Verified by deploy]
-- [x] INFRASTRUCTURE-MANIFEST.md: tracking de todos los archivos de configuración Hermes. 2026-06-28 [🤖 Verified by tool]
-- [x] recall max_tokens=16384 universal (evita truncation en banks con 445+ facts). 2026-06-28 [🤖 Verified by tool]
-- [x] Workers creados solo por /onboarding. Sin pre-creación en deploy. 2026-06-28 [🧑 UD-018]
-- [x] Sin categorías predefinidas en onboarding. 2026-06-28 [🧑 UD-019]
-- [x] Descripción de grupo WhatsApp como contexto dinámico. 2026-06-28 [🧑 UD-020]
-- [x] Bridge parcheado para exponer descripciones. 2026-06-28 [🧑 UD-021]
 
 ---
 
@@ -229,6 +218,62 @@
 
 ---
 
+## [EPIC-008] Gobernador Kairós
+
+> Ref: _Por definir — sesión de diseño pendiente_
+
+### [TASK-013] Definición del eje Kairós
+
+> Ref: _Por definir_
+
+**Covered checks:** `Transversal governance`
+
+- [ ] 🔲 Por definir — sesión de diseño pendiente. Martín definirá cómo Kairós se aplica a su vida diaria usando Hermes como enforcement layer.
+
+|---
+
+## [EPIC-009] Karate Sensei Digital
+
+> Ref: _Por definir — sesión de diseño pendiente_
+
+### [TASK-014] Definición del asistente de entrenamiento
+
+> Ref: _Por definir_
+
+**Covered checks:** `Transversal governance`
+
+- [ ] 🔲 Por definir — asistente que trackea sesiones de karate (4/semana), patrones de técnica, y sugiere mejoras. Integración con voz y personal-buffer.
+
+|---
+
+## [EPIC-010] CFO por WhatsApp
+
+> Ref: _Por definir — sesión de diseño pendiente_
+
+### [TASK-015] Definición del asistente de gastos
+
+> Ref: _Por definir_
+
+**Covered checks:** `Transversal governance`
+
+- [ ] 🔲 Por definir — asistente que recibe gastos por voz, categoriza, genera informes semanales, y correlaciona con liquidez.
+
+|---
+
+## [EPIC-011] Inteligencia Residencial (ciclo 8x6)
+
+> Ref: _Por definir — sesión de diseño pendiente_
+
+### [TASK-016] Definición del monitor de dinámica residencial
+
+> Ref: _Por definir_
+
+**Covered checks:** `Transversal governance`
+
+- [ ] 🔲 Por definir — sistema que trackea el ciclo 8x6, predice cambios de estado residencial, y sugiere adaptaciones.
+
+---
+
 ## Overall Coverage Summary
 
 | Epic | Tasks | Status | 🤖 .LLM | 🧑 .HUM | 🤖🧑 .MIX | Total Checks |
@@ -236,8 +281,12 @@
 | EPIC-001 | TASK-001 a TASK-003 | Completed | 4 | 1 | 0 | 5 |
 | EPIC-002 | TASK-004 | Completed | 1 | 1 | 0 | 2 |
 | EPIC-003 | TASK-005 | Completed | 1 | 0 | 0 | 1 |
-| EPIC-004 | TASK-006 | Completed | 3 | 1 | 0 | 4 |
+| EPIC-004 | TASK-006 | Completed | 4 | 1 | 0 | 5 |
 | EPIC-005 | TASK-007 | Completed | 0 | 0 | 1 | 1 |
 | EPIC-006 | TASK-008 a TASK-011 | In Progress | 4 | 0 | 0 | 4 |
 | EPIC-007 | TASK-012 | Completed | 7 | 0 | 0 | 7 |
-| **TOTAL** | | | **20** | **3** | **1** | **24** |
+| EPIC-008 | TASK-013 | Por definir | 0 | 0 | 0 | 0 |
+| EPIC-009 | TASK-014 | Por definir | 0 | 0 | 0 | 0 |
+| EPIC-010 | TASK-015 | Por definir | 0 | 0 | 0 | 0 |
+| EPIC-011 | TASK-016 | Por definir | 0 | 0 | 0 | 0 |
+| **TOTAL** | | | **21** | **3** | **1** | **25** |
