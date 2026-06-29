@@ -265,6 +265,9 @@ display:
   timestamps: false
   tui_agents_nudge: true
   tui_auto_resume_recent: false
+  platforms:
+    whatsapp:
+      tool_progress: off
 email:
   email: ''
   enabled: false
@@ -359,7 +362,7 @@ mcp_servers:
   composio:
     connect_timeout: 60
     headers:
-      x-consumer-api-key: PLACEHOLDER_REPLACED_BY_DEPLOY
+      x-consumer-api-key: PLACEH...PLOY
     timeout: 180
     url: https://connect.composio.dev/mcp
   hindsight-selfhosted:
