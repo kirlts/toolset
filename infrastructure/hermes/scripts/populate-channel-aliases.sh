@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # populate-channel-aliases.sh
 # Consulta el bridge de WhatsApp para obtener nombres humanos y descripciones
-# de grupos, y escribe channel_aliases.json para resolucion JID → {name, desc}.
-#
+# de grupos, y escribe channel_aliases.json para resolucion JID -> {name, desc}.
+# Si la descripcion del bridge esta vacia, fallback a whatsapp-groups.yaml.
 # Corre en cada deploy y via cron cada 10 minutos.
 set -euo pipefail
 
@@ -17,17 +17,35 @@ if [ ! -f "$DIRECTORY" ]; then
 fi
 
 python3 << PYEOF
-import json, subprocess as sp
+import json, subprocess as sp, os
 
 BRIDGE = '$BRIDGE'
 DIRECTORY = '$DIRECTORY'
 ALIASES = '$ALIASES'
+WHATSAPP_GROUPS_YAML = os.path.expanduser('~/.hermes/whatsapp-groups.yaml')
 
 with open(DIRECTORY) as f:
     dir_data = json.load(f)
 
+# Load YAML descriptions as fallback for empty WhatsApp descriptions
+yaml_descs = {}
+if os.path.exists(WHATSAPP_GROUPS_YAML):
+    try:
+        import yaml
+        with open(WHATSAPP_GROUPS_YAML) as f:
+            yaml_data = yaml.safe_load(f)
+        groups = yaml_data.get('groups', {})
+        for jid, info in groups.items():
+            desc = info.get('description', '') if isinstance(info, dict) else ''
+            if desc:
+                yaml_descs[jid] = desc
+    except ImportError:
+        pass
+    except Exception:
+        pass
+
 existing = {}
-if __import__('os').path.exists(ALIASES):
+if os.path.exists(ALIASES):
     with open(ALIASES) as f:
         existing = json.load(f).get('whatsapp', {})
 
@@ -37,17 +55,21 @@ for ch in dir_data.get('platforms', {}).get('whatsapp', []):
     if not jid.endswith('@g.us'):
         continue
     try:
-        r = sp.run(['curl', '-s', '--max-time', '5', f'{BRIDGE}/chat/{jid}'],
+        r = sp.run(['curl', '-s', '--max-time', '5', '{}/chat/{}'.format(BRIDGE, jid)],
                    capture_output=True, text=True, timeout=5)
         data = json.loads(r.stdout)
+        bridge_desc = data.get('desc', '').strip()
+        # Fallback: if bridge returns empty desc, use YAML description
+        if not bridge_desc and jid in yaml_descs:
+            bridge_desc = yaml_descs[jid]
         entry = {
             'name': data.get('name', jid.split('@')[0]),
-            'desc': data.get('desc', '')
+            'desc': bridge_desc
         }
     except Exception:
         entry = {
             'name': jid.split('@')[0],
-            'desc': ''
+            'desc': yaml_descs.get(jid, '')
         }
     prev = existing.get(jid, {})
     prev_name = prev.get('name', '') if isinstance(prev, dict) else prev
@@ -55,9 +77,9 @@ for ch in dir_data.get('platforms', {}).get('whatsapp', []):
     result[jid] = entry
     if prev_name != new_name:
         label = 'Updated' if prev else 'Added'
-        print(f'{label}: {jid} -> {new_name}')
+        print('{}: {} -> {}'.format(label, jid, new_name))
 
 with open(ALIASES, 'w') as f:
     json.dump({'whatsapp': result}, f, indent=2, ensure_ascii=False)
-print(f'Done: {len(result)} WhatsApp group aliases')
+print('Done: {} WhatsApp group aliases'.format(len(result)))
 PYEOF
