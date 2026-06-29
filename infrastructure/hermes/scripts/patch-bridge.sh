@@ -63,7 +63,7 @@ old_blocks = [
         '      // === ROUTING INJECTION ===\n'
         '      if (isGroup) {\n'
         '        try {\n'
-        '          const groupsRaw = fs.readFileSync(\n'
+        '          const groupsRaw = readFileSync(\n'
         "            process.env.HOME + '/.hermes/whatsapp-groups.yaml', 'utf8');\n"
         "          const jidIdx = groupsRaw.indexOf('\"' + chatId + '\"');\n"
         '          if (jidIdx !== -1) {\n'
@@ -85,7 +85,7 @@ old_blocks = [
         '      // === ROUTING INJECTION ===\n'
         '      if (isGroup) {\n'
         '        try {\n'
-        '          const groupsRaw = fs.readFileSync(\n'
+        '          const groupsRaw = readFileSync(\n'
         "            process.env.HOME + '/.hermes/whatsapp-groups.yaml', 'utf8');\n"
         "          const jidIdx = groupsRaw.indexOf('\"' + chatId + '\"');\n"
         '          if (jidIdx !== -1) {\n'
@@ -97,7 +97,7 @@ old_blocks = [
         "                '/.hermes/profiles/' + profileName + '/SOUL.md';\n"
         '              let profileContent = \'\';\n'
         '              try {\n'
-        "                profileContent = fs.readFileSync(profilePath, 'utf8').trim();\n"
+        "                profileContent = readFileSync(profilePath, 'utf8').trim();\n"
         '              } catch(e) {\n'
         '                console.error(\'[routing] no profile SOUL.md for \' + profileName, e.message);\n'
         '              }\n'
@@ -128,7 +128,7 @@ new_block = (
     "      // === ROUTING INJECTION ===\n"
     "      if (isGroup) {\n"
     "        try {\n"
-    "          const groupsRaw = fs.readFileSync(\n"
+    "          const groupsRaw = readFileSync(\n"
     "            process.env.HOME + '/.hermes/whatsapp-groups.yaml', 'utf8');\n"
     "          const jidIdx = groupsRaw.indexOf('\"' + chatId + '\"');\n"
     "          if (jidIdx !== -1) {\n"
@@ -140,7 +140,7 @@ new_block = (
     "                '/.hermes/profiles/' + profileName + '/SOUL.md';\n"
     "              let profileContent = '';\n"
     "              try {\n"
-    "                profileContent = fs.readFileSync(profilePath, 'utf8').trim();\n"
+    "                profileContent = readFileSync(profilePath, 'utf8').trim();\n"
     "              } catch(e) {}\n"
     "              if (profileContent) {\n"
     "                body = '=== PROFILE ACTIVATION: ' + profileName + ' ===\\n' +\n"
