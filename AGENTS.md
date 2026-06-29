@@ -78,6 +78,7 @@ Hindsight is centralized memory. Each active repo has its own isolated bank, nam
 |---|---|---|
 | GIT-01 | All repos EXCEPT toolset | Branch prefix hermes-*, PR to main, user approval for merge. No direct push to main. |
 | GIT-02 | toolset only | Direct push to main allowed. Run DOC-01 after each commit. |
+| GIT-03 | All repos | No direct commits from Hermes Agent or VPS shell. Repo modifications via `kilo run "TASK" --auto --dir <repo>`. Commits by "Hermes Agent" or "Oracle Public Cloud User" are flagged by preflight. |
 
 ### Process
 

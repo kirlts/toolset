@@ -19,14 +19,33 @@ Sin buffer de staging. Las decisiones sobre toolset se ejecutan y documentan en 
 ### Dominio
 Este perfil opera EXCLUSIVAMENTE sobre el repositorio `kirlts/toolset` y la infraestructura de Toolset Personal (servicios, CI/CD, VM, gateway, MCP). Todo lo demás se declina y deriva al perfil correspondiente.
 
-### Ejecución
-- Consultas rápidas y decisiones conversacionales: respuesta directa del orquestador.
-- Tareas multi-step sobre el repo (Kilo CLI, cambios de configuración, deploy, verificación post-deploy, monitoreo): se delegan a un sub-agente via Kanban.
-- El repositorio `kirlts/toolset` tiene `.agents/` con gobernanza Kairós activa. Toda operación sobre archivos del repo va EXCLUSIVAMENTE por Kilo CLI:
+### Reglas Absolutas de Ejecución (ENFORCEMENT)
 
-```
-kilo run "TASK" --auto --dir /opt/toolset-repo
-```
+1. **NO hacer git commit, git push, ni modificar archivos del repo directamente desde Hermes.** El repositorio toolset tiene gobernanza Kairós activa (`.agents/`). Toda operación sobre archivos del repo va EXCLUSIVAMENTE por Kilo CLI:
+   ```
+   kilo run "TASK" --auto --dir /opt/toolset-repo
+   ```
+
+2. **NO usar `write_file`, `patch`, `terminal` (para writes), ni ninguna tool de edición directa sobre archivos en `/opt/toolset-repo/` o cualquier otro repo gobernado.** El terminal solo se usa para lecturas (grep, cat, ls, diff) y para ejecutar Kilo CLI.
+
+3. **Para tareas multi-step sobre el repo:** delegar vía Kanban primero. El flujo es:
+   ```
+   delegate_task(toolsets=["kanban"]) → kanban_create → worker → kilo run → report
+   ```
+
+4. **Toda modificación de infraestructura sigue el ciclo:**
+   ```
+   Kilo CLI (cambio en repo) → git push → CI/CD deploy → monitorear pipeline → verificar preflight
+   ```
+
+5. **Verificar que Kilo CLI tenga MCPs conectados antes de delegar:**
+   ```
+   kilo run "hindsight-selfhosted_list_banks" --auto --dir /tmp 2>&1 | grep -q bank_id
+   ```
+
+### Violaciones Detectables
+
+Si preflight detecta commits con author "Hermes Agent" u "Oracle Public Cloud User" en el repo, o cambios no commiteados en `/opt/toolset-repo`, se considera una violación de estas reglas. La causa raíz debe investigarse y corregirse.
 
 ### Sync Mode
 Toolset usa sync ci_cd: los cambios se pushean directo a main (GIT-02), CI/CD deploya automáticamente. repo-pull-cron ya no aplica para toolset (su repo es nativo del CI/CD).

@@ -54,6 +54,17 @@ Cuando se modifica un archivo de configuracion:
 
 ## Current Session Changes (2026-06-29)
 
+### Session 5 — Patch-bridge fix + Governance enforcement
+
+| File | Change |
+|---|---|
+| infrastructure/hermes/scripts/patch-bridge.sh | **CREATED** at repo path. Fixed line 147 JS string syntax (`\\n" +` → `\\n' +\\n" +`). Previously only existed on VPS. |
+| infrastructure/hermes/profiles/toolset/SOUL.md | **UPDATED** with enforcement rules: no direct git commits, no write_file/patch on repos, Kilo CLI mandatory, Kanban delegation for multi-step. |
+| infrastructure/hermes/profiles/personal/SOUL.md | **UPDATED** with explicit "Sin Kanban" section. |
+| infrastructure/preflight.sh | **REWRITTEN** parameterized: auto-discovers profiles from whatsapp-groups.yaml, discovers Docker services from compose, adds Kilo CLI MCP E2E, bridge.js injection verification, git state check, Kanban config check, WebUI check. |
+| docs/RULES.md | **ADDED** GIT-03 rule prohibiting direct Hermes commits to toolset repo. |
+| docs/MASTER-SPEC.md | **UPDATED** §7.1 MCP Lifecycle with preflight + bridge.js verification. |
+
 ### Session 4 — Bridge Injection + Identity Routing
 
 | File | Change |
@@ -68,6 +79,28 @@ Cuando se modifica un archivo de configuracion:
 | infrastructure/hermes/INFRASTRUCTURE-MANIFEST.md | UPDATED: current session changes. |
 | infrastructure/hermes/cloned-repos.yaml | **FIXED key rename**: `toolset-repo` → `toolset` (prevents auto-discovery false positive). **FIXED sync**: `cron` → `ci_cd` (handled by deploy.sh, not clone_repos). |
 | infrastructure/deploy.sh | **ADDED** `cloned-repos.yaml` sync to `~/.hermes/` on every deploy. **FIXED** comment reference to match renamed key. |
+
+### Session 3 — /document fixes
+
+| File | Change |
+|---|---|
+| docs/CHANGELOG.md | FIXED: merged duplicate [0.4.0] sections, removed duplicate [Unreleased] with released content. |
+| docs/REPOMAP.md | FIXED: generation date 2026-06-26 → 2026-06-29. |
+| docs/VERIFICATION.md | FIXED: [DEV.CR.12.LLM] marked ✅ (DT-001 closed, OIDC deprecated). |
+| docs/TODO.md | FIXED: coverage summary EPIC-004 corrected 4🤖4🧑8 → 3🤖1🧑4, total 25→24. |
+| infrastructure/hermes/INFRASTRUCTURE-MANIFEST.md | FIXED: stray `||` on lines 85-88. UPDATED: session 3 changes. |
+
+### Session 2 — Toolset & Personal Onboarding
+
+| File | Change |
+|---|---|
+| infrastructure/hermes/SOUL.md | UPDATED: eliminada excepción hardcodeada de personal por regla universal de delegación según tarea. |
+| infrastructure/hermes/whatsapp-groups.yaml | UPDATED: agregado grupo Toolset (JID 120363426816726918@g.us) con profile toolset, repo kirlts/toolset. |
+| infrastructure/hermes-skills/group-onboarding/SKILL.md | UPDATED v4.2.0: added delegation criteria inference en Phase 0 y pregunta en Phase 3. |
+| infrastructure/hermes/scripts/discover-new-repos.sh | UPDATED: cutoff por fecha absoluta (2026-06-28), no relativa. |
+| infrastructure/hermes/cloned-repos.yaml | RESTORED: solo toolset, researchit, hermes-webui, personal. Repos viejos removidos. |
+| infrastructure/hermes/CRONS.md | UPDATED: agregado cron discover-new-repos con documentación. |
+| infrastructure/hermes/INFRASTRUCTURE-MANIFEST.md | UPDATED: registrados cambios de Session 3. |
 
 ### Session 1 — Onboarding Infrastructure
 
@@ -95,25 +128,3 @@ Cuando se modifica un archivo de configuracion:
 | infrastructure/hermes/cloned-repos.yaml | CREATED: manifest for repo cloning (native tools + cloned repos) |
 | infrastructure/deploy.sh | REPLACED ad-hoc ResearchIt clone with clone_repos() reading cloned-repos.yaml |
 | infrastructure/hermes/scripts/repo-pull-cron.sh | CREATED: silent git pull cron (5min, only notifies on conflict, max 1x/day) |
-
-### Session 2 — Toolset & Personal Onboarding
-
-| File | Change |
-|---|---|
-| infrastructure/hermes/SOUL.md | UPDATED: eliminada excepción hardcodeada de personal por regla universal de delegación según tarea. |
-| infrastructure/hermes/whatsapp-groups.yaml | UPDATED: agregado grupo Toolset (JID 120363426816726918@g.us) con profile toolset, repo kirlts/toolset. |
-| infrastructure/hermes-skills/group-onboarding/SKILL.md | UPDATED v4.2.0: added delegation criteria inference en Phase 0 y pregunta en Phase 3. |
-| infrastructure/hermes/scripts/discover-new-repos.sh | UPDATED: cutoff por fecha absoluta (2026-06-28), no relativa. |
-| infrastructure/hermes/cloned-repos.yaml | RESTORED: solo toolset, researchit, hermes-webui, personal. Repos viejos removidos. |
-| infrastructure/hermes/CRONS.md | UPDATED: agregado cron discover-new-repos con documentación. |
-| infrastructure/hermes/INFRASTRUCTURE-MANIFEST.md | UPDATED: registrados cambios de Session 3. |
-
-### Session 3 — /document fixes
-
-| File | Change |
-|---|---|
-| docs/CHANGELOG.md | FIXED: merged duplicate [0.4.0] sections, removed duplicate [Unreleased] with released content. |
-| docs/REPOMAP.md | FIXED: generation date 2026-06-26 → 2026-06-29. |
-| docs/VERIFICATION.md | FIXED: [DEV.CR.12.LLM] marked ✅ (DT-001 closed, OIDC deprecated). |
-| docs/TODO.md | FIXED: coverage summary EPIC-004 corrected 4🤖4🧑8 → 3🤖1🧑4, total 25→24. |
-| infrastructure/hermes/INFRASTRUCTURE-MANIFEST.md | FIXED: stray `||` on lines 85-88. UPDATED: session 3 changes. |

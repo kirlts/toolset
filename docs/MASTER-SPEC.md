@@ -146,9 +146,12 @@
 1. deploy.sh sincroniza SOUL.md y context.md al servidor.
 1b. deploy.sh copia `whatsapp-groups.yaml` a `~/.hermes/` y ejecuta `populate-channel-aliases.sh`.
 1c. deploy.sh ejecuta `patch-bridge.sh` para aplicar parches de descripción y `[ROUTING]`.
+1d. deploy.sh verifica que bridge.js generado sea sintácticamente válido (`node --check`).
 2. inject-composio-key.py actualiza config.yaml.
 3. Gateway se reinicia (`systemctl kill -s KILL` + `systemctl start`).
 4. Health check verifica que el gateway responda activamente.
+5. preflight.sh verifica invariantes POST-deploy (git state limpio, bridge injection, MCP E2E via Kilo CLI, Kanban config, perfiles, WebUI).
+6. Si preflight falla → notificar inmediatamente al canal de deploy.
 
 **Dependencies:** Tailscale, Infisical, Docker (sandbox), Hindsight, Composio, OpenCode Go.
 
