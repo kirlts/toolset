@@ -166,10 +166,10 @@ fi
 # ── WebUI accessibility ─────────────────────────────────────────────
 
 echo "  -- WebUI --"
-warn_check "Hermes WebUI (via Caddy)" bash -c \
-  "curl -sf -o /dev/null -w '%{http_code}' --max-time 10 'https://${FUNNEL_DOMAIN}/hermes/' 2>/dev/null | grep -q 200"
-warn_check "Funnel direct :8787" bash -c \
-  "curl -sf -o /dev/null -w '%{http_code}' --max-time 10 'https://${FUNNEL_DOMAIN}:8787/' 2>/dev/null | grep -q 200"
+warn_check "Caddy health (localhost)" bash -c \
+  "curl -sf -o /dev/null -w '%{http_code}' --max-time 5 'http://localhost:8080/health' 2>/dev/null | grep -q 200"
+warn_check "Hermes WebUI (localhost)" bash -c \
+  "curl -sf -o /dev/null -w '%{http_code}' --max-time 5 'http://localhost:8787/' 2>/dev/null | grep -q 200"
 
 # ── Skills ─────────────────────────────────────────────────────────
 
