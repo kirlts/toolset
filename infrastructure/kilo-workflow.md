@@ -1,31 +1,29 @@
-# Kilo CLI — Mandatory Workflow
+# Kilo CLI — Workflow Base
 
-> This file is loaded by Kilo CLI via `kilo.jsonc` `instructions` array.
-> Applies to ALL agent modes: `kilo run`, `kilo run --auto`, `kilo run --build`.
+Cargado via `kilo.jsonc` `instructions`. Aplica a TODAS las invocaciones: `kilo run`, `kilo run --auto`.
 
-## Mandatory Session Workflow
+## Regla 1 — Gobernanza por .agents/
 
-You MUST follow this workflow in EVERY session, regardless of the task.
+Si el repositorio tiene directorio `.agents/`:
+- Las reglas en `.agents/rules/*.md` son vinculantes. Debes seguirlas.
+- `docs/RULES.md` es vinculante.
+- Este es un proyecto gobernado. No hay libre albedrío.
 
-### Session Start (before any modifications)
-1. **Load context** — `recall(bank=<repo>)` to load project state, recent decisions, TODO.
-2. **Execute `/document`** — synchronize MASTER-SPEC, TODO, MEMORY, USER-DECISIONS, CHANGELOG. This is mandatory even if you think nothing changed.
-3. **Review repository governance** — confirm `.agents/rules/*.md` constraints and `docs/RULES.md`.
+Si NO existe `.agents/`:
+- No hay procedimiento rígido. Usa criterio.
 
-### During Work
-4. **Execute `/document` after substantial changes** — refactor, architecture change, dependency update, or feature completion.
+## Regla 2 — /document post-modificación
 
-### Session End (before reporting to Hermes)
-5. **Execute `/document`** — final documentary sync.
-6. **Use `reflect`** — synthesize session outcomes via Hindsight.
-7. **Use `retain(bank=<repo>)`** — persist session summary, key decisions, code changes, test results.
+Si realizaste ALGUNA modificación en el repositorio (código, docs, config, cualquier cambio):
+- Ejecuta `/document` para sincronizar el eje documental.
+- Si la tarea es solo de lectura, no hace falta.
 
-## Timeout Handling
+## Regla 3 — Sesión completa
 
-If you anticipate a long-running operation (retain, reflect, large /document), inform the caller so they can use async invocation. The default terminal timeout is 180s.
+- Inicio: `recall(bank=<repo>)` para cargar contexto.
+- Fin: `retain(bank=<repo>)` con resumen de lo hecho.
 
-## Quality
+## Calidad
 
-- Zero tolerance for: corporate filler, empty adjectives, mocked data, em dashes.
-- Every deliverable backed by real tool output.
-- Report concise summaries: what was done, what changed, test results, decisions needing human approval.
+- Zero tolerance para: corporate filler, empty adjectives, datos inventados, em dashes.
+- Responde conciso: qué se hizo, qué cambió, resultados, decisiones pendientes.
