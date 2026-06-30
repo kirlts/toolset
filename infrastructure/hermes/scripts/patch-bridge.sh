@@ -147,6 +147,10 @@ new_block = (
     "              }\n"
     "              // INYECTAR GROUPS MAP completo para awareness multi-grupo\n"
     "              body = body + '\\n\\n=== GROUPS MAP ===\\n' + groupsRaw + '\\n=== END GROUPS MAP ===\\n';\n"
+    "              // INYECTAR fecha/hora Chile actual en el GROUPS MAP\n"
+    "              const _chileOpts = { timeZone: 'America/Santiago', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false };\n"
+    "              const _chileDate = new Date().toLocaleString('es-CL', _chileOpts);\n"
+    "              body = body + 'Chile Date/Time: ' + _chileDate + ' (CLT)\\n';\n"
     "            }\n"
     "          }\n"
     "        } catch(e) {\n"
@@ -168,4 +172,29 @@ else:
 PYEOF
 else
   echo "[patch-bridge] Patch 2 (profile SOUL.md injection) already applied"
+fi
+
+# --- PATCH 3: Inject Chile time context (for existing Patch 2 deployments) ---
+if ! grep -q "Chile Date/Time" "$BRIDGE_JS" 2>/dev/null; then
+  sudo python3 << 'PYEOF'
+path = "/usr/local/lib/hermes-agent/scripts/whatsapp-bridge/bridge.js"
+with open(path) as f:
+    content = f.read()
+
+old = "body = body + '\\n\\n=== GROUPS MAP ===\\n' + groupsRaw + '\\n=== END GROUPS MAP ===\\n';"
+new = old + "\n              // INYECTAR fecha/hora Chile actual\n" + \
+      "              const _chileOpts = { timeZone: 'America/Santiago', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false };\n" + \
+      "              const _chileDate = new Date().toLocaleString('es-CL', _chileOpts);\n" + \
+      "              body = body + 'Chile Date/Time: ' + _chileDate + ' (CLT)\\n';"
+
+if old in content:
+    content = content.replace(old, new)
+    with open(path, "w") as f:
+        f.write(content)
+    print("[patch-bridge] Patch 3 applied — Chile time context added")
+else:
+    print("[patch-bridge] Patch 3: GROUPS MAP pattern not found — may need manual update")
+PYEOF
+else
+  echo "[patch-bridge] Patch 3 (Chile time context) already applied"
 fi
