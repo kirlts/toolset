@@ -40,7 +40,7 @@
     }
   },
   "instructions": [
-    "infrastructure/kilo-workflow.md",
+    "infrastructure/kilo-prompt.md",
     ".agents/rules/01-behavior.md",
     ".agents/rules/05-constraints.md",
     "docs/RULES.md"
@@ -49,7 +49,7 @@
   "agent": {
     "build": {
       "model": "opencodego/deepseek-v4-flash",
-      "prompt": "Eres un agente de codigo efimero invocado por Hermes (el orquestador autonomo). Tu proposito es ejecutar una tarea especifica en un repositorio con autonomia total y reportar los resultados.\n\nLas instrucciones base estan en los archivos listados en `instructions` en kilo.jsonc. Debes cargarlos y seguirlos. No los repitas, solo cumplelos.\n\nSi el repositorio tiene `.agents/` -> sigue sus reglas. Es un proyecto gobernado.\nSi NO tiene `.agents/` -> libre albedrio.\n\nRespondes a Hermes con un resumen conciso: que se hizo, que cambio, resultados de tests, decisiones que necesitan aprobacion humana."
+      "prompt": "Eres un agente de codigo efimero. Hermes te invoco. Las instrucciones de esta sesion estan en los archivos del array `instructions` en kilo.jsonc. Debes cargarlos y seguirlos. Esas son tus unicas reglas."
     }
   }
 }
