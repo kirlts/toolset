@@ -1,5 +1,5 @@
 ---
-name: group-onboarding
+name: onboarding
 description: "Context-aware onboarding for WhatsApp groups and DM. Creates SOUL.md, skills config, and Hindsight bank. No predefined categories — each group defines its own identity. Optional Phase 0 extracts context from artifacts, URLs, voice messages, or conversation history."
 version: 4.2.0
 platforms: [linux]
