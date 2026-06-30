@@ -40,7 +40,6 @@
     }
   },
   "instructions": [
-    "infrastructure/kilo-prompt.md",
     ".agents/rules/01-behavior.md",
     ".agents/rules/05-constraints.md",
     "docs/RULES.md"
