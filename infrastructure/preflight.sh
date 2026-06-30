@@ -6,6 +6,8 @@ set -euo pipefail
 
 FUNNEL_DOMAIN="${FUNNEL_DOMAIN:-toolset-oci-1-1.tail2d4c18.ts.net}"
 HINDSIGHT_URL="https://${FUNNEL_DOMAIN}/hindsight"
+# Local endpoint for VPS-internal calls (Funnel URL doesnt resolve from inside VPS)
+LOCAL_HINDSIGHT="http://localhost:8080/hindsight"
 REMOTE_REPO="/opt/toolset-repo"
 HERMES_HOME="/home/opc/.hermes"
 BRIDGE_JS="/usr/local/lib/hermes-agent/scripts/whatsapp-bridge/bridge.js"
@@ -78,11 +80,11 @@ echo "  -- Profile integrity --"
 for profile in "${PROFILES[@]}"; do
   check "SOUL.md for profile '${profile}'" test -s "${PROFILES_DIR}/${profile}/SOUL.md"
   # Pre-create bank if missing (silent)
-  if ! curl -sf ${HINDSIGHT_URL}/v1/default/banks/${profile}-profile 2>/dev/null | grep -q bank_id; then
-    curl -sf -X PUT "${HINDSIGHT_URL}/v1/default/banks/${profile}-profile"       -H "Content-Type: application/json"       -d '{"name":"'"${profile}-profile"'"}' > /dev/null 2>&1 || true
+  if ! curl -sf ${LOCAL_HINDSIGHT}/v1/default/banks/${profile}-profile 2>/dev/null | grep -q bank_id; then
+    curl -sf -X PUT "${LOCAL_HINDSIGHT}/v1/default/banks/${profile}-profile"       -H "Content-Type: application/json"       -d '{"name":"'"${profile}-profile"'"}' > /dev/null 2>&1 || true
   fi
   warn_check "Bank '${profile}-profile' exists" bash -c \
-    "curl -sf ${HINDSIGHT_URL}/v1/default/banks/${profile}-profile 2>/dev/null | grep -q bank_id"
+    "curl -sf ${LOCAL_HINDSIGHT}/v1/default/banks/${profile}-profile 2>/dev/null | grep -q bank_id"
 done
 
 # ── §5.3 — MCP configuration ──────────────────────────────────────────
@@ -94,7 +96,7 @@ check "MCP servers configured in yaml" \
 
 echo "  -- MCP 3-Step Verification --"
 
-if curl -sf "${HINDSIGHT_URL}/health" > /dev/null 2>&1; then
+if curl -sf "${LOCAL_HINDSIGHT}/health" > /dev/null 2>&1; then
   echo "    PASS MCP Step 1 (health endpoint)"
 else
   echo "    FAIL MCP Step 1 (health endpoint)"
@@ -172,8 +174,8 @@ fi
 echo "  -- WebUI --"
 warn_check "Caddy health (localhost)" bash -c \
   "curl -sf -o /dev/null -w '%{http_code}' --max-time 5 'http://localhost:8080/health' 2>/dev/null | grep -q 200"
-warn_check "Hermes WebUI (localhost)" bash -c \
-  "curl -sf -o /dev/null -w '%{http_code}' --max-time 5 'http://localhost:8787/' 2>/dev/null | grep -q 200"
+warn_check "Hermes WebUI via Caddy (localhost)" bash -c \
+  "curl -sf -o /dev/null -w '%{http_code}' --max-time 5 'http://localhost:8080/hermes/' 2>/dev/null | grep -qE '200|302'"
 
 # ── Skills ─────────────────────────────────────────────────────────
 
