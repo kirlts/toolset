@@ -476,9 +476,17 @@ echo "[DEPLOY] Generating dynamic landing page..."
 echo "$LANDING_HTML" | ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   "${SSH_HOST}" "sudo tee ${REMOTE_DIR}/landing/index.html > /dev/null"
 
-# --- Transfer kilo.jsonc for VPS Kilo CLI config ---
+# --- Regenerate kilo.jsonc from kilo-system-prompt.md if source changed ---
 KILO_CONFIG_DIR="$(dirname "${COMPOSE_FILE}")"
 KILO_CONFIG="${KILO_CONFIG_DIR}/kilo.jsonc"
+KILO_PROMPT_SRC="${KILO_CONFIG_DIR}/kilo-system-prompt.md"
+KILO_GEN_SCRIPT="$(dirname "$0")/../scripts/generate-kilo-config.py"
+if [ -f "$KILO_PROMPT_SRC" ] && [ -f "$KILO_GEN_SCRIPT" ]; then
+  echo "[DEPLOY] Regenerating kilo.jsonc from kilo-system-prompt.md..."
+  python3 "$KILO_GEN_SCRIPT" && echo "[DEPLOY] kilo.jsonc regenerated."
+fi
+
+# --- Transfer kilo.jsonc for VPS Kilo CLI config ---
 if [ -f "$KILO_CONFIG" ]; then
   echo "[DEPLOY] Transferring kilo.jsonc..."
   scp -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
