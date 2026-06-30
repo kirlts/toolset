@@ -9,6 +9,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 *Nothing pending.*
 
+## [0.5.0] - 2026-06-30
+
+### Added
+- `infrastructure/kilo-system-prompt.md`: single source of truth for Kilo CLI system prompt (clean, minimal, no redundancy).
+- `scripts/generate-kilo-config.py`: auto-generates kilo.jsonc from kilo-system-prompt.md — injects prompt into `agent.build.prompt` field.
+- deploy.sh auto-regenerates kilo.jsonc if kilo-system-prompt.md changed; transfers to VPS for Kilo CLI config.
+- Kilo CLI workflow simplified: `agent.build.prompt` replaces `instructions` array for system prompt delivery.
+- Preflight Docker healthcheck filter: only checks services from docker-compose.yml (not external containers).
+- Preflight bank check: uses list endpoint with grep -q profile name instead of brittle curl-pipe-jq.
+- Preflight Hindsight API check via localhost:8888 (not Funnel URL) for reliability.
+- Preflight WebUI check via Caddy proxy (port 8787 redirect, not direct container port).
+- Hot backup resilience: deploy.sh hindsight backup tar handles file-changed-during-read without aborting.
+
+### Changed
+- `infrastructure/kilo.jsonc`: removed `kilo-prompt.md` from `instructions` array. System prompt delivered exclusively via `agent.build.prompt` field (auto-generated from kilo-system-prompt.md).
+- `infrastructure/kilo-prompt.md`: deprecated. Replaced by `kilo-system-prompt.md` as canonical source. Removed from `kilo.jsonc` instructions list to eliminate redundancy between `instructions` and `agent.build.prompt`.
+- Kilo CLI memory instructions: now embedded in agent.build.prompt — Hindsight async pattern (`retain` async, no `sync_retain`) to prevent timeouts.
+- SOUL.md profile vs Kilo system prompt overlap eliminated — Kilo receives only its own identity (no profile SOUL.md bleeding).
+
+### Fixed
+- deploy.sh hindsight backup tar no longer fails when files change during hot backup (`--warning=no-file-changed`).
+- Preflight Docker check uses `docker ps` directly instead of grepping `docker compose config` (catches real container state).
+- Preflight MCP E2E: bank check uses `grep -q` on list output instead of fragile JSON parsing.
+
 ## [0.4.0] - 2026-06-28
 
 ### Added

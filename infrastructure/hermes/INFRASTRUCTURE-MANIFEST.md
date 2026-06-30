@@ -15,12 +15,17 @@
 | `infrastructure/hermes/config.yaml` | Config estructural: MCP servers, external_skills_dirs, modelo, proveedor | deploy.sh + inject-composio-key.py | 2026-06-26 |
 | `infrastructure/hermes/CRONS.md` | Documentacion de cron jobs activos | Repo (documentacion, no ejecutable) | 2026-06-28 |
 | `infrastructure/hermes/scripts/populate-channel-aliases.sh` | Consulta bridge GET /chat/:id, escribe channel_aliases.json con {name, desc} | deploy.sh (paso 1b) | 2026-06-28 |
-| `infrastructure/hermes/scripts/patch-bridge.sh` | Parchea bridge.js para exponer metadata.desc desde Baileys groupMetadata | deploy.sh (paso 1b) | 2026-06-28 |
+| `infrastructure/hermes/scripts/patch-bridge.sh` | Parchea bridge.js para exponer metadata.desc desde Baileys groupMetadata | deploy.sh (paso 1b) | 2026-06-29 |
 | `infrastructure/hermes/whatsapp-groups.yaml` | Mapeo JID -> {type, name, desc, repo, profile, skills} para ruteo determinista | deploy.sh (paso 1b) -> ~/.hermes/ | 2026-06-28 |
 | `infrastructure/hermes-skills/whatsapp-router/SKILL.md` | Skill de ruteo determinista de mensajes WhatsApp segun tipo de grupo | external_skills_dirs (repo clone) | 2026-06-28 |
 | `infrastructure/hermes-skills/group-onboarding/SKILL.md` | Onboarding 3 fases MECE: crea bank, SOUL.md, YAML, perfil worker | external_skills_dirs (repo clone) | 2026-06-28 |
-| `infrastructure/hermes-skills/kilo-code/SKILL.md` | Integracion Kilo CLI: umbral 50 lineas, contexto, recall/retain | external_skills_dirs (repo clone) | Estable |
+| `infrastructure/hermes-skills/kilo-code/SKILL.md` | Integracion Kilo CLI: umbral 50 lineas, contexto, recall/retain | external_skills_dirs (repo clone) | 2026-06-28 |
 | `.agents/templates/profile-soul.md` | Template SOUL.md para perfiles worker. Placeholders: PROFILE_NAME, DOMAIN, TYPE, BANK_ID, etc. | Repo (referenciado por onboarding) | 2026-06-28 |
+| `infrastructure/kilo.jsonc` | Configuracion de Kilo CLI: providers, MCP, permissions, agent.build.prompt | deploy.sh (genera + transfiere) | 2026-06-30 |
+| `infrastructure/kilo-system-prompt.md` | **Source of truth** para system prompt de Kilo CLI. Inyectado en kilo.jsonc agent.build.prompt | deploy.sh (via generate-kilo-config.py) | 2026-06-30 |
+| `infrastructure/kilo-prompt.md` | **[DEPRECATED]** Legacy system prompt. Reemplazado por kilo-system-prompt.md | No aplica (no sincronizado) | 2026-06-30 |
+| `scripts/generate-kilo-config.py` | Genera kilo.jsonc desde kilo-system-prompt.md. Ejecutado por deploy.sh | Repo (ejecutado por deploy.sh en CI/CD runner) | 2026-06-30 |
+| `infrastructure/preflight.sh` | Verificacion post-deploy de invariantes MASTER-SPEC (15+ checks) | deploy.sh (copia) | 2026-06-30 |
 | `docs/MASTER-SPEC.md` | Especificacion fundacional del proyecto | No aplica (documentacion) | 2026-06-28 |
 | `docs/Hermes-integration.md` | Plan de integracion Hermes. Puede estar desactualizado tras iteraciones | No aplica (documentacion) | 2026-06-23 |
 
@@ -52,7 +57,19 @@ Cuando se modifica un archivo de configuracion:
 
 ---
 
-## Current Session Changes (2026-06-29)
+## Current Session Changes (2026-06-30)
+
+### Session 6 — Kilo CLI System Prompt Architecture
+
+| File | Change |
+|---|---|
+| `infrastructure/kilo-system-prompt.md` | **CREATED** as single source of truth for Kilo CLI system prompt (30 lines, clean minimal). |
+| `scripts/generate-kilo-config.py` | **CREATED** — reads kilo-system-prompt.md, injects into kilo.jsonc `agent.build.prompt` field. |
+| `infrastructure/kilo.jsonc` | **UPDATED** — removed `kilo-prompt.md` from `instructions` array. System prompt now exclusively via `agent.build.prompt` (auto-generated). Escape sequences fixed for valid JSON. |
+| `infrastructure/kilo-prompt.md` | **DEPRECATED** — replaced by kilo-system-prompt.md. No longer referenced in kilo.jsonc `instructions`. |
+| `infrastructure/deploy.sh` | **UPDATED** — added kilo.jsonc regeneration from kilo-system-prompt.md (via generate-kilo-config.py) if source changed. Transfers kilo.jsonc to VPS for Kilo CLI config. Hindsight backup tar uses `--warning=no-file-changed` to prevent abort on hot backup. |
+| `infrastructure/preflight.sh` | **UPDATED** — bank check uses list endpoint with grep -q profile name (not JSON parsing). Docker healthcheck filter only for compose services. Hindsight API check via localhost:8888 (not Funnel). WebUI check via Caddy proxy (port 8787 redirect). |
+| `.github/workflows/deploy.yml` | **UPDATED** — preflight runs via single SSH on VPS (not local runner). SSH mux timeout increased for reliability. |
 
 ### Session 5 — Patch-bridge fix + Governance enforcement
 

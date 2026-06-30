@@ -1,6 +1,6 @@
 # REPOMAP: Toolset Personal
 
-> Generated: 2026-06-29 (Kairós v4.0.0)  
+> Generated: 2026-06-30 (Kairós v4.0.0)  
 > Purpose: Routing matrix. Defines when the AI is authorized to read each directory or file.
 
 ## Authoring Constraints (Read Before Populating)
