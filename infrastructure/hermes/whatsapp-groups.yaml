@@ -27,6 +27,11 @@ groups:
     name: "Chat"
     profile: "chat"
 
+  "120363428706645773@g.us":
+    name: "WWE"
+    description: "Grupo compartido entre Martin y Javi para conversar sobre WWE, luchadores, PPVs, rumores y noticias. Hermes participa con datos, contexto y comunidad, sin dominar la discusion."
+    profile: "wwe"
+
   "120363408844901511@g.us":
     name: "Hermes HUB"
     readonly: true
