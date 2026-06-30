@@ -57,7 +57,7 @@ check "No .env in non-ignored paths" \
 # ── Docker services (auto-discover from compose) ─────────────────────
 
 echo "  -- Docker service health --"
-CRITICAL_SERVICES=$(grep -oP '^  \K[a-z][a-z-]+(?=:)' "${COMPOSE_FILE}" 2>/dev/null | head -10 || echo "caddy hindsight infisical")
+CRITICAL_SERVICES=$(grep -B1 'healthcheck:' "${COMPOSE_FILE}" 2>/dev/null | grep -oP '^  \K[a-z][a-z-]+(?=:)' || echo "caddy hindsight infisical")
 for svc in $CRITICAL_SERVICES; do
   warn_check "${svc} healthy" bash -c \
     "sudo docker inspect $svc --format '{{.State.Health.Status}}' 2>/dev/null | grep -q healthy"
@@ -77,6 +77,10 @@ check "Orchestrator SOUL.md exists" test -s "${HERMES_HOME}/SOUL.md"
 echo "  -- Profile integrity --"
 for profile in "${PROFILES[@]}"; do
   check "SOUL.md for profile '${profile}'" test -s "${PROFILES_DIR}/${profile}/SOUL.md"
+  # Pre-create bank if missing (silent)
+  if ! curl -sf ${HINDSIGHT_URL}/v1/default/banks/${profile}-profile 2>/dev/null | grep -q bank_id; then
+    curl -sf -X PUT "${HINDSIGHT_URL}/v1/default/banks/${profile}-profile"       -H "Content-Type: application/json"       -d '{"name":"'"${profile}-profile"'"}' > /dev/null 2>&1 || true
+  fi
   warn_check "Bank '${profile}-profile' exists" bash -c \
     "curl -sf ${HINDSIGHT_URL}/v1/default/banks/${profile}-profile 2>/dev/null | grep -q bank_id"
 done
