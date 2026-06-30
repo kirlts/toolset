@@ -79,12 +79,9 @@ check "Orchestrator SOUL.md exists" test -s "${HERMES_HOME}/SOUL.md"
 echo "  -- Profile integrity --"
 for profile in "${PROFILES[@]}"; do
   check "SOUL.md for profile '${profile}'" test -s "${PROFILES_DIR}/${profile}/SOUL.md"
-  # Pre-create bank if missing (silent)
-  if ! curl -sf ${LOCAL_HINDSIGHT}/v1/default/banks/${profile}-profile 2>/dev/null | grep -q bank_id; then
-    curl -sf -X PUT "${LOCAL_HINDSIGHT}/v1/default/banks/${profile}-profile"       -H "Content-Type: application/json"       -d '{"name":"'"${profile}-profile"'"}' > /dev/null 2>&1 || true
-  fi
+
   warn_check "Bank '${profile}-profile' exists" bash -c \
-    "curl -sf ${LOCAL_HINDSIGHT}/v1/default/banks/${profile}-profile 2>/dev/null | grep -q bank_id"
+    "curl -sf ${LOCAL_HINDSIGHT}/v1/default/banks 2>/dev/null | grep -q '${profile}-profile'"
 done
 
 # ── §5.3 — MCP configuration ──────────────────────────────────────────
