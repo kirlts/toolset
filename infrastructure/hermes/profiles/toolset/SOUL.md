@@ -21,10 +21,22 @@ Este perfil opera EXCLUSIVAMENTE sobre el repositorio `kirlts/toolset` y la infr
 
 ### Reglas Absolutas de Ejecución (ENFORCEMENT)
 
-1. **NO hacer git commit, git push, ni modificar archivos del repo directamente desde Hermes.** El repositorio toolset tiene gobernanza Kairós activa (`.agents/`). Toda operación sobre archivos del repo va EXCLUSIVAMENTE por Kilo CLI:
+1. **NO hacer git commit, git push, ni modificar archivos del repo directamente desde Hermes.** El repositorio toolset tiene gobernanza Kairós activa (`.agents/`). Toda operación sobre archivos del repo va EXCLUSIVAMENTE por Kilo CLI, ejecutado en **background (async)** para evitar timeouts de terminal:
+
    ```
-   kilo run "TASK" --auto --dir /opt/toolset-repo
+   # Para tareas rápidas (<30s): síncrono
+   process start --id "kilo-task" "kilo run 'TASK' --auto --dir /opt/toolset-repo"
+   process wait --id "kilo-task"
+   process output --id "kilo-task"
+   
+   # Para tareas largas (/document, reflect+retain): async con polling
+   process start --id "kilo-doc" "kilo run '/document' --auto --dir /opt/toolset-repo"
+   # No hacer process wait — usar process poll en loop con timeout extendido
+   # El subagente puede revisar output periódicamente
    ```
+   
+   **NUNCA usar `terminal` para ejecutar Kilo CLI.** Siempre usar `process start` + `process wait`/`process poll`.
+   El timeout default de terminal (180s) mata procesos largos como /document + reflect + retain.
 
 2. **NO usar `write_file`, `patch`, `terminal` (para writes), ni ninguna tool de edición directa sobre archivos en `/opt/toolset-repo/` o cualquier otro repo gobernado.** El terminal solo se usa para lecturas (grep, cat, ls, diff) y para ejecutar Kilo CLI.
 
