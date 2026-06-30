@@ -12,7 +12,9 @@ mkdir -p /home/opc/workspace/toolset/infrastructure/hermes/banks/{toolset,hermes
 
 Call `mcp_hindsight_selfhosted_list_banks()`. Filter out `"default"` (legacy internal bank — never include it).
 
-Current active banks (2026-06-27): toolset, hermes, researchit, kairos, evidencia-zero, cl-concerts-db, yacv, witral.
+Current active banks (2026-06-30): toolset(652), hermes(266), personal-profile(42), chat-profile(42), personal-buffer(26), witral(11), evidencia-zero(30), yacv(29), cl-concerts-db(45), researchit(124), kairos(68), toolset-profile(0).
+
+**Edge case — empty bank**: toolset-profile has 0 facts (created by onboarding, no content yet). Skip reflect+retain for empty banks to avoid wasted API calls. Just create the empty JSON file `{"items":[],"total":0}` and move on.
 
 ## Step 2: Export each bank as JSON
 
@@ -64,19 +66,21 @@ mcp_hindsight_selfhosted_reflect(
 )
 ```
 
-### 3b. Retain the result (use `sync_retain` in cron)
+### 3b. Retain the result
 
-Cron jobs MUST use `sync_retain` (not the async `retain`) — it blocks until the fact is fully stored and returns `memory_ids` for confirmation:
+**Preferred: `sync_retain`** (blocks until stored, returns memory_ids for confirmation). Use this when you need assurance the write completed:
 
 ```
 mcp_hindsight_selfhosted_sync_retain(
     bank_id=BANK_ID,
-    content="<condensed summary of reflect output — key facts only>",
+    content="<condensed summary>",
     tags=["daily-summary", "YYYY-MM-DD", "BANK_ID"]
 )
 ```
 
-Keep the retain content concise (3-8 sentences, not the full reflect text). Focus on: what was done, what was learned, what decisions were made. The returned `memory_ids` array confirms the operation completed — if missing, the retain failed silently.
+**Fallback: `retain`** (async) when the provider lacks sync_retain support. Returns `{"status":"accepted","operation_id":"..."}` — the write is queued but not confirmed. The operation_id can be checked with `get_operation()` if needed.
+
+Keep the retain content concise (3-8 sentences, not the full reflect text). Focus on: what was done, what was learned, what decisions were made.
 
 ## Step 4: Git commit + push
 
@@ -95,7 +99,7 @@ git push origin main
 | `execute_code` blocked in cron mode | Use `terminal()` with `python3 << 'PYEOF'` instead |
 | `git pull --rebase` fails when index has staged but uncommitted files | Commit first, then pull --rebase, then push |
 | Banks file grows with each daily dump | This is intentional — dumps are versioned by date for audit trail |
-| Inline JSON from small banks can be fragile in heredocs | Unicode escapes (`\u00f3`) and unescaped quotes inside the JSON string can break `cat << 'EOF'`. Always validate the file after writing: `python3 -m json.tool <file>` |
+| Small bank inline JSON fragile in heredocs (backslash escapes, nested quotes can break `cat << 'EOF'`) | Prefer `printf '%s' '{"result":"..."}' > file.json` to avoid shell expansion entirely. Or validate with `python3 -m json.tool <file>` after writing. |
 | `default` bank exists and has facts | Skip it — it's an internal Hindsight bank, not a project bank |
 | Large banks (400+ facts) generate 800KB+ tool output | Use the persisted-output file at `/tmp/hermes-results/` — don't try to read it inline |
 | Hindsight MCP might be slow on large reflects | Set budget="mid" for 200+ fact banks; budget="low" for <50 fact banks |

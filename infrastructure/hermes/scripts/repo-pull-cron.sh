@@ -9,8 +9,9 @@ MANIFEST="/opt/toolset-repo/infrastructure/hermes/cloned-repos.yaml"
 CONFLICT_FILE="/tmp/hermes-repo-conflicts"
 EVENTS_DIR="/tmp/hermes-buffer-events"
 NOTIFY_FILE="/tmp/hermes-repo-conflict-notified"
+STATE_DIR="/tmp/hermes-repo-heads"
 
-mkdir -p "$EVENTS_DIR"
+mkdir -p "$EVENTS_DIR" "$STATE_DIR"
 : > "$CONFLICT_FILE"
 
 REPOS=$(grep -oP '^\s+\K[a-z][a-z0-9_-]+(?=:)' "$MANIFEST" 2>/dev/null || true)
@@ -20,7 +21,42 @@ for key in $REPOS; do
   sync=$(awk "/^  ${key}:/{f=1} f{ if(\$1==\"sync:\"){print \$2; exit}} f && /^  [a-z]/{exit}" "$MANIFEST" 2>/dev/null)
   path=$(awk "/^  ${key}:/{f=1} f{ if(\$1==\"path:\"){print \$2; exit}} f && /^  [a-z]/{exit}" "$MANIFEST" 2>/dev/null)
 
-  [ "$sync" = "ci_cd" ] && continue
+  if [ ! -d "${path}/.git" ]; then
+    continue
+  fi
+
+  # Handle ci_cd repos: externally updated via CI/CD deploy.sh, not git pull
+  if [ "$sync" = "ci_cd" ]; then
+    STATE_FILE="${STATE_DIR}/${key}"
+    PREV_HEAD=$(cat "$STATE_FILE" 2>/dev/null || echo "")
+
+    git fetch origin 2>/dev/null || true
+    CURRENT_HEAD=$(cd "$path" && git rev-parse HEAD 2>/dev/null || echo "")
+    [ -z "$CURRENT_HEAD" ] && continue
+
+    if [ -n "$PREV_HEAD" ] && [ "$PREV_HEAD" != "$CURRENT_HEAD" ]; then
+      HAS_NEW_COMMITS=1
+      LOG=$(cd "$path" && git log --oneline --no-decorate "${PREV_HEAD}..${CURRENT_HEAD}" 2>/dev/null || true)
+      BRANCH=$(cd "$path" && git rev-parse --abbrev-ref HEAD 2>/dev/null || echo 'unknown')
+
+      EVENT_FILE="${EVENTS_DIR}/${key}_$(date +%Y%m%d%H%M%S).json"
+      cat > "$EVENT_FILE" << EOF
+{
+  "repo": "${key}",
+  "path": "${path}",
+  "branch": "${BRANCH}",
+  "old_head": "${PREV_HEAD}",
+  "new_head": "${CURRENT_HEAD}",
+  "timestamp": "$(date -Iseconds)",
+  "commits": [
+$(echo "$LOG" | sed 's/^/    "/' | sed 's/$/",/' | sed '$ s/,$//')
+  ]
+}
+EOF
+    fi
+    echo "$CURRENT_HEAD" > "$STATE_FILE"
+    continue
+  fi
 
   if [ ! -d "${path}/.git" ]; then
     continue

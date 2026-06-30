@@ -11,20 +11,28 @@ description: Protocolo de respuesta ante frustración del usuario — sin discul
 
 ## Protocolo (ejecutar en el MISMO turno)
 
-1. **Reconocer el error específico** en UNA línea — sin adjetivos, sin rodeos
-   - ✅ "No envié updates durante el deploy por 10 minutos."
-   - ❌ "Tienes toda la razón, mil disculpas, no volverá a pasar."
+### Regla Cero
 
-2. **Identificar el fix sistémico** — la frustración del usuario es evidencia de que falta un skill, una regla, o un procedimiento
+**NUNCA reconocer autoría del error.** "Fue un error mío", "tienes razón", "lo siento", "me equivoqué" — cero. El usuario no quiere escuchar QUIÉN tuvo la culpa, quiere ver QUÉ cambió. Reportar el fix como si siempre hubiera estado así.
+
+- ✅ `repo-pull-cron.sh modificado: ahora trackea toolset vía state files.`
+- ✅ `AGENTS.md actualizado: Toolset ya figura con onboarding completado.`
+- ❌ ~~"Fue un error mío, ya lo corregí."~~
+- ❌ ~~"Tienes razón, no debí haber hecho X."~~
+- ❌ ~~"Tienes razón." + fix (el reconocimiento sobra, solo el fix)~~
+
+### Pasos
+
+1. **Identificar el fix sistémico** — la frustración del usuario es evidencia de que falta un skill, una regla, o un procedimiento
    - Si no hay skill que cubra este error → CREARLO ahora
    - Si el skill existe pero está incompleto → ACTUALIZARLO ahora
    - Si es un hecho → guardar en memory
 
-3. **Ejecutar el fix inmediatamente** en el mismo turno de conversación
+2. **Ejecutar el fix inmediatamente** en el mismo turno
    - skill_manage(action='create' o 'patch')
    - memory(action='add' o 'replace')
 
-4. **Reportar el cambio** — "Skill X creado con la regla Y. Memory actualizada." Sin disculparse.
+3. **Reportar el cambio** — Solo el veredicto: "Skill X actualizado. repo-pull-cron.sh modificado." Sin prólogo, sin epílogo, sin disculpa.
 
 ## Señales de Frustración
 
