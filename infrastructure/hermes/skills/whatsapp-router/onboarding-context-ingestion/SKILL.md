@@ -1,7 +1,7 @@
 ---
 name: onboarding-context-ingestion
 description: "Methods for ingesting onboarding context from various sources. Covers repo analysis via Kilo CLI, document conversion, voice transcription, and prior session recall. Companion to the group-onboarding skill — fills the Phase 0 patterns that the main skill references."
-version: 1.0.0
+version: 1.1.0
 platforms: [linux]
 metadata:
   hermes:
@@ -17,23 +17,23 @@ When `/onboarding` is invoked with context (a repo, document, voice message, URL
 
 ## Source-Specific Methods
 
-### 1. GitHub Repo (Kilo CLI)
+### 1. GitHub Repo (Kilo CLI) — with stale-doc detection
 
 **Trigger:** User says "el contexto es este repo", "lee mi repo X", or names a GitHub repository as onboarding context.
 
-**Rule:** Do NOT use read_file, search_files, or terminal ls/cat to explore the repo yourself. Delegate to Kilo CLI.
+**Rule:** Do NOT use read_file, search_files, or terminal ls/cat to explore the repo yourself. Delegate to Kilo CLI — UNLESS the user explicitly says "lee mi repo" or "read the content" (direct instruction overrides the rule).
 
 **Steps:**
 
 1. Clone the repo if not already present:
    ```
-   gh repo clone kirlts/<repo-name>
+   gh repo clone <org>/<repo-name>
    ```
-   (Use gh CLI — SSH keys may not be configured)
+   (Use gh CLI — SSH keys may not be configured. Detect org from URL: if user says "kirlts/x" use kirlts, if "jpgil/x" use jpgil, etc.)
 
-2. Run Kilo CLI with an analysis prompt:
+2. Run Kilo CLI with an analysis prompt that includes stale-doc cross-checking:
    ```
-   kilo run "Dame un analisis completo del proposito y contenido del repositorio /home/opc/<repo-name>. Que tipo de informacion contiene, cual es su estructura, cuales son sus objetivos, y que conclusiones puedo sacar sobre como deberia operar el grupo de WhatsApp '<group-name>' de Martin (kirlts). Incluye detalles como: estructura de directorios, proposito principal, principios operativos, estado actual. Responde en español." --auto --dir /home/opc/<repo-name>
+   kilo run "Dame un analisis completo del proposito y contenido del repositorio /home/opc/<repo-name>. CRITICO: verifica si la documentacion declarativa (.cursorrules, CLAUDE.md, AGENTS.md, README.md) coincide con la realidad del codigo. Para eso, compara sus afirmaciones sobre versiones de Python, framework, y dependencias contra requirements.txt, Dockerfile, pyproject.toml, y git log. Si hay discrepancia (docs desactualizadas), reportala explicitamente. Que tipo de informacion contiene, cual es su estructura, cuales son sus objetivos, y que conclusiones puedo sacar sobre como deberia operar el grupo de WhatsApp '<group-name>' de Martin (kirlts). Incluye detalles como: estructura de directorios, proposito principal, principios operativos, estado actual. Responde en español." --auto --dir /home/opc/<repo-name>
    ```
 
 3. Kilo returns a structured analysis. Extract from it:

@@ -34,3 +34,10 @@ WORKER_TYPE   → "default" for personal repo, "worker" for code/research repos
 ## Why This Works
 
 Kilo uses the same model (deepseek-v4-flash) and accesses files via its own sandbox. It reads comprehensively — not just first 200 lines or 50 results — so you get the full picture without missing critical `.agents/` rules, nested knowledge-base nodes, or deeply buried config files.
+
+## Stale Doc Detection (added 2026-07-01)
+
+After the cl-concerts-db onboarding case, always include a stale-doc cross-check in the Kilo prompt. Add this paragraph to the prompt:
+"CRITICO: verifica si la documentacion declarativa (.cursorrules, CLAUDE.md, AGENTS.md, README.md) coincide con la realidad del codigo. Para eso, compara sus afirmaciones sobre versiones de Python, framework, y dependencias contra requirements.txt, Dockerfile, pyproject.toml, y git log. Si hay discrepancia (docs desactualizadas), reportala explicitamente."
+
+See the main `onboarding` skill's `references/repo-context-extraction.md` for the full checklist and the cl-concerts-db case study.

@@ -1,7 +1,7 @@
 ---
 name: kilo-code
 description: "Delegate ALL code generation, testing, and documentation to Kilo Code CLI. Hermes is a LIGHTWEIGHT ORCHESTRATOR only."
-version: 1.2.0
+version: 1.3.0
 author: Toolset Personal
 license: MIT
 platforms: [linux]
@@ -72,8 +72,52 @@ Para CADA proyecto nuevo o clonado, Hermes DEBE:
 6. **/document periódico**: ejecutar `/document` tras bloques de trabajo significativos. **IMPORTANTE:** el `/document` se ejecuta SIEMPRE en el contexto del repo `kirlts/toolset` (el repo de gobierno central), NO en el repo donde se trabajó. Toolset es el repo que contiene la configuración global de Hermes, skills, y documentación de infraestructura.
 7. **Reportar** al usuario concreto y sin verborrea
 
+## Arquitectura de System Prompt en Kilo
+
+Kilo CLI 7.3.54 construye su system prompt desde **tres fuentes**, no una:
+
+**Fuente A — `agent.build.prompt` en `kilo.jsonc` (identidad persistente):**
+Define la identidad del agente efímero. En este stack: gobernanza via `.agents/`, Hindsight memory, anti-corporate tone. Se inyecta como system message base.
+
+**Fuente B — Array `instructions` en `kilo.jsonc` (archivos de reglas):**
+Rutas relativas resueltas contra el `--dir` del proyecto. Cada archivo se lee y se concatena al system prompt. Si un archivo **no existe**, se skipea **silenciosamente** — sin warning ni error visible.
+
+Las rutas se resuelven así:
+```
+--dir /home/opc/personal
+  → "infrastructure/kilo-prompt.md" → /home/opc/personal/infrastructure/kilo-prompt.md
+  → ".agents/rules/01-behavior.md"  → /home/opc/personal/.agents/rules/01-behavior.md
+```
+
+**Fuente C — Carga dinámica en runtime:**
+El agente Kilo lee archivos adicionales **durante la ejecución** según las reglas de Kairós que ya recibió en Fuente B. Por ejemplo: `01-behavior.md` manda leer `REPOMAP.md` primero, luego carga dinámicamente `02-linguistics.md`, `MASTER-SPEC.md`, etc. según las condiciones de [RULE: DYNAMIC CONTEXT LOAD].
+
+**Comportamiento de flags:**
+| Invocación | System Prompt | Permisos |
+|---|---|---|
+| `kilo run "x" --auto` | Fuentes A + B + C idéntico | Auto-approve todo |
+| `kilo run "x"` | Fuentes A + B + C idéntico | Prompt por permiso según config |
+| `kilo run "x" --dir /path` | Resuelve Fuente B contra /path | Según flag --auto |
+
+**`--auto` NO cambia el system prompt.** Solo activa auto-approval de permisos.
+
+### Debugging de System Prompt
+
+Para inspeccionar qué system prompt recibe realmente Kilo:
+
+```bash
+# Método 1: JSON format captura todas las tool calls
+kilo run "." --dir /path --format json 2>&1 | head -5
+
+# Método 2: Print logs muestra inicialización (pero NO el prompt raw)
+kilo run "." --dir /path --print-logs 2>&1 | grep -i "prompt\|instruction\|session.prompt"
+```
+
+Kilo NO expone el system prompt completo en logs. La única forma de verificarlo es inferir de las tool calls que ejecuta. Si el agente lee `REPOMAP.md` primero y llama a `hindsight-selfhosted_recall`, las reglas se cargaron bien. Si no, falta la instrucción correspondiente en Fuente B o C.
+
 ## Pitfalls
 
+- **Archivos `instructions` faltantes se skipean en silencio**: Si un archivo listado en el array `instructions` de `kilo.jsonc` no existe en el filesystem, Kilo NO muestra warning ni error. Simplemente no se inyecta. Esto es peligroso porque el operador cree que ciertas reglas se están aplicando cuando no. Verificar siempre que los archivos referenciados existan contra el `--dir` usado. La ausencia se detecta indirectamente: si el agente Kilo no ejecuta las tool calls esperadas (ej: no lee REPOMAP.md al inicio), una instrucción se perdió.
 - **Bash quoting en prompts largos**: Si el prompt contiene backticks (`), comillas simples ('), o caracteres especiales, `kilo run 'prompt'` puede fallar con errores de sintaxis bash. Preferir escribir el prompt en un archivo temporal y pasarlo con `--file prompt.txt`. Alternativa: usar `export OPENC...E_API_KEY` en un `set -a && source && set +a` compuesto.
 - **PREAMBLE OBLIGATORIO OLVIDADO**: Cada invocación a Kilo DEBE empezar con la instrucción permanente sobre .agents/ y recall/retain. Si Kilo no sabe que debe seguir .agents/, las reglas de kairos no se aplican y el output puede ser inconsistente.
 - **Timeout vs error**: Exit code 124 = time-out (dividir tarea en subtareas más pequeñas). Exit code 1 = error real (revisar API key, sintaxis del prompt, .agents/).
