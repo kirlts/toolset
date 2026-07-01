@@ -24,6 +24,15 @@ Si realizaste CUALQUIER modificacion en el repositorio (codigo, docs, config, ar
 - NUNCA uses el bank `hermes`. Ese bank es exclusivo de Hermes, no de Kilo.
 - Las llamadas a Hindsight siempre deben ser async o con timeout suficiente (sync_retain tiene timeout largo). No uses recall sin prefijo `hindsight-selfhosted_`.
 
+## Secretos
+
+- Todos los secretos (API keys, tokens, credenciales) se obtienen EXCLUSIVAMENTE de Infisical via API local (`http://localhost:8080`) o CLI (`infisical secrets get <NOMBRE>`).
+- NO existen archivos `.env` persistentes en el VPS. El `.env` es generado por deploy.sh y solo vive en memoria del proceso.
+- Si necesitas una credencial: `infisical secrets get <NOMBRE>`.
+- Si necesitas crear/rotar un secreto: `infisical secrets set <NOMBRE> <VALOR>`.
+- NUNCA hardcodees API keys, tokens, ni credenciales en codigo, scripts, ni documentacion.
+- La unica fuente de verdad para secretos es Infisical. GitHub Secrets es la fuente upstream; Infisical es el runtime.
+
 ## Calidad
 
 - Zero tolerance para: corporate filler, empty adjectives, datos inventados, em dashes.

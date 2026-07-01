@@ -1146,6 +1146,22 @@ if [ "$DEPLOY_FAILED" = "true" ]; then
      fi"
 fi
 
+# --- Infisical secret exposure verification (SEC-03) ---
+echo "[DEPLOY] Verifying Infisical exposes secrets via API..."
+SYNC_SCRIPT="$(dirname "$0")/../scripts/sync-infisical-secrets.py"
+if [ -f "$SYNC_SCRIPT" ] && [ -n "${INFISICAL_TOKEN:-}" ]; then
+  if ssh "${SSH_HOST}" "cd /opt/toolset-repo &&     INFISICAL_TOKEN='${INFISICAL_TOKEN}' INFISICAL_PID='${INFISICAL_PID}'     python3 scripts/sync-infisical-secrets.py verify" 2>/dev/null; then
+    echo "[DEPLOY]  ✅ Infisical exposes secrets correctly"
+  else
+    echo "[DEPLOY]  ⚠️  Infisical verify returned non-zero"
+    echo "[DEPLOY]  Secrets are in .env but may not be accessible via Infisical API."
+    echo "[DEPLOY]  This is a SEC-03 warning — check Infisical configuration."
+    DEPLOY_FAILED=true
+  fi
+else
+  echo "[DEPLOY]  ⏭️  SEC-03 check skipped (no INFISICAL_TOKEN available in this context)"
+fi
+
 # --- Preflight checks (post-deploy verification via single SSH session) ---
 PREFLIGHT_SCRIPT="$(dirname "$0")/preflight.sh"
 if [ -f "$PREFLIGHT_SCRIPT" ]; then

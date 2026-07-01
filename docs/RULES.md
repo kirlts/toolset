@@ -79,3 +79,10 @@ ssh opc@toolset-oci-1-1 'export PATH=/usr/local/bin:/home/opc/.local/bin:$PATH &
 - The `-z` flag is documented in Hermes agent v0.17.0 as `hermes -z <prompt>` one-shot mode.
 - If `-z` outputs nothing, the model provider may be unconfigured or the sandbox container may need to be created (first terminal command triggers creation; subsequent commands use the persistent container).
 - For verifying gh/git access from within the Hermes sandbox: `hermes -z "Usa gh para listar mis repos"` or `hermes -z "Clona github.com/kirlts/toolset y dime que contiene"`.
+
+### Secrets Management (Infisical)
+
+- **[SEC-01] Infisical is the SOLE source of truth for all secrets at runtime.** API keys, tokens, credentials, and any env var are stored in Infisical and injected via deploy.sh. No `.env` file persists on the VPS.
+- **[SEC-02] No agent (Hermes or Kilo CLI) shall hardcode secrets** in code, scripts, configuration files, or documentation. Every credential must be fetched at runtime via `infisical secrets get <NAME>` or the Infisical API (`http://localhost:8080`).
+- **[SEC-03] The deploy pipeline must verify** that Infisical exposes secrets correctly after each deploy. If the Infisical API does not return expected secrets, the deploy MUST fail.
+- **[SEC-04] Agents that need to create or rotate secrets** must use `infisical secrets set <NAME> <VALUE>`. Manual `.env` editing is forbidden.

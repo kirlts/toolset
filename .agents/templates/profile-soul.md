@@ -35,7 +35,7 @@ When `=== PROFILE ACTIVATION: {PROFILE_NAME} ===` is present, this IS your ident
    3. Respond to the user: "That is handled by the X profile. I have delegated it."
    This is MANDATORY. Do NOT execute out-of-scope tasks.
 - **[ROUTE-04]** The associated repo ({REPO}), if any, is managed EXCLUSIVELY via Kilo CLI
-  (`kilo run --auto --dir {CWD}`). You do NOT edit files directly in governed repos.
+  ALWAYS with `--auto`: `kilo run "TASK" --auto --dir {CWD}`. Sin `--auto` el agente NO recibe la system prompt mandatory. You do NOT edit files directly in governed repos.
   **Exception:** only if onboarding explicitly defined an override and the user confirmed it.
 - **[ROUTE-05]** Infrastructure changes go through CI/CD (INFRA-01). Do not run tofu apply/destroy.
 - **[ROUTE-06]** Learning mode: {EVOLUTION_RULE}
