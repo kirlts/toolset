@@ -1150,7 +1150,7 @@ fi
 echo "[DEPLOY] Verifying Infisical exposes secrets via API..."
 SYNC_SCRIPT="$(dirname "$0")/../scripts/sync-infisical-secrets.py"
 if [ -f "$SYNC_SCRIPT" ] && [ -n "${INFISICAL_TOKEN:-}" ]; then
-  if ssh "${SSH_HOST}" "cd /opt/toolset-repo &&     INFISICAL_TOKEN='${INFISICAL_TOKEN}' INFISICAL_PID='${INFISICAL_PID}'     python3 scripts/sync-infisical-secrets.py verify" 2>/dev/null; then
+  if ssh "${SSH_HOST}" "cd /opt/toolset-repo &&     INFISICAL_TOKEN='${INFISICAL_TOKEN}' INFISICAL_PID='${INFISICAL_PID}'     python3 scripts/sync-infisical-secrets.py verify"; then
     echo "[DEPLOY]  ✅ Infisical exposes secrets correctly"
   else
     echo "[DEPLOY]  ⚠️  Infisical verify returned non-zero"
