@@ -85,21 +85,29 @@ Keep the retain content concise (3-8 sentences, not the full reflect text). Focu
 ## Step 4: Git commit + push
 
 ```bash
+```bash
 cd /home/opc/workspace/toolset
-git pull --rebase origin main   # ALWAYS rebase first to avoid divergent history
+# STASH pattern — safest: add, stash, pull, pop
 git add infrastructure/hermes/banks/
+git stash
+git pull --rebase origin main
+git stash pop
 git commit -m "hermes-sync: banks YYYY-MM-DD"
 git push origin main
 ```
+
+The stash approach handles both unstaged and staged-but-uncommitted changes. Then commit + push cleanly.
 
 ## Known pitfalls
 
 | Pitfall | Mitigation |
 |---------|-----------|
 | `execute_code` blocked in cron mode | Use `terminal()` with `python3 << 'PYEOF'` instead |
-| `git pull --rebase` fails when index has staged but uncommitted files | Commit first, then pull --rebase, then push |
+| `git pull --rebase` fails with unstaged OR staged-but-uncommitted changes when new files exist | `git add <files> && git stash && git pull --rebase && git stash pop` — avoids needing an interim commit |
 | Banks file grows with each daily dump | This is intentional — dumps are versioned by date for audit trail |
-| Small bank inline JSON fragile in heredocs (backslash escapes, nested quotes can break `cat << 'EOF'`) | Prefer `printf '%s' '{"result":"..."}' > file.json` to avoid shell expansion entirely. Or validate with `python3 -m json.tool <file>` after writing. |
+| Small bank inline JSON (25-50 facts, ~30-80KB) fragile in heredocs — backslash escapes, Unicode, or nested quotes in `text` fields can break `cat << 'EOF'` | **Best**: the `res = {"result": {...}}` wrapper from MCP is pure JSON. Use `python3 -c "import json,sys; json.dump(json.loads(sys.stdin.read())['result'], open('/path/file.json','w'), indent=2)" << 'EOF'` piping the raw JSON payload. **Fallback for very small banks (<20 facts, <10KB)**: `cat > file.json << 'EOF'` works, but always validate with `python3 -m json.tool <file>`. |
 | `default` bank exists and has facts | Skip it — it's an internal Hindsight bank, not a project bank |
-| Large banks (400+ facts) generate 800KB+ tool output | Use the persisted-output file at `/tmp/hermes-results/` — don't try to read it inline |
-| Hindsight MCP might be slow on large reflects | Set budget="mid" for 200+ fact banks; budget="low" for <50 fact banks |
+| Large banks (400+ facts) generate 800KB+ tool output with persisted file at `/tmp/hermes-results/call_*.txt` | Use `cp /tmp/hermes-results/call_*.txt .../BANK_ID/YYYY-MM-DD.json` — simplest and most reliable extraction |
+| Medium banks (50-200 facts, 100-300KB) may return inline or persisted depending on total chars | Check for `persisted-output` header in tool response. If present, use `cp`. If inline, use the `python3` piping method above, not heredocs. |
+| Hindsight MCP might be slow on large reflects | Set budget="mid" for 200+ fact banks; budget="low" for <50 fact banks. Budget="low" produces adequate summaries even for larger banks. |
+| `sync_retain` vs `retain` — sync_retain may time out on long-running Hindsight operations | Prefer async `retain()`. It returns instantly with `{"status":"accepted"}` and doesn't block the sync pipeline. The retain is queued and completes asynchronously. |
