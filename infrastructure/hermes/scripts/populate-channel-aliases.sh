@@ -82,4 +82,49 @@ for ch in dir_data.get('platforms', {}).get('whatsapp', []):
 with open(ALIASES, 'w') as f:
     json.dump({'whatsapp': result}, f, indent=2, ensure_ascii=False)
 print('Done: {} WhatsApp group aliases'.format(len(result)))
+
+# --- Cleanup orphaned groups from whatsapp-groups.yaml ---
+# Groups that exist in YAML but NOT in the bridge directory have been left/removed.
+# Remove them from the runtime YAML so Hermes stops trying to inject those profiles.
+if os.path.exists(WHATSAPP_GROUPS_YAML):
+    try:
+        import yaml
+        with open(WHATSAPP_GROUPS_YAML) as f:
+            yaml_data = yaml.safe_load(f)
+        yaml_groups = yaml_data.get('groups', {})
+        active_jids = set(result.keys())
+
+        orphaned = {}
+        kept = {}
+        for jid, info in yaml_groups.items():
+            if jid in active_jids:
+                kept[jid] = info
+            else:
+                orphaned[jid] = info
+
+        if orphaned:
+            yaml_data['groups'] = kept
+            with open(WHATSAPP_GROUPS_YAML, 'w') as f:
+                yaml.dump(yaml_data, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+            for jid, info in orphaned.items():
+                name = info.get('name', jid) if isinstance(info, dict) else info
+                print('REMOVED orphan: {} ({})'.format(jid, name))
+
+            # Write event for Hermes to sync the change to the repo
+            events_dir = '/tmp/hermes-buffer-events'
+            os.makedirs(events_dir, exist_ok=True)
+            event_file = os.path.join(events_dir, 'whatsapp_groups_cleanup_{}.json'.format(
+                __import__('datetime').datetime.now().strftime('%Y%m%d%H%M%S')))
+            with open(event_file, 'w') as f:
+                json.dump({
+                    'event': 'whatsapp_groups_cleanup',
+                    'orphaned': {jid: (info.get('name', jid) if isinstance(info, dict) else str(info))
+                                 for jid, info in orphaned.items()},
+                    'timestamp': __import__('datetime').datetime.now().isoformat(),
+                    'action_required': 'sync_to_repo'
+                }, f)
+    except ImportError:
+        pass
+    except Exception as e:
+        print('Cleanup skipped: {}'.format(e))
 PYEOF

@@ -25,42 +25,12 @@ for key in $REPOS; do
     continue
   fi
 
-  # Handle ci_cd repos: externally updated via CI/CD deploy.sh, not git pull
-  if [ "$sync" = "ci_cd" ]; then
-    STATE_FILE="${STATE_DIR}/${key}"
-    PREV_HEAD=$(cat "$STATE_FILE" 2>/dev/null || echo "")
+  # All repos get git pull --ff-only. sync type is informational only.
+  # ci_cd: deployed by CI/CD (toolset). deploy: deployed by deploy.sh (researchit, webui).
+  # cron: pulled by this script (personal, cloned). All benefit from keeping working tree in sync.
 
-    git fetch origin 2>/dev/null || true
-    CURRENT_HEAD=$(cd "$path" && git rev-parse HEAD 2>/dev/null || echo "")
-    [ -z "$CURRENT_HEAD" ] && continue
-
-    if [ -n "$PREV_HEAD" ] && [ "$PREV_HEAD" != "$CURRENT_HEAD" ]; then
-      HAS_NEW_COMMITS=1
-      LOG=$(cd "$path" && git log --oneline --no-decorate "${PREV_HEAD}..${CURRENT_HEAD}" 2>/dev/null || true)
-      BRANCH=$(cd "$path" && git rev-parse --abbrev-ref HEAD 2>/dev/null || echo 'unknown')
-
-      EVENT_FILE="${EVENTS_DIR}/${key}_$(date +%Y%m%d%H%M%S).json"
-      cat > "$EVENT_FILE" << EOF
-{
-  "repo": "${key}",
-  "path": "${path}",
-  "branch": "${BRANCH}",
-  "old_head": "${PREV_HEAD}",
-  "new_head": "${CURRENT_HEAD}",
-  "timestamp": "$(date -Iseconds)",
-  "commits": [
-$(echo "$LOG" | sed 's/^/    "/' | sed 's/$/",/' | sed '$ s/,$//')
-  ]
-}
-EOF
-    fi
-    echo "$CURRENT_HEAD" > "$STATE_FILE"
-    continue
-  fi
-
-  if [ ! -d "${path}/.git" ]; then
-    continue
-  fi
+  # Fetch first to detect changes before pulling
+  (cd "$path" && git fetch origin 2>/dev/null) || true
 
   OLD_HEAD=$(cd "$path" && git rev-parse HEAD 2>/dev/null || echo "")
 
