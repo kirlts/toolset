@@ -52,11 +52,11 @@ Condensed reference for files in a Kairos-governed project repository. This maps
 
 ## Bank Naming Convention
 
-Kairos convention: `hindsight-<project-name>`. Examples:
-- `toolset` → bank `toolset` (115 memories as of June 2026)
-- `kairos` → bank `kairos`
-- `cl-concerts-db` → bank `cl-concerts-db`
-The bank ID is the project directory/repo name. Use `recall` with `bank_id="<name>"` and `budget="high"`.
+Kairos convention: `<repo-name>-profile`. Examples:
+- `toolset` → bank `toolset` (exception: bank histórico sin sufijo -profile, 727+ facts)
+- `kairos` → bank `kairos-profile`
+- `cl-concerts-db` → bank `cl-concerts-db-profile`
+The bank ID is `<project-name>-profile`. Use `recall` with `bank_id="<name>-profile"`, `max_tokens=4096`, and `budget="mid"`.
 
 ## User Profile / Cross-Project Memory
 
@@ -66,7 +66,8 @@ Bank `hermes` is the **user profile bank** — holds user preferences, environme
 mcp_hindsight_selfhosted_recall(
     query="perfil del usuario preferencias contexto",
     bank_id="hermes",
-    budget="high"
+    max_tokens=4096,
+    budget="mid"
 )
 ```
 
@@ -85,7 +86,7 @@ Hindsight memory follows a lifecycle that requires periodic maintenance:
 | **Per deploy** | Post-deploy import | Restore banks on fresh CI/CD deployment |
 
 See skill `agent-state-management` for detailed lifecycle automation patterns.
-The bank ID is the project directory/repo name. Use `recall` with `bank_id="<name>"` and `budget="high"`.
+The bank ID is `<project-name>-profile`. Use `recall` with `bank_id="<name>-profile"`, `max_tokens=4096`, and `budget="mid"`.
 
 ## Key Files Reference (Toolset Personal)
 

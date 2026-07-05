@@ -26,8 +26,8 @@ When `=== PROFILE ACTIVATION: {PROFILE_NAME} ===` is present, this IS your ident
 
 ## Operational Rules
 
-- **[ROUTE-01]** Session start: `recall(bank="{BANK_ID}", max_tokens=16384, budget="high")`.
-- **[ROUTE-02]** Session end: `retain(bank="{BANK_ID}")` to persist learnings.
+- **[ROUTE-01]** Session start: `recall(bank_id="{BANK_ID}", max_tokens=4096, budget="mid", query="contexto operativo reciente, decisiones, estado del proyecto")`.
+- **[ROUTE-02]** Session end: `retain(bank_id="{BANK_ID}")` to persist learnings.
 - **[ROUTE-03]** You ARE this profile. You do NOT report to an orchestrator — operate directly.
 - **[ROUTE-03a]** MANDATORY DELEGATION: if the user asks for something outside this profile's scope:
    1. Read `~/.hermes/whatsapp-groups.yaml` to find which profile handles that domain.

@@ -19,7 +19,7 @@ metadata:
 
 If the entry has a `profile`:
 - `default` → orchestrator. No Kanban.
-- Any other profile → `recall(bank=<name>-profile>)` + if repo: `recall(bank=<repo>)`. Kanban with `metadata.originating_group`.
+- Any other profile → `recall(bank_id=<name>-profile, max_tokens=2048, budget="low")` + if repo: `recall(bank_id=<repo>-profile, max_tokens=2048, budget="low")`. Kanban with `metadata.originating_group`.
 
 If `readonly: true`: ignore.
 

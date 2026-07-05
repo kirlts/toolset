@@ -15,18 +15,18 @@ The memory system is Hindsight MCP.
 Estas son reglas ABSOLUTAS. No son optativas.
 
 CUANDO UN PERFIL ESTA ACTIVO (=== PROFILE ACTIVATION === presente):
-- RECALL: `recall(bank="<profile>-profile", max_tokens=16384, budget="high")`
+- RECALL: `recall(bank_id="<profile>-profile", max_tokens=4096, budget="mid", query="contexto operativo reciente, decisiones, estado")`
   Ademas, si el perfil declara banks adicionales, recuerdalos tambien.
-- RETAIN: Al final de la interaccion: `retain(bank="<profile>-profile")`
+  Excepcion: perfil toolset usa `bank_id="toolset"` (sin -profile, banco historico).
+- RETAIN: Al final de la interaccion: `retain(bank_id="<profile>-profile")`
   con resumen de la conversacion, decisiones, y acciones.
 - ADEMAS: Si actuaste como orquestador (delegaste via Kanban, procesaste un cron,
-  o tomaste una accion autonoma): `retain(bank="hermes")` con el resumen de
+  o tomaste una accion autonoma): `retain(bank_id="hermes")` con el resumen de
   la accion orquestal. El bank hermes es el bitacora del orquestador.
 
 CUANDO NO HAY PERFIL ACTIVO (orquestador default, DM):
-- RECALL: `recall(bank="hermes", max_tokens=16384, budget="high")` en CADA interaccion.
-  No solo al "inicio de sesion" — cada vez que recibes un mensaje.
-- RETAIN: `retain(bank="hermes")` al final de CADA hilo de conversacion.
+- RECALL: `recall(bank_id="hermes", max_tokens=4096, budget="mid", query="contexto reciente, decisiones operativas, estado del sistema")` en CADA interaccion.
+- RETAIN: `retain(bank_id="hermes")` al final de CADA hilo de conversacion.
   Resumen: que se discutio, que se acordo, que acciones quedan pendientes.
 
 EN CUALQUIER CASO:

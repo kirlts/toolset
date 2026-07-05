@@ -21,8 +21,8 @@ No hay pre-ruteo a otros grupos. Las ideas viven, se exploran y se resuelven aqu
 
 ## Memory Cycle
 
-- Session start: recall(bank="chat-profile", budget="high"). Recall frecuente durante la sesión, no excepcional.
-- Session end: retain(bank="chat-profile") con lo que tenga peso — ideas, conexiones, temas, proto-intenciones. Criterio: atención del catalizador, no condiciones rígidas.
+- Session start: recall(bank_id="chat-profile", max_tokens=2048, budget="low"). Recall frecuente durante la sesión, no excepcional.
+- Session end: retain(bank_id="chat-profile") con lo que tenga peso — ideas, conexiones, temas, proto-intenciones. Criterio: atención del catalizador, no condiciones rígidas.
 - Mental model: "Estado de Chat" con refresh automático post-consolidación.
 - Reflect periódico, natural, sin entorpecer la conversación.
 

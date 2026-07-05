@@ -34,7 +34,7 @@ Toda invocación a `kilo run ... --auto` DEBE incluir este preámbulo al INICIO 
 ```
 INSTRUCCIÓN PERMANENTE: 
 Sigue las reglas de la carpeta .agents/ en todos los repositorios que la contengan, así como Docs/RULES.md.
-Usa recall/retain en Hindsight con el bank_id del repo activo (el nombre del repositorio) para contexto y persistencia.
+Usa recall/retain en Hindsight con el bank_id del repo activo (formato `<repo>-profile`) para contexto y persistencia.
 
 [TAREA ESPECÍFICA]
 ```
@@ -58,17 +58,17 @@ Para CADA proyecto nuevo o clonado, Hermes DEBE:
 1. Clonar `.agents/` desde `kirlts/kairos` en la raíz del proyecto
 2. Crear `docs/` con MASTER-SPEC.md, TODO.md, MEMORY.md, USER-DECISIONS.md, CHANGELOG.md siguiendo `.agents/templates/`
 3. Ejecutar `/document` workflow (vía Kilo: `kilo run "Ejecuta /document según .agents/workflows/document.md" --auto`)
-4. Crear bank en Hindsight con `bank_id = nombre-del-repo` (exactamente el nombre del repo, sin descripciones)
+4. Crear bank en Hindsight con `bank_id = "<repo>-profile"` (nombre del repo con sufijo `-profile`, sin descripciones)
 5. Crear skill Hermes para la capacidad permanente
 6. Push a GitHub
 
 ## Estrategia de Delegación
 
-1. **Cargar contexto**: `recall(bank="<repo-name>", query="contexto del proyecto")`
+1. **Cargar contexto**: `recall(bank_id="<repo-name>-profile", max_tokens=2048, budget="low", query="contexto del proyecto")`
 2. **Si .agents/ no existe** en el repo → clonar desde kirlts/kairos primero
 3. **Delegar TODO** a Kilo (código, tests, docs, debugging)
 4. **Monitorear**: si Kilo excede timeout (exit 124), dividir en subtareas más pequeñas
-5. **Persistir**: `retain(bank="<repo-name>", content="qué se hizo, qué se aprendió")`
+5. **Persistir**: `retain(bank_id="<repo-name>-profile", content="qué se hizo, qué se aprendió")`
 6. **/document periódico**: ejecutar `/document` tras bloques de trabajo significativos. **IMPORTANTE:** el `/document` se ejecuta SIEMPRE en el contexto del repo `kirlts/toolset` (el repo de gobierno central), NO en el repo donde se trabajó. Toolset es el repo que contiene la configuración global de Hermes, skills, y documentación de infraestructura.
 7. **Reportar** al usuario concreto y sin verborrea
 

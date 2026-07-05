@@ -9,7 +9,7 @@ Used by the `hermes-sync-banks` cron job (02:00 UTC daily). This doc captures th
 Even for cron jobs, the Memory Cycle rules apply — though no user is present:
 
 ```json
-mcp_hindsight_selfhosted_recall(bank="hermes", max_tokens=16384, budget="high")
+mcp_hindsight_selfhosted_recall(bank_id="hermes", max_tokens=4096, budget="mid")
 ```
 
 This loads the last session's retain context so the sync knows what "last known state" was. It's useful for detecting unexpected state changes between runs. Do NOT retain at cron start (nothing new to record); retain replaces the state at the end.
@@ -55,7 +55,7 @@ For each bank (process SEQUENTIALLY, one at a time):
 ### 2a. Fetch memories
 
 ```
-mcp_hindsight_selfhosted_list_memories(bank=BANK_ID, limit=1000)
+mcp_hindsight_selfhosted_list_memories(bank_id=BANK_ID, limit=1000)
 ```
 
 **Pagination check**: if the response shows `"total" > limit`, paginate with `offset` to get all pages.
@@ -93,6 +93,7 @@ For each bank:
 ```
 mcp_hindsight_selfhosted_reflect(
     bank_id=BANK_ID,
+    max_tokens=4096,
     budget="mid" for large banks (200+ facts), "low" for small banks,
     query="Sintetiza las interacciones, decisiones, aprendizajes y cambios de las últimas 24 horas..."
 )
@@ -166,4 +167,5 @@ git log --oneline -3
 | Large banks (400+ facts) generate 800KB+ tool output with persisted file at `/tmp/hermes-results/call_*.txt` | Use `cp /tmp/hermes-results/call_*.txt .../BANK_ID/YYYY-MM-DD.json` — simplest and most reliable extraction |
 | Medium banks (50-200 facts, 100-300KB) may return inline or persisted depending on total chars | Check for `persisted-output` header in tool response. If present, use `cp`. If inline, use the `python3` piping method above, not heredocs. |
 | Hindsight MCP might be slow on large reflects | Set budget="mid" for 200+ fact banks; budget="low" for <50 fact banks. Budget="low" produces adequate summaries even for larger banks. |
+| `list_memories` bank param uses `bank_id` not `bank` | Some documentation examples still use the old `bank=` syntax. Always use `bank_id=` — `list_memories(bank_id=BANK_ID, limit=1000)`. |
 | `sync_retain` vs `retain` — sync_retain blocks, retain returns instantly | Use async `retain()` for throughput. The backed-up retain queue on Hindsight is non-blocking and doesn't degrade on burst writes. |

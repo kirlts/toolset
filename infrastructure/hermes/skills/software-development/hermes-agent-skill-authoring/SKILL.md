@@ -192,6 +192,6 @@ Pick the closest existing category. Don't invent new top-level categories casual
 - [ ] Description is trigger-focused and avoids duplicated body content
 - [ ] Bulky or branch-specific reference is progressively disclosed in linked files
 - [ ] No-op prose and duplicated rules removed
-- [ ] **REGLAS DE MEMORIA**: Si la skill trabaja con código o un repositorio, DEBE incluir `recall(bank="<repo>")` al inicio y `retain(bank="<repo>")` al final. Si es contextual, debe incluir recall/retain del bank más relevante.
+- [ ] **REGLAS DE MEMORIA**: Si la skill trabaja con código o un repositorio, DEBE incluir `recall(bank_id="<repo>-profile", max_tokens=2048, budget="low")` al inicio y `retain(bank_id="<repo>-profile")` al final. Si es contextual, debe incluir recall/retain del bank más relevante.
 - [ ] `related_skills` references resolve in-repo (or are explicitly OK to be user-local)
 - [ ] `git add skills/<category>/<name>/ && git commit` completed on the intended branch

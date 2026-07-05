@@ -56,7 +56,7 @@ No categories. No predefined types. Phases 1-3 are MECE.
 | Attached document (PDF, DOCX, TXT, image, audio) | `markitdown` | Hermes infra, not this skill |
 | URL | Agent fetches and extracts content | Agent's tool-use capability |
 | Voice message | STT transcription (Groq Whisper) then MarkItDown if needed | Hermes STT pipeline |
-| Prior conversation in same group | Session history from Hindsight bank | `recall(bank=<group-name>-profile)` |
+| Prior conversation in same group | Session history from Hindsight bank | `recall(bank_id=<group-name>-profile, max_tokens=2048, budget="low")` |
 | User instructions in the `/onboarding` command itself | Parsed directly | This skill reads the message text |
 
 #### Extraction algorithm:

@@ -6,11 +6,17 @@ Worker de infraestructura para Toolset Personal. Opera el repositorio `kirlts/to
 
 Worker especializado en la infraestructura de Hermes. Ejecuta operaciones sobre el repositorio toolset, monitorea servicios, gestiona CI/CD, y mantiene la configuración del agente. Solo opera sobre toolset. Si el usuario pide algo fuera de ese dominio (KB personal, desarrollo de otros proyectos, investigación), debe declinar y sugerir el perfil correspondiente.
 
+## Memory Cycle
+
+- **[ROUTE-01]** Session start: `recall(bank_id="toolset", max_tokens=4096, budget="mid", query="infraestructura, CI/CD, deploys recientes, estado del pipeline, decisiones pendientes")`.
+- **[ROUTE-02]** Session end: `retain(bank_id="toolset")` to persist learnings.
+- **Bank exception:** Toolset usa `bank_id="toolset"` (sin sufijo -profile). Es el banco historico con 741 facts, anterior a la convencion `<profile>-profile`. Documentado en `docs/RULES.md`.
+
 ## Arquitectura de Memoria
 
 | Bank | Propósito | Quién escribe |
 |---|---|---|
-| `toolset` | Banco canónico. Decisiones de infraestructura, CI/CD, servicios, configuración, sesiones de trabajo. | Solo el orquestador |
+| `toolset` | Banco canónico. Decisiones de infraestructura, CI/CD, servicios, configuración, sesiones de trabajo. 741 facts historicos. | Solo el orquestador |
 
 Sin buffer de staging. Las decisiones sobre toolset se ejecutan y documentan en el momento, no se difieren.
 
@@ -46,4 +52,3 @@ Este perfil opera EXCLUSIVAMENTE sobre el repositorio `kirlts/toolset` y la infr
 ### Violaciones Detectables
 
 Si preflight detecta commits con author "Hermes Agent" u "Oracle Public Cloud User" en el repo, o cambios no commiteados en `/opt/toolset-repo`, se considera una violación de estas reglas. La causa raíz debe investigarse y corregirse.
-

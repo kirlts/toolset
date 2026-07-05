@@ -453,12 +453,13 @@ LANDING_HTML=$(cat <<EOF
 <p style="margin-top:1.5em;font-weight:bold;color:#f0c674;">🧠 Memory Banks</p>
 <div class="tree">
 <pre>
-  <span class="pipe">└──</span> <span class="path"><a href="/banks/toolset">/banks/toolset</a></span>              <span class="desc">toolset &mdash; banco actual</span>             <span class="status">✅ online</span>
+  <span class="pipe">└──</span> <span class="path"><a href="/banks/toolset">/banks/toolset</a></span>              <span class="desc">toolset &mdash; banco historico (741 facts)</span>             <span class="status">✅ online</span>
 </pre>
 </div>
 <p style="margin:0.5em 0 0 1.5em;color:#888;font-size:0.85em;">
-  Los banks se nombran segun el repositorio (<code>hindsight-&lt;project&gt;</code>),
-  segun <code>docs/RULES.md</code>. Cada repositorio nuevo crea un bank automaticamente via MCP.
+  Los banks se nombran con el patron <code>&lt;profile&gt;-profile</code>,
+  segun <code>docs/RULES.md</code>. Excepcion: <code>toolset</code> (banco historico, sin sufijo).
+  Cada repositorio nuevo crea un bank automaticamente via MCP.
   Abre el <a href="/dashboard" style="color:#7ec8e3;">Control Plane</a> para ver todos los banks disponibles.
 </p>
 <div class="meta">

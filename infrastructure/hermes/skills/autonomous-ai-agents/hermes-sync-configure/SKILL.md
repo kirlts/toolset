@@ -34,7 +34,7 @@ Configures the daily auto-sync pipeline that versions all Hermes Agent artifacts
 
 ### 3. SOUL.md updates
 Adds to `~/.hermes/SOUL.md`:
-- **Inicialización de sesión**: recall(bank="hermes") mandatory at session start
+- **Inicialización de sesión**: recall(bank_id="hermes", max_tokens=4096, budget="mid") mandatory at session start
 - **Sincronización diaria automática**: documentation of both cron jobs
 - Banks JSON = backup/audit only, agent uses live Hindsight MCP
 

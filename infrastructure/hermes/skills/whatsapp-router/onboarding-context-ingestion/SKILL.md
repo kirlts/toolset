@@ -71,7 +71,7 @@ When `/onboarding` is invoked with context (a repo, document, voice message, URL
 
 **Trigger:** User says "en base a lo que conversamos" or similar.
 
-**Resolution:** `recall(bank=<group-name>-profile)` or session_search for the relevant session.
+**Resolution:** `recall(bank_id=<group-name>-profile, max_tokens=2048, budget="low")` or session_search for the relevant session.
 
 ## Pitfalls
 

@@ -130,8 +130,8 @@ Heredado del orquestador default: español neutro, conciso, sin emojis, sin leng
 
 ## Routes
 
-- **[ROUTE-01]** Session start: `recall(bank="personal-profile", max_tokens=16384, budget="high")`. Also recall `personal-buffer` with `tags=["pending"]`.
-- **[ROUTE-02]** Session end: `retain(bank="personal-profile")` to persist learnings.
+- **[ROUTE-01]** Session start: `recall(bank_id="personal-profile", max_tokens=4096, budget="mid", query="contexto operativo reciente, decisiones")`. Also recall `personal-buffer` with `tags=["pending"]`.
+- **[ROUTE-02]** Session end: `retain(bank_id="personal-profile")` to persist learnings.
 - **[ROUTE-03]** Before reporting system state, verify facts against the actual filesystem. Do not rely on stale session context.
   - `~/.hermes/cloned-repos.yaml` — verify with `[ -f ~/.hermes/cloned-repos.yaml ]` before asserting it doesnt exist.
   - Banks \xE2\x80\x94 recall before describing their content.

@@ -23,7 +23,7 @@
 | `.agents/templates/profile-soul.md` | Template SOUL.md para perfiles worker. Placeholders: PROFILE_NAME, DOMAIN, TYPE, BANK_ID, etc. | Repo (referenciado por onboarding) | 2026-06-28 |
 | `infrastructure/kilo.jsonc` | Configuracion de Kilo CLI: providers, MCP, permissions, agent.build.prompt | deploy.sh (genera + transfiere) | 2026-06-30 |
 | `infrastructure/kilo-system-prompt.md` | **Source of truth** para system prompt de Kilo CLI. Inyectado en kilo.jsonc agent.build.prompt | deploy.sh (via generate-kilo-config.py) | 2026-06-30 |
-| `infrastructure/kilo-prompt.md` | **[DEPRECATED]** Legacy system prompt. Reemplazado por kilo-system-prompt.md | No aplica (no sincronizado) | 2026-06-30 |
+| `infrastructure/kilo-prompt.md` | **[ELIMINADO 2026-07-05]** Legacy system prompt. Reemplazado por kilo-system-prompt.md | No aplica (eliminado) | 2026-07-05 (eliminado) |
 | `scripts/generate-kilo-config.py` | Genera kilo.jsonc desde kilo-system-prompt.md. Ejecutado por deploy.sh | Repo (ejecutado por deploy.sh en CI/CD runner) | 2026-06-30 |
 | `infrastructure/preflight.sh` | Verificacion post-deploy de invariantes MASTER-SPEC (15+ checks) | deploy.sh (copia) | 2026-06-30 |
 | `docs/MASTER-SPEC.md` | Especificacion fundacional del proyecto | No aplica (documentacion) | 2026-06-28 |
@@ -146,3 +146,25 @@ Cuando se modifica un archivo de configuracion:
 | infrastructure/hermes/cloned-repos.yaml | CREATED: manifest for repo cloning (native tools + cloned repos) |
 | infrastructure/deploy.sh | REPLACED ad-hoc ResearchIt clone with clone_repos() reading cloned-repos.yaml |
 | infrastructure/hermes/scripts/repo-pull-cron.sh | CREATED: silent git pull cron (5min, only notifies on conflict, max 1x/day) |
+
+### Session 7 — Context Engineering + Banco Consolidation (2026-07-05)
+
+| File | Change |
+|---|---|
+| `.github/workflows/deploy.yml` | **FIXED** line 58, 109, 226 restored from sed corruption. Pipeline CI/CD functional. |
+| `infrastructure/kilo-prompt.md` | **DELETED** — conflicted with kilo-system-prompt.md, line 30-31 self-contradiction. |
+| `infrastructure/kilo-system-prompt.md` | **REFACTORED** — reduced from 39 to 26 lines. Removed governance duplication. Added explicit recall params: `max_tokens=1024, budget="low"` with `query`. |
+| `infrastructure/kilo.jsonc` | **REGENERATED** from refactored kilo-system-prompt.md. |
+| `infrastructure/hermes/SOUL.md` | **FIXED** recall: `max_tokens` 16384→4096, `budget` high→mid. Added `query` parameter. Uses `bank_id` consistently. |
+| `infrastructure/hermes/profiles/toolset/SOUL.md` | **ADDED** Memory Cycle section with recall/retain rules. Bank references updated to `bank_id="toolset"`. |
+| `infrastructure/hermes/profiles/personal/SOUL.md` | **FIXED** recall: `max_tokens` 16384→4096, `budget` high→mid. Uses `bank_id`. |
+| `infrastructure/hermes/profiles/chat/SOUL.md` | **FIXED** recall: added `max_tokens=2048`, `budget` high→low. Uses `bank_id`. |
+| `.agents/templates/profile-soul.md` | **FIXED** recall template: `max_tokens` 16384→4096, `budget` high→mid. Added `query` placeholder. |
+| `docs/RULES.md` | **FIXED** bank naming: kebab-case of repo → `<profile>-profile`. Documented toolset exception. Added recall params. |
+| `infrastructure/deploy.sh` | **FIXED** landing page: bank naming convention text. |
+| `infrastructure/hermes-skills/toolset-ops/SKILL.md` | **FIXED** bank references toolset→toolset. Added recall params. Fixed reference filename. |
+| `infrastructure/hermes-skills/kilo-code/SKILL.md` | **FIXED** bank_id = `<repo>-profile`, added recall params. |
+| `infrastructure/hermes-skills/whatsapp-router/SKILL.md` | **FIXED** added recall params. |
+| `infrastructure/hermes-skills/onboarding/SKILL.md` | **FIXED** added recall params. |
+| `infrastructure/hermes/skills/` (12 files) | **FIXED** bank naming, recall params, `bank`→`bank_id`, `budget="high"`→`"mid"`, `max_tokens=16384`→`4096`. |
+| Hindsight bank `toolset-profile` | **DELETED** via REST API. Empty bank (2 facts). `toolset` (741 facts) is canonical. |

@@ -141,7 +141,7 @@ Run this when asked for a "health check" or "revision de salud":
 
 1. **CI/CD**: `gh run list --repo kirlts/toolset --limit 3` — check last 3 workflow conclusions
 2. **WhatsApp**: Bridge log at `~/.hermes/whatsapp/bridge.log` — check `[routing]` lines for inbound messages. Bridge is push-only (Baileys Web, no queryable REST API). Query `curl -sf http://localhost:3000/messages` for liveness.
-3. **Hindsight banks**: `recall(bank="toolset", query="pending, todo, pendiente, tarea")` + `recall(bank="hermes", query="pending, todo, pendiente, tarea")`. Cross-reference pending memory entries against actual filesystem/state — old entries (4+ days) that no longer reflect reality should be flagged as **stale** and optionally invalidated.
+3. **Hindsight banks**: `recall(bank_id="toolset", query="pending, todo, pendiente, tarea", max_tokens=4096, budget="mid")` + `recall(bank_id="hermes", query="pending, todo, pendiente, tarea", max_tokens=4096, budget="mid")`. Cross-reference pending memory entries against actual filesystem/state — old entries (4+ days) that no longer reflect reality should be flagged as **stale** and optionally invalidated.
 4. **Docker services**: `docker ps --format "table {{.Names}}\t{{.Status}}"` — all should be `Up` and `(healthy)`. Check systemd services separately.
 5. **Host resources**: `free -h`, `df -h /`, `uptime`, `cat /proc/loadavg`
 
@@ -161,4 +161,36 @@ When Hindsight memory recall returns pending/action items:
    - References to deleted files that were restored in later commits
    - TODO items marked complete in the repo but not cleaned from memory
 3. If stale → note in report but do not delete. Flag for user review.
-4. After the health check, `retain(bank="toolset")` with the check result for traceability
+4. After the health check, `retain(bank_id="toolset")` with the check result for traceability
+
+## Bank Naming Convention (CANONICAL)
+
+Todos los bancos de perfil siguen el patrón `<profile>-profile`. El banco `hermes` es la unica excepcion (no tiene sufijo).
+
+| Perfil | Bank correcto | Estado |
+|---|---|---|
+| Personal | `personal-profile` | Correcto |
+| Chat | `chat-profile` | Correcto |
+| Toolset | `toolset-profile` | Pendiente migracion (actualmente existe `toolset` con 741 facts y `toolset-profile` con 2) |
+| WWE | `wwe-profile` | Correcto |
+
+**Reglas:**
+- Todas las skills y configs deben referenciar `bank_id="toolset"`, NO `bank_id="toolset-profile"` (toolset es la excepcion documentada: banco historico sin sufijo -profile).
+- El template de perfil (`.agents/templates/profile-soul.md`) usa `{BANK_ID}` que debe poblarse con `<profile>-profile`.
+- `docs/RULES.md` dice "use repo name as bank_id, kebab-case" — esto ESTA DESACTUALIZADO. La convencion correcta es `<profile>-profile`.
+- La unica excepcion es `bank="hermes"` (orquestador).
+
+## Recall Budget Policy (CANONICAL)
+
+Toda llamada a `recall()` DEBE especificar `max_tokens` y `budget` explicitamente para evitar flooding de contexto:
+
+| Contexto | max_tokens | budget | Razon |
+|---|---|---|---|
+| Hermes (perfiles) | 4096 | `mid` | Suficiente para contexto operativo sin saturar |
+| Hermes (orquestador, bank hermes) | 4096 | `mid` | Idem |
+| Kilo CLI (recall de inicio) | 1024 | `low` | Solo necesita contexto minimo del proyecto |
+| Health checks | 8192 | `mid` | Mas permisivo porque es lectura dedicada |
+
+**Prohibido:** usar `budget="high"` o `max_tokens=16384` como default. Esto devolvio >600KB del banco `toolset` en una sola llamada, saturando el LLM context.
+
+**Referencia:** Ver `references/recall-budget-policy.md` para el analisis completo del incidente que motivo esta politica.
