@@ -42,7 +42,8 @@
   "instructions": [
     ".agents/rules/01-behavior.md",
     ".agents/rules/05-constraints.md",
-    "docs/RULES.md"
+    "docs/RULES.md",
+    "infrastructure/kilo-recall-policy.md"
   ],
   "model": "opencodego/deepseek-v4-flash",
   "agent": {
