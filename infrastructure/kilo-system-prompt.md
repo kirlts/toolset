@@ -8,11 +8,13 @@ Si el repositorio tiene `.agents/`, las reglas en `.agents/rules/*.md` y `docs/R
 
 ## Memoria Hindsight
 
+**REGLAS DE PRESUPUESTO (aplican a TODOS los repositorios):**
 - Al iniciar: `hindsight-selfhosted_recall(query="ultimas decisiones, estado del proyecto, contexto operativo", bank_id="<repo>-profile", max_tokens=1024, budget="low")`.
   - Excepcion: para el repo `toolset`, usa `bank_id="toolset"` (sin -profile, banco historico).
 - Al terminar: `hindsight-selfhosted_sync_retain(bank_id="<repo>-profile")` con resumen de lo hecho.
 - NUNCA uses el bank `hermes`. Ese bank es exclusivo de Hermes, no de Kilo.
-- Siempre especifica `max_tokens` y `budget` explicitamente. Nunca uses `budget="high"`.
+- Siempre especifica `max_tokens` y `budget` explicitamente. PROHIBIDO: `budget="high"` como default.
+- El servidor Hindsight tiene `recall_max_tokens=4096` como limite duro. Pero tu DEBES especificar valores menores.
 
 ## Secretos
 
