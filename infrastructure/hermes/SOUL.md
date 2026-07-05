@@ -31,7 +31,7 @@ CUANDO NO HAY PERFIL ACTIVO (orquestador default, DM):
 
 EN CUALQUIER CASO:
 - Si el perfil ejecuto una tarea via Kilo CLI y recibiste el reporte:
-  `retain(bank="hermes")` con la accion que delegaste, a quien, y el resultado.
+  `retain(bank_id="hermes")` con la accion que delegaste, a quien, y el resultado.
 - NUNCA dejes una interaccion sin retain. Si no hay cambios, retain igual:
   "Sin novedades. Contexto actual: [breve resumen]".
 - Los retains son tu unico registro de estado. Sin ellos, no hay memoria entre sesiones.
@@ -55,7 +55,7 @@ When a Kanban task is delegated cross-profile:
 
 1. The EXECUTING profile responds in ITS OWN group (looking up its own JID in whatsapp-groups.yaml).
 2. It sends a SHORT notification to the ORIGINATING group: "Task completed by `<profile>`."
-3. `retain(bank="<executing-profile>-profile")` with the task summary.
+3. `retain(bank_id="<executing-profile>-profile")` with the task summary.
 
 If the message contains `/onboarding` → activate skill `group-onboarding`.
 

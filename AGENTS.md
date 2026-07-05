@@ -84,13 +84,15 @@ Hindsight is centralized memory. Each active repo + each WhatsApp group has its 
 
 ### Rules
 
-- Every skill working with code MUST start with `recall(bank=<repo>)` and end with `retain(bank=<repo>)`.
-- Session init (grupo WhatsApp): `recall(query="full user context, agent state, preferences, active projects", bank="hermes")` + `read whatsapp-groups.yaml` + `load description from channel_aliases.json`.
+- Every skill working with code MUST start with `recall(bank_id=<repo>-profile, max_tokens=2048, budget="low")` and end with `retain(bank_id=<repo>-profile)`.
+- Session init (grupo WhatsApp): `recall(query="full user context, agent state, preferences, active projects", bank_id="hermes", max_tokens=4096, budget="mid")` + `read whatsapp-groups.yaml` + `load description from channel_aliases.json`.
 - Cuando un worker completa Kanban con `metadata.originating_group`, el orquestador enruta la respuesta al grupo WhatsApp de origen.
 - `/onboarding` en DM modifica SOUL.md del orquestador con confirmacion explicita.
 - `/onboarding` en grupo crea bank `<group-name>-profile` + SOUL.md del perfil + entrada en whatsapp-groups.yaml.
 - Solo el perfil default (orquestador) crea skills globales. Workers skills aisladas por perfil.
 - Bank hierarchy: hermes > toolset > repo-specific > group-profile.
+- Bank naming: `<profile>-profile`. Excepcion: toolset usa `bank_id="toolset"` (sin sufijo, banco historico 741 facts).
+- Recall params mandatory: `max_tokens` y `budget` explicitos. PROHIBIDO `budget="high"` como default.
 
 ## Platform
 
@@ -108,12 +110,13 @@ Hindsight is centralized memory. Each active repo + each WhatsApp group has its 
 | INFRA-02 | Remote state in OCI Object Storage is authoritative. |
 | INFRA-03 | Service deployment via CI/CD (deploy.sh). Local only for verification. |
 | INFRA-04 | Mandatory MCP service restart after pipeline modifications. |
-| ROUTE-01 | Cada sesion comienza con `recall(bank="<repo>")` (grupo configurado) o `recall(bank="hermes")` (DM). |
-| ROUTE-02 | Cada sesion termina con `retain(bank="<bank>")`. |
+| ROUTE-01 | Cada sesion comienza con `recall(bank_id="<profile>-profile", max_tokens=4096, budget="mid", query="contexto operativo reciente")` (grupo configurado) o `recall(bank_id="hermes", max_tokens=4096, budget="mid")` (DM). |
+| ROUTE-02 | Cada sesion termina con `retain(bank_id="<bank>")`. |
 | ROUTE-03 | Resultados de workers se reportan al orquestador via `kanban_complete(metadata={originating_group: ...})`. |
 | ROUTE-04 | Cambios de codigo >50 lineas -> Kilo CLI (`kilo run --auto --dir <path>`). |
 | ROUTE-05 | Cambios de infraestructura van por CI/CD. No ejecutar tofu apply/destroy. |
 | ROUTE-06 | Aprendizaje configurable por perfil (auto / preguntar / solo explicito / custom). |
+| ROUTE-07 | Toda llamada a recall() DEBE especificar max_tokens y budget. Server-side: recall_max_tokens=4096 en todos los bancos. |
 | ROUTE-DESC-01 | Descripcion de grupo WhatsApp se lee de `channel_aliases.json` al iniciar sesion. Si el usuario edita la descripcion en WhatsApp, Hermes lo refleja en minutos (cron cada 10). |
 
 ### Git Governance

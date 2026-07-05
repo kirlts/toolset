@@ -42,11 +42,7 @@ Current active banks and approximate fact counts (as of 2026-07-05):
 | evidencia-zero | ~45 | Data sanitization tool |
 | yacv | ~40 | Resume builder |
 | witral | ~27 | Plugin-based data router |
-| toolset-profile | ~2 | Toolset worker (empty) |
-
-**Live check**: Bank counts change over time. Re-run `list_banks()` each sync for the actual `fact_count` field, not the table above.
-
-**Edge case — empty bank**: toolset-profile has ~2 facts (created by onboarding, no content yet). It's fine to run reflect+retain on it; the reflect will simply report "no activity". Do not skip it — the retain creates the daily-summary tag chain.
+## Active Banks
 
 ## Step 2: Export each bank as JSON
 

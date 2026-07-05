@@ -171,7 +171,7 @@ Todos los bancos de perfil siguen el patrón `<profile>-profile`. El banco `herm
 |---|---|---|
 | Personal | `personal-profile` | Correcto |
 | Chat | `chat-profile` | Correcto |
-| Toolset | `toolset-profile` | Pendiente migracion (actualmente existe `toolset` con 741 facts y `toolset-profile` con 2) |
+| Toolset | `toolset` | Canonico (741 facts, excepcion documentada sin -profile) |
 | WWE | `wwe-profile` | Correcto |
 
 **Reglas:**

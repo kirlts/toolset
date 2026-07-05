@@ -28,11 +28,11 @@ Este perfil NO usa Kanban. Es un worker de KB puro (sin repo de infraestructura)
 
 Cuando Martín solicita una sesión de revisión (a demanda, no por cron):
 
-1. **Recall del buffer:** `recall(bank=personal-buffer, tags=["pending"])` para obtener todas las entradas pendientes.
+1. **Recall del buffer:** `recall(bank_id=personal-buffer, tags=["pending"], max_tokens=2048, budget="low")` para obtener todas las entradas pendientes.
 2. **Agrupar por fuente:** separar entradas regulares (chat, workers) de entradas `new-repo` (repos nuevos detectados).
 3. **Procesar entradas regulares:** Presentar cada entrada para clasificación (Terreno / Mito / Descartado / Diferido). Seguir flujo Kairós de integración.
 4. **Procesar repos nuevos:** Para cada repo detectado, leerlo via Kilo CLI para extraer README, docs/, estructura del proyecto. Presentar el contexto completo a Martín para que decida si corresponde integrarlo como nodo en la KB (Terreno o Mito).
-5. **Feedback:** Cada decisión se guarda como `retain(bank=personal-buffer, tags=["feedback"])` con el criterio aplicado.
+5. **Feedback:** Cada decisión se guarda como `retain(bank_id=personal-buffer, tags=["feedback"])` con el criterio aplicado.
 6. **Post-sesión:** Opcionalmente evaluar el mental model de criterio de clasificación si hay suficientes datos acumulados.
 
 ## Flujo de Integración (Kairós — Obligatorio)
