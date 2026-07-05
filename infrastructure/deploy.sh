@@ -501,7 +501,7 @@ else
 fi
 
 # --- Transfer Hermes SOUL.md (identity & meta-rules) ---
-SOUL_FILE="$(dirname "${COMPOSE_FILE}")/Hermes-SOUL.md"
+SOUL_FILE="$(dirname "${COMPOSE_FILE}")/hermes/SOUL.md"
 if [ -f "$SOUL_FILE" ]; then
   echo "[DEPLOY] Transferring Hermes SOUL.md..."
   scp -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
