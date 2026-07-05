@@ -1,6 +1,6 @@
 ---
 name: reddit-reporting
-description: "Use when generating scheduled PDF reports from Reddit subreddits via Composio Reddit tools (REDDIT_GET_R_TOP, REDDIT_RETRIEVE_POST_COMMENTS) and fpdf2. Covers fetching posts, computing engagement, extracting top comments, and producing single-page PDFs (landscape or portrait)."
+description: "Use when generating scheduled reports from Reddit subreddits via Composio Reddit tools (REDDIT_GET_R_TOP, REDDIT_SEARCH_ACROSS_SUBREDDITS, REDDIT_RETRIEVE_POST_COMMENTS). Covers fetching posts, computing engagement, extracting top comments, and producing either a single-page PDF (fpdf2) or a text summary for group chat delivery."
 version: 1.1.0
 author: Hermes Agent (user-local)
 license: MIT
@@ -14,22 +14,26 @@ metadata:
 
 ## Overview
 
-Generate daily/scheduled PDF reports from Reddit subreddits by fetching top posts via Composio Reddit tools, computing engagement scores (score * num_comments), extracting top comments, and rendering a compact single-page PDF (landscape or portrait) with fpdf2.
+Generate scheduled reports from Reddit subreddits by fetching posts via Composio Reddit tools, computing engagement scores (score * num_comments), extracting top comments, and producing either:
+
+- **PDF output**: Compact single-page PDF (landscape or portrait) with fpdf2 — for file delivery (email, cron artifact)
+- **Text summary output**: Formatted text for group chat delivery (WhatsApp, Discord, Telegram, Slack) — non-PDF, delivered as the final response
 
 The workflow is designed for cron jobs: fully autonomous, no user interaction needed.
 
 ## When to Use
 
-- Cron job that needs to deliver a daily Reddit digest as PDF
-- Scheduled monitoring of specific subreddits (r/chile, r/chileit, etc.)
+- Cron job that needs to deliver a daily Reddit digest (as PDF or text summary)
+- Scheduled monitoring of specific subreddits (r/chile, r/chileit, r/SquaredCircle, etc.)
+- Generating weekly themed summaries (wrestling promotion recaps, event discussion roundups, community sentiment reports)
 - Any task that fetches Reddit posts + comments and produces a static report
 - **Don't use for**: one-off Reddit lookups (use search tools directly), interactive Reddit browsing, posting/commenting on Reddit
 
 ## Prerequisites
 
 - Composio Reddit connection active (verify via COMPOSIO_SEARCH_TOOLS)
-- fpdf2 installed (`pip install fpdf2`)
-- DejaVuSans fonts on host (`/usr/share/fonts/dejavu-sans-fonts/DejaVuSans.ttf`)
+- For PDF output only: fpdf2 installed (`pip install fpdf2`) + DejaVuSans fonts on host (`/usr/share/fonts/dejavu-sans-fonts/DejaVuSans.ttf`)
+- For text summary output: no extra dependencies
 - For cron: the session has no user — plan for zero-interaction execution
 
 ## Composio Reddit Tool Access
@@ -108,11 +112,36 @@ def extract_comments(result_data, min_body_length=3):
     return walk(children)
 ```
 
+### REDDIT_SEARCH_ACROSS_SUBREDDITS
+Searches Reddit for posts matching a query, scoped to a subreddit. Use instead of REDDIT_GET_R_TOP when you need **topic-specific** posts (e.g., live discussion threads for a specific promotion, posts about a particular wrestler/event) rather than generic top posts.
+
+```
+Parameters: search_query (required), restrict_sr (bool), sort ("relevance"/"new"/"top"/"hot"/"comments"), limit (1-100)
+Response path: data.posts[] (top-level array, NOT nested under data.data.children)
+Key fields: id, title, author, score, num_comments, permalink, url, created_utc, selftext, subreddit
+```
+
+Scoping to a subreddit: use `subreddit:` operator in the query — e.g., `search_query: "subreddit:SquaredCircle AAA"` finds posts about AAA in r/SquaredCircle. Set `restrict_sr: true` to confine to subreddits.
+
+**Critical differences from GET_R_TOP**:
+- Response `posts` array is at the top level of `data`, NOT under `data.data.children`
+- No native time-range filter — filter by `created_utc` (Unix epoch, UTC) client-side
+- Sort `new` gives chronological order; `relevance` finds thematic matches
+- Supports `after` pagination cursor
+
+**Strategy for topic-specific weekly reports** (e.g., AAA summary):
+1. Search with `sort=new` and `limit=25` to find the week's discussion threads
+2. Filter client-side by `created_utc >= cutoff` (7 days ago in epoch seconds)
+3. Also search complementary queries (`"Lola Vice"`, `"Psycho Clown"`, etc.) for missed content
+4. Check cross-promotional content: search WWE/NXT subreddits or general threads for your topic appearing on other shows
+
 ## Workflow Steps
 
-### 1. Fetch Top Posts
+### 1. Fetch Posts
 
-Call COMPOSIO_MULTI_EXECUTE_TOOL with one REDDIT_GET_R_TOP per subreddit. Batch them in a single call for parallelism. Use `t="day"` and `limit=10`.
+**Option A — Top posts (general coverage)**: Call COMPOSIO_MULTI_EXECUTE_TOOL with one REDDIT_GET_R_TOP per subreddit. Batch them in a single call for parallelism. Use `t="day"` and `limit=10`.
+
+**Option B — Topic-specific (themed report)**: Call COMPOSIO_MULTI_EXECUTE_TOOL with one REDDIT_SEARCH_ACROSS_SUBREDDITS per query. Use `sort=new` and `limit=25`. Then filter client-side by `created_utc >= cutoff` (7 days ago). For themed reports (e.g., a wrestling promotion), also search complementary queries — the promotion's stars, storylines, and cross-promotional appearances on other shows.
 
 **Important**: Set `sync_response_to_workbench=true` on the MULTI_EXECUTE_TOOL call. Without it, the full response is truncated inline and unavailable for workbench processing. With it, the complete JSON lands at `/mnt/files/mex/rich.json` for workbench parsing.
 
@@ -210,36 +239,51 @@ Run `ls -la /tmp/reddit-chile-report-YYYY-MM-DD.pdf` and `file /tmp/reddit-chile
 
 ### 6. Output
 
-The final response for cron delivery is a single `MEDIA:/path/to/pdf` line.
+#### PDF Output
+
+For cron delivery (file artifact): the final response is a single `MEDIA:/path/to/pdf` line.
+
+#### Text Summary Output (group chat delivery)
+
+For delivery to WhatsApp, Discord, Telegram, or Slack groups — the final response IS the summary itself. No `MEDIA:` prefix, no file path. Format considerations:
+
+- **Language/localization**: Match the group's language. The user or group description often specifies it (e.g., Chilean Spanish, Mexican Spanish). When specified, use local dialect, slang, and tone appropriate for the group.
+- **Structure**: Lead with the key results/developments, then community reactions, then theories/speculation. Use bullet points for match results. Keep it conversational and engaging.
+- **Length**: WhatsApp groups prefer conciseness — aim for 1500-3000 chars. Trim low-engagement posts if needed.
+- **Cross-promotional content**: When reporting on a promotion, include relevant crossovers on other shows (e.g., AAA championships defended on WWE SmackDown).
+
+For cron jobs: the text summary IS your final tool response. The system delivers it automatically.
 
 ## Common Pitfalls
 
-1. **Double-nested data path.** REDDIT_GET_R_TOP puts children under `response.data.data.children`, not `response.data.children`. Always verify with a debug print before assuming path.
+1. **Double-nested data path (GET_R_TOP).** REDDIT_GET_R_TOP puts children under `response.data.data.children`, not `response.data.children`. Always verify with a debug print before assuming path.
 
-2. **execute_code blocked in cron.** Use `terminal` with heredoc (`python3 << 'PYEOF' ... PYEOF`) instead — `execute_code` requires user approval in cron mode.
+2. **Top-level posts array (SEARCH).** REDDIT_SEARCH_ACROSS_SUBREDDITS returns posts at `data.posts[]` (top-level array), NOT under `data.data.children`. These are full post objects, not kind/data wrapped children — access title, score, etc. directly.
 
-3. **Large comment threads.** Some posts have 150+ comments. Always truncate at the extraction level (keep top 5, pick top 2). Never try to render all comments.
+3. **execute_code blocked in cron.** Use `terminal` with heredoc (`python3 << 'PYEOF' ... PYEOF`) instead — `execute_code` requires user approval in cron mode.
 
-4. **Polymorphic `replies` field.** Can be empty string, null, or a listing dict. Always type-check with `isinstance(replies, dict)` before recursing.
+4. **Large comment threads.** Some posts have 150+ comments. Always truncate at the extraction level (keep top 5, pick top 2). Never try to render all comments.
 
-5. **PDF overflows.** If the text doesn't fit one page, either: (a) compact the text (shorter titles, fewer posts per subreddit), (b) use smaller fonts (down to 5pt), or (c) accept 2 pages. Landscape A4 at 5-6pt fits ~55-60 lines.
+5. **Polymorphic `replies` field.** Can be empty string, null, or a listing dict. Always type-check with `isinstance(replies, dict)` before recursing.
 
-6. **Unicode in PDF.** DejaVuSans does not render emoji, exotic Unicode, or most symbols. Strip them before adding to PDF cell. The `replace` error handler in `.encode('ascii', 'replace')` converts unknown chars to `?`.
+6. **PDF overflows.** If the text doesn't fit one page, either: (a) compact the text (shorter titles, fewer posts per subreddit), (b) use smaller fonts (down to 5pt), or (c) accept 2 pages. Landscape A4 at 5-6pt fits ~55-60 lines.
 
-7. **Composio session ID.** Always pass the same `session_id` through all COMPOSIO_* calls in a workflow. Generate fresh for each report run.
+7. **Unicode in PDF.** DejaVuSans does not render emoji, exotic Unicode, or most symbols. Strip them before adding to PDF cell. The `replace` error handler in `.encode('ascii', 'replace')` converts unknown chars to `?`.
 
-8. **URLs in titles.** Some post titles contain URLs or gif references. Strip markdown/image syntax before rendering.
+8. **Composio session ID.** Always pass the same `session_id` through all COMPOSIO_* calls in a workflow. Generate fresh for each report run.
 
-9. **Comment bodies with newlines and image-only content.** Reddit comment bodies are multi-line text with embedded `\n` — always flatten to single space for PDF cells. Many comments are image/gif-only (`![gif](...)`, bare `.png` URLs) and must be filtered at extraction time with `is_image_only()` + `sanitize_body()` (see Commment extraction pattern above). A comment whose cleaned body is `< 3 chars` is a gif/emoji-only post, skip it.
+9. **URLs in titles.** Some post titles contain URLs or gif references. Strip markdown/image syntax before rendering.
 
-10. **Two-phase cron pattern.** In cron mode, do NOT try to do everything in one tool. Phase 1: COMPOSIO_MULTI_EXECUTE_TOOL to fetch posts + COMPOSIO_REMOTE_WORKBENCH to parse/save report JSON. Phase 2: `terminal` with Python heredoc to read the report dict and generate the PDF. This avoids `execute_code` being blocked and keeps each phase under the 3-minute workbench limit.
+10. **Comment bodies with newlines and image-only content.** Reddit comment bodies are multi-line text with embedded `\n` — always flatten to single space for PDF cells. Many comments are image/gif-only (`![gif](...)`, bare `.png` URLs) and must be filtered at extraction time with `is_image_only()` + `sanitize_body()` (see Commment extraction pattern above). A comment whose cleaned body is `< 3 chars` is a gif/emoji-only post, skip it.
+
+11. **Two-phase cron pattern.** In cron mode, do NOT try to do everything in one tool. Phase 1: COMPOSIO_MULTI_EXECUTE_TOOL to fetch posts + COMPOSIO_REMOTE_WORKBENCH to parse/save report JSON. Phase 2: `terminal` with Python heredoc to read the report dict and generate the PDF. This avoids `execute_code` being blocked and keeps each phase under the 3-minute workbench limit.
 
 ## Verification Checklist
 
-- [ ] All 3 subreddits fetched successfully (check `success_count == 3`)
-- [ ] Engagement scores computed correctly
+- [ ] All subreddits/queries fetched successfully (check `success_count`)
+- [ ] Engagement scores computed correctly (if using GET_R_TOP)
 - [ ] Top 3 posts per subreddit have comments fetched
 - [ ] Comments properly extracted: no `[deleted]`, no gif/image-only bodies, newlines flattened
-- [ ] PDF generates as single landscape page
-- [ ] PDF file exists at `/tmp/reddit-chile-report-YYYY-MM-DD.pdf`
-- [ ] Cron delivery format is just `MEDIA:/path/to/pdf` (no extra text)
+- [ ] For PDF: generates as single landscape page, verified with `file /tmp/report.pdf`
+- [ ] For text summary: formatted for group chat delivery, appropriate length and language
+- [ ] Cron delivery format: PDF = `MEDIA:/path/to/pdf` | Text summary = the summary text itself (no prefix)

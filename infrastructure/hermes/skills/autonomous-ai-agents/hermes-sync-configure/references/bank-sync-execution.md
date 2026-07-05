@@ -4,17 +4,49 @@ Used by the `hermes-sync-banks` cron job (02:00 UTC daily). This doc captures th
 
 ## Pre-flight
 
-```bash
-mkdir -p /home/opc/workspace/toolset/infrastructure/hermes/banks/{toolset,hermes,researchit,kairos,evidencia-zero,cl-concerts-db,yacv,witral}
+### Memory cycle at cron start
+
+Even for cron jobs, the Memory Cycle rules apply — though no user is present:
+
+```json
+mcp_hindsight_selfhosted_recall(bank="hermes", max_tokens=16384, budget="high")
 ```
+
+This loads the last session's retain context so the sync knows what "last known state" was. It's useful for detecting unexpected state changes between runs. Do NOT retain at cron start (nothing new to record); retain replaces the state at the end.
+
+### Directory creation
+
+```bash
+mkdir -p /home/opc/workspace/toolset/infrastructure/hermes/banks/{<all-known-bank-ids>}
+```
+
+Banks discovered at runtime via `list_banks()`. Create them as they appear.
 
 ## Step 1: Discover banks
 
 Call `mcp_hindsight_selfhosted_list_banks()`. Filter out `"default"` (legacy internal bank — never include it).
 
-Current active banks (2026-06-30): toolset(652), hermes(266), personal-profile(42), chat-profile(42), personal-buffer(26), witral(11), evidencia-zero(30), yacv(29), cl-concerts-db(45), researchit(124), kairos(68), toolset-profile(0).
+Current active banks and approximate fact counts (as of 2026-07-05):
 
-**Edge case — empty bank**: toolset-profile has 0 facts (created by onboarding, no content yet). Skip reflect+retain for empty banks to avoid wasted API calls. Just create the empty JSON file `{"items":[],"total":0}` and move on.
+| Bank | Facts | Activity |
+|---|---|---|
+| toolset | ~727 | Core infra decisions |
+| hermes | ~354 | Orchestrator identity & state |
+| researchit | ~158 | Research engine |
+| chat-profile | ~92 | General chat ideas & patterns |
+| personal-profile | ~85 | Curated KB (Terreno/Mito) |
+| kairos | ~80 | Governance framework |
+| wwe-profile | ~72 | WWE preferences |
+| cl-concerts-db | ~68 | Concert DB project |
+| personal-buffer | ~52 | Staging for KB candidates |
+| evidencia-zero | ~45 | Data sanitization tool |
+| yacv | ~40 | Resume builder |
+| witral | ~27 | Plugin-based data router |
+| toolset-profile | ~2 | Toolset worker (empty) |
+
+**Live check**: Bank counts change over time. Re-run `list_banks()` each sync for the actual `fact_count` field, not the table above.
+
+**Edge case — empty bank**: toolset-profile has ~2 facts (created by onboarding, no content yet). It's fine to run reflect+retain on it; the reflect will simply report "no activity". Do not skip it — the retain creates the daily-summary tag chain.
 
 ## Step 2: Export each bank as JSON
 
@@ -68,46 +100,70 @@ mcp_hindsight_selfhosted_reflect(
 
 ### 3b. Retain the result
 
-**Preferred: `sync_retain`** (blocks until stored, returns memory_ids for confirmation). Use this when you need assurance the write completed:
+Use `retain()` (async) — it returns instantly and doesn't block the sync pipeline. The write is queued and completes asynchronously:
 
-```
-mcp_hindsight_selfhosted_sync_retain(
-    bank_id=BANK_ID,
-    content="<condensed summary>",
-    tags=["daily-summary", "YYYY-MM-DD", "BANK_ID"]
-)
+```json
+{"status":"accepted","operation_id":"<uuid>"}
 ```
 
-**Fallback: `retain`** (async) when the provider lacks sync_retain support. Returns `{"status":"accepted","operation_id":"..."}` — the write is queued but not confirmed. The operation_id can be checked with `get_operation()` if needed.
+`sync_retain` is available but NOT recommended here — it blocks until Hindsight finishes processing, which can take seconds on large banks. The sync pipeline prioritizes throughput; async retention is sufficient for daily summaries.
 
 Keep the retain content concise (3-8 sentences, not the full reflect text). Focus on: what was done, what was learned, what decisions were made.
 
 ## Step 4: Git commit + push
 
-```bash
+Two patterns depending on what state the working tree is in:
+
+### Pattern A — Clean working tree (no pre-existing changes)
+
 ```bash
 cd /home/opc/workspace/toolset
-# STASH pattern — safest: add, stash, pull, pop
 git add infrastructure/hermes/banks/
-git stash
 git pull --rebase origin main
-git stash pop
 git commit -m "hermes-sync: banks YYYY-MM-DD"
 git push origin main
 ```
 
-The stash approach handles both unstaged and staged-but-uncommitted changes. Then commit + push cleanly.
+Pull before commit when the tree is clean — avoids diverging from remote.
+
+### Pattern B — Pre-existing unstaged/staged changes (most common)
+
+When other files (e.g. `docs/TODO.md`, `infrastructure/hermes-context.md`) were modified outside this sync:
+
+```bash
+cd /home/opc/workspace/toolset
+git add infrastructure/hermes/banks/
+git commit -m "hermes-sync: banks YYYY-MM-DD"
+# Now git pull --rebase will fail because of the other modified files.
+# Stash only those, not our committed changes:
+git stash push -- docs/TODO.md infrastructure/hermes-context.md
+git pull --rebase origin main
+git push origin main
+# git stash pop later when convenient
+```
+
+**Why commit first**: The new bank files are versioned and safe. Stashing only the pre-existing unrelated changes isolates them from the sync commit. The stash doesn't need to be popped for push.
+**Why not `git stash` (unqualified)**: That stashes everything including the new files we just committed. `git stash pop` can then fail on merge conflicts if the rebase touched the same areas.
+
+### Verification
+
+After push, confirm:
+
+```bash
+git log --oneline -3
+# Should show: <hash> hermes-sync: banks YYYY-MM-DD
+```
 
 ## Known pitfalls
 
 | Pitfall | Mitigation |
 |---------|-----------|
 | `execute_code` blocked in cron mode | Use `terminal()` with `python3 << 'PYEOF'` instead |
-| `git pull --rebase` fails with unstaged OR staged-but-uncommitted changes when new files exist | `git add <files> && git stash && git pull --rebase && git stash pop` — avoids needing an interim commit |
+| `git pull --rebase` fails with pre-existing unstaged/staged changes | Use **Pattern B** (commit first, stash only pre-existing files, pull, push). Do NOT use unqualified `git stash` — it buries the committed files and risks merge conflicts on pop. |
 | Banks file grows with each daily dump | This is intentional — dumps are versioned by date for audit trail |
 | Small bank inline JSON (25-50 facts, ~30-80KB) fragile in heredocs — backslash escapes, Unicode, or nested quotes in `text` fields can break `cat << 'EOF'` | **Best**: the `res = {"result": {...}}` wrapper from MCP is pure JSON. Use `python3 -c "import json,sys; json.dump(json.loads(sys.stdin.read())['result'], open('/path/file.json','w'), indent=2)" << 'EOF'` piping the raw JSON payload. **Fallback for very small banks (<20 facts, <10KB)**: `cat > file.json << 'EOF'` works, but always validate with `python3 -m json.tool <file>`. |
 | `default` bank exists and has facts | Skip it — it's an internal Hindsight bank, not a project bank |
 | Large banks (400+ facts) generate 800KB+ tool output with persisted file at `/tmp/hermes-results/call_*.txt` | Use `cp /tmp/hermes-results/call_*.txt .../BANK_ID/YYYY-MM-DD.json` — simplest and most reliable extraction |
 | Medium banks (50-200 facts, 100-300KB) may return inline or persisted depending on total chars | Check for `persisted-output` header in tool response. If present, use `cp`. If inline, use the `python3` piping method above, not heredocs. |
 | Hindsight MCP might be slow on large reflects | Set budget="mid" for 200+ fact banks; budget="low" for <50 fact banks. Budget="low" produces adequate summaries even for larger banks. |
-| `sync_retain` vs `retain` — sync_retain may time out on long-running Hindsight operations | Prefer async `retain()`. It returns instantly with `{"status":"accepted"}` and doesn't block the sync pipeline. The retain is queued and completes asynchronously. |
+| `sync_retain` vs `retain` — sync_retain blocks, retain returns instantly | Use async `retain()` for throughput. The backed-up retain queue on Hindsight is non-blocking and doesn't degrade on burst writes. |
