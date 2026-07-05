@@ -55,7 +55,7 @@ jobs:
   opentofu:
     name: OpenTofu
     needs: validate-configs
-    if: ${{ !inputs.skip_opentofu     if: ${{ !inputs.skip_opentofu }}    if: ${{ !inputs.skip_opentofu }} github.event_name == 'workflow_dispatch' }}
+    if: ${{ !inputs.skip_opentofu }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -106,7 +106,7 @@ jobs:
   deploy-services:
     name: Deploy
     needs: validate-configs
-    if: ${{ !inputs.skip_deploy     if: ${{ !inputs.skip_deploy && github.ref == 'refs/heads/main' }}    if: ${{ !inputs.skip_deploy && github.ref == 'refs/heads/main' }} github.ref == 'refs/heads/main'     if: ${{ !inputs.skip_deploy && github.ref == 'refs/heads/main' }}    if: ${{ !inputs.skip_deploy && github.ref == 'refs/heads/main' }} github.event_name == 'workflow_dispatch' }}
+    if: ${{ !inputs.skip_deploy && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -223,7 +223,7 @@ jobs:
   preflight:
     name: Preflight Checks
     needs: deploy-services
-    if: ${{ !inputs.skip_preflight     if: ${{ !inputs.skip_preflight && github.ref == 'refs/heads/main' && needs.deploy-services.result == 'success' }}    if: ${{ !inputs.skip_preflight && github.ref == 'refs/heads/main' && needs.deploy-services.result == 'success' }} github.ref == 'refs/heads/main'     if: ${{ !inputs.skip_preflight && github.ref == 'refs/heads/main' && needs.deploy-services.result == 'success' }}    if: ${{ !inputs.skip_preflight && github.ref == 'refs/heads/main' && needs.deploy-services.result == 'success' }} needs.deploy-services.result == 'success'     if: ${{ !inputs.skip_preflight && github.ref == 'refs/heads/main' && needs.deploy-services.result == 'success' }}    if: ${{ !inputs.skip_preflight && github.ref == 'refs/heads/main' && needs.deploy-services.result == 'success' }} github.event_name == 'workflow_dispatch' }}
+    if: ${{ !inputs.skip_preflight && github.ref == 'refs/heads/main' && needs.deploy-services.result == 'success' }}
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
