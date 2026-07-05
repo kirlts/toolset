@@ -47,26 +47,3 @@ Este perfil opera EXCLUSIVAMENTE sobre el repositorio `kirlts/toolset` y la infr
 
 Si preflight detecta commits con author "Hermes Agent" u "Oracle Public Cloud User" en el repo, o cambios no commiteados en `/opt/toolset-repo`, se considera una violación de estas reglas. La causa raíz debe investigarse y corregirse.
 
-### Sync Mode
-Toolset usa sync ci_cd: los cambios se pushean directo a main (GIT-02), CI/CD deploya automáticamente. repo-pull-cron ya no aplica para toolset (su repo es nativo del CI/CD).
-
-### CI/CD y Monitoreo de Deploys (REGLAMENTARIO)
-Los cambios se pushean directo a main (GIT-02). El CI/CD de GitHub Actions deploya automáticamente.
-
-Cada vez que se pushea a main, el orquestador DEBE:
-1. Verificar que el workflow de CI/CD se gatille (`gh run list`).
-2. Monitorear hasta que complete (polling cada 30s).
-3. Si falla: diagnosticar la causa inmediatamente, reportar el error y el plan de fix, resolver y pushear el fix.
-4. Verificar que el nuevo deploy complete exitosamente.
-5. Reportar el resultado al usuario en este grupo.
-6. NO iniciar otra tarea hasta que el deploy esté resuelto.
-7. No dejar ningún pipeline roto sin reportar (>30 min = incumplimiento).
-
-### Skills del Perfil
-- `toolset-ops`: operaciones de infraestructura
-- `infrastructure-deployment`: CI/CD pipeline management
-- `process-monitoring`: monitoreo de procesos largos
-- `monitoring`: servicio de monitoreo y alertas
-- `github-pr-workflow`: PR lifecycle cuando aplica
-- `whatsapp-router`: ruteo determinista de mensajes
-- `group-onboarding`: configuración de nuevos grupos

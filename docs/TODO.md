@@ -82,7 +82,7 @@
 - [x] Investigar métodos de instalación self-hosted de Infisical en OCI ARM64. Desplegado con PostgreSQL 16 + Redis 7 como dependencias. 2026-06-22 [🤖 Verified by tool]
 - [x] Desplegar Infisical self-hosted en Docker Compose. Admin `martin.gil.o@gmail.com` creado via web UI. 2026-06-22 [🤖 Verified by tool]
 - [x] Configurar Infisical con proyectos, entornos y secrets para uso de Hermes. 2026-06-22 [🤖 Verified by tool]
-- [ ] Integrar Infisical Agent con Hermes para inyección de secrets en runtime.
+- [x] Integrar Infisical Agent con Hermes para inyección de secrets en runtime. 2026-07-05 [🤖 Verified by user]
 
 ---
 
@@ -188,20 +188,20 @@
 - [x] Segundo Funnel en :8443 para Infisical UI (evita conflicto _next/* con CP). 2026-06-22 [🤖 Verified by tool]
 - [x] `deploy.sh` imprime tabla de URLs completa post-deploy. 2026-06-22 [🤖 Verified by tool]
 - [x] Arreglar CI/CD pipeline: Caddy healthy independiente de Infisical, deploy-services pasa. 2026-06-22 [🤖 Verified by tool]
-- [ ] Configurar webhooks de GitHub hacia Hindsight/Infisical usando el Funnel como endpoint.
+- [x] Configurar webhooks de GitHub hacia Hindsight/Infisical usando el Funnel como endpoint. 2026-07-05 [🤖 Verified by user]
 
 ### [TASK-009] Integración Infisical con Servicios
 
 **Covered checks:** `[DEV.CR.10.LLM]`
 
-- [ ] Investigar API de Infisical para inyección de secrets en contenedores Docker (sin archivos .env).
-- [ ] Configurar proyecto y entorno en Infisical para Toolset.
+- [x] Investigar API de Infisical para inyección de secrets en contenedores Docker (sin archivos .env). 2026-07-05 [🤖 Verified by user]
+- [x] Configurar proyecto y entorno en Infisical para Toolset. 2026-07-05 [🤖 Verified by user]
 
 ### [TASK-010] Hardening de Seguridad
 
 **Covered checks:** `[DEV.CR.11.LLM]`, `[DEV.CR.12.LLM]`
 
-- [ ] Investigar cómo habilitar Tailscale SSH en Oracle Linux 9 con SELinux activo.
+- [x] Investigar cómo habilitar Tailscale SSH en Oracle Linux 9 con SELinux activo. 2026-07-05 [🤖 Verified by user]
 - [x] DT-001 cerrado. OIDC removido. API key estática es permanente. 2026-06-26 [🔄 Cerrado]
 
 ---
