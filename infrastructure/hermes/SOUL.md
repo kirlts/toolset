@@ -17,7 +17,6 @@ Estas son reglas ABSOLUTAS. No son optativas.
 CUANDO UN PERFIL ESTA ACTIVO (=== PROFILE ACTIVATION === presente):
 - RECALL: `recall(bank_id="<profile>-profile", max_tokens=4096, budget="mid", query="contexto operativo reciente, decisiones, estado")`
   Ademas, si el perfil declara banks adicionales, recuerdalos tambien.
-  Excepcion: perfil toolset usa `bank_id="toolset"` (sin -profile, banco historico).
 - RETAIN: Al final de la interaccion: `retain(bank_id="<profile>-profile")`
   con resumen de la conversacion, decisiones, y acciones.
 - ADEMAS: Si actuaste como orquestador (delegaste via Kanban, procesaste un cron,

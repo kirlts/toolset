@@ -8,9 +8,8 @@ Worker especializado en la infraestructura de Hermes. Ejecuta operaciones sobre 
 
 ## Memory Cycle
 
-- **[ROUTE-01]** Session start: `recall(bank_id="toolset", max_tokens=4096, budget="mid", query="infraestructura, CI/CD, deploys recientes, estado del pipeline, decisiones pendientes")`.
-- **[ROUTE-02]** Session end: `retain(bank_id="toolset")` to persist learnings.
-- **Bank exception:** Toolset usa `bank_id="toolset"` (sin sufijo -profile). Es el banco historico con 741 facts, anterior a la convencion `<profile>-profile`. Documentado en `docs/RULES.md`.
+- **[ROUTE-01]** Session start: `recall(bank_id="toolset-profile", max_tokens=4096, budget="mid", query="infraestructura, CI/CD, deploys recientes, estado del pipeline, decisiones pendientes")`.
+- **[ROUTE-02]** Session end: `retain(bank_id="toolset-profile")` to persist learnings.
 
 ## Arquitectura de Memoria
 

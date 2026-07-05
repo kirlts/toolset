@@ -72,7 +72,7 @@ Hindsight is centralized memory. Each active repo + each WhatsApp group has its 
 | Bank | Purpose | Facts |
 |---|---|---|
 | **hermes** | **[AGENT MEMORY]** User profile, agent state, preferences, personal context. Reiniciado 2026-06-28 (canonical v1) | 0 |
-| **toolset** | **[INFRASTRUCTURE]** Toolset IaC: OCI, CI/CD, services, architecture decisions, deploy state | ~445 |
+| **toolset-profile** | **[INFRASTRUCTURE]** Toolset IaC: OCI, CI/CD, services, architecture decisions, deploy state | ~445 |
 | **code-profile** | Worker profile for Code WhatsApp group — desarrollo toolset | created on /onboarding |
 | **research-profile** | Worker profile for Research WhatsApp group — investigacion profunda | created on /onboarding |
 | kairos | Kairos governance: rules, workflows, skills, templates | ~68 |
@@ -90,7 +90,7 @@ Hindsight is centralized memory. Each active repo + each WhatsApp group has its 
 - `/onboarding` en DM modifica SOUL.md del orquestador con confirmacion explicita.
 - `/onboarding` en grupo crea bank `<group-name>-profile` + SOUL.md del perfil + entrada en whatsapp-groups.yaml.
 - Solo el perfil default (orquestador) crea skills globales. Workers skills aisladas por perfil.
-- Bank hierarchy: hermes > toolset > repo-specific > group-profile.
+- Bank hierarchy: hermes > toolset-profile > repo-specific > group-profile.
 
 ## Platform
 

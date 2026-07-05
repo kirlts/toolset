@@ -6,8 +6,8 @@
 ## Consolidation Protocol
 
 MEMORY.md is a working buffer. When it approaches capacity (~85% of 2200 chars):
-1. Run `reflect(bank="hermes")` to synthesize learnings into structured observations.
-2. Run `retain(bank="hermes")` to persist in Hindsight long-term memory.
+1. Run `reflect(bank_id="hermes")` to synthesize learnings into structured observations.
+2. Run `retain(bank_id="hermes")` to persist in Hindsight long-term memory.
 3. Clear this buffer.
 
 This prevents context saturation and ensures durable knowledge retention.

@@ -22,8 +22,7 @@ Los recalls sin `max_tokens` ni `budget` estan PROHIBIDOS. Causan saturacion del
 
 ## Bank Naming
 
-- Patron: `<profile>-profile` (ej: `personal-profile`, `wwe-profile`)
-- Excepcion documentada: `toolset` usa `bank_id="toolset"` (sin sufijo, banco historico con 741 facts)
+- Patron: `<profile>-profile` (ej: `personal-profile`, `wwe-profile`, `toolset-profile`)
 
 ## Server-Side Enforcement
 

@@ -141,7 +141,7 @@ Run this when asked for a "health check" or "revision de salud":
 
 1. **CI/CD**: `gh run list --repo kirlts/toolset --limit 3` — check last 3 workflow conclusions
 2. **WhatsApp**: Bridge log at `~/.hermes/whatsapp/bridge.log` — check `[routing]` lines for inbound messages. Bridge is push-only (Baileys Web, no queryable REST API). Query `curl -sf http://localhost:3000/messages` for liveness.
-3. **Hindsight banks**: `recall(bank_id="toolset", query="pending, todo, pendiente, tarea", max_tokens=4096, budget="mid")` + `recall(bank_id="hermes", query="pending, todo, pendiente, tarea", max_tokens=4096, budget="mid")`. Cross-reference pending memory entries against actual filesystem/state — old entries (4+ days) that no longer reflect reality should be flagged as **stale** and optionally invalidated.
+3. **Hindsight banks**: `recall(bank_id="toolset-profile", query="pending, todo, pendiente, tarea", max_tokens=4096, budget="mid")` + `recall(bank_id="hermes", query="pending, todo, pendiente, tarea", max_tokens=4096, budget="mid")`. Cross-reference pending memory entries against actual filesystem/state — old entries (4+ days) that no longer reflect reality should be flagged as **stale** and optionally invalidated.
 4. **Docker services**: `docker ps --format "table {{.Names}}\t{{.Status}}"` — all should be `Up` and `(healthy)`. Check systemd services separately.
 5. **Host resources**: `free -h`, `df -h /`, `uptime`, `cat /proc/loadavg`
 
@@ -161,7 +161,7 @@ When Hindsight memory recall returns pending/action items:
    - References to deleted files that were restored in later commits
    - TODO items marked complete in the repo but not cleaned from memory
 3. If stale → note in report but do not delete. Flag for user review.
-4. After the health check, `retain(bank_id="toolset")` with the check result for traceability
+4. After the health check, `retain(bank_id="toolset-profile")` with the check result for traceability
 
 ## Bank Naming Convention (CANONICAL)
 
@@ -171,11 +171,11 @@ Todos los bancos de perfil siguen el patrón `<profile>-profile`. El banco `herm
 |---|---|---|
 | Personal | `personal-profile` | Correcto |
 | Chat | `chat-profile` | Correcto |
-| Toolset | `toolset` | Canonico (741 facts, excepcion documentada sin -profile) |
+| Toolset | `toolset-profile` | Canonico (0 facts, banco fresco iniciado 2026-07-05 post-refactor) |
 | WWE | `wwe-profile` | Correcto |
 
 **Reglas:**
-- Todas las skills y configs deben referenciar `bank_id="toolset"`, NO `bank_id="toolset-profile"` (toolset es la excepcion documentada: banco historico sin sufijo -profile).
+- `docs/RULES.md` define la convencion `<profile>-profile`. Sin excepciones.
 - El template de perfil (`.agents/templates/profile-soul.md`) usa `{BANK_ID}` que debe poblarse con `<profile>-profile`.
 - `docs/RULES.md` dice "use repo name as bank_id, kebab-case" — esto ESTA DESACTUALIZADO. La convencion correcta es `<profile>-profile`.
 - La unica excepcion es `bank="hermes"` (orquestador).

@@ -59,7 +59,7 @@ Both are configured in `~/.hermes/config.yaml` under `mcp_servers:` and are star
 | Synthesize learnings from a bank | `reflect(bank_id="<repo>-profile", query="...")` |
 | Discover available banks | `list_banks()` |
 | Store user preference about behavior | `memory()` (goes to `hermes`) |
-| Store a technical decision about infra | `retain(bank_id="toolset", fact="...")` |
+| Store a technical decision about infra | `retain(bank_id="toolset-profile", fact="...")` |
 
 **Never use `memory()` for project-level or bank-specific operations.** The `memory` tool only addresses the `hermes` bank with a 2KB limit.
 
@@ -72,7 +72,7 @@ Every new session (WebUI, WhatsApp, CLI, any channel) MUST:
 ```
 1. memory(query="contexto completo...")   # user profile from bank hermes
 2. recall(bank_id="<active-repo>-profile", max_tokens=2048, budget="low")  # project context from specific bank
-3. If no active repo, recall(bank_id="toolset", max_tokens=4096, budget="mid")  # infra context
+3. If no active repo, recall(bank_id="toolset-profile", max_tokens=4096, budget="mid")  # infra context
 ```
 
 This is documented in SOUL.md and is mandatory per the toolset's operational rules. The recall must happen BEFORE reading files.

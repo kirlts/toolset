@@ -91,7 +91,7 @@ Hindsight is centralized memory. Each active repo + each WhatsApp group has its 
 - `/onboarding` en grupo crea bank `<group-name>-profile` + SOUL.md del perfil + entrada en whatsapp-groups.yaml.
 - Solo el perfil default (orquestador) crea skills globales. Workers skills aisladas por perfil.
 - Bank hierarchy: hermes > toolset > repo-specific > group-profile.
-- Bank naming: `<profile>-profile`. Excepcion: toolset usa `bank_id="toolset"` (sin sufijo, banco historico 741 facts).
+- Bank naming: `<profile>-profile`. Sin excepciones.
 - Recall params mandatory: `max_tokens` y `budget` explicitos. PROHIBIDO `budget="high"` como default.
 
 ## Platform
