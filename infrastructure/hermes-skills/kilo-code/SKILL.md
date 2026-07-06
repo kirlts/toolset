@@ -90,7 +90,6 @@ Para CADA proyecto nuevo o clonado, Hermes DEBE:
 5. **Persistir**: `retain(bank_id="<repo-name>-profile", content="qué se hizo, qué se aprendió")`
 6. **/document periódico**: ejecutar `/document` tras bloques de trabajo significativos. **IMPORTANTE:** el `/document` se ejecuta SIEMPRE en el contexto del repo `kirlts/toolset` (el repo de gobierno central), NO en el repo donde se trabajó. Toolset es el repo que contiene la configuración global de Hermes, skills, y documentación de infraestructura.
 7. **Reportar** al usuario concreto y sin verborrea
-8. **Gestión de contexto:** El provider deepseek-v4-flash se vuelve inestable sobre ~64K tokens. No dejes que la conversación se acumule. Si la sesión es larga (>50 mensajes), invoca un summarizer: `kilo run "Resume la conversación actual en un retain de Hindsight" --auto --dir /opt/toolset-repo`, luego ejecuta `retain` y confirma que el usuario puede empezar una sesión nueva.
 
 ## Arquitectura de System Prompt en Kilo
 
