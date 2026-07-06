@@ -15,6 +15,11 @@ groups:
     repo: "kirlts/personal"
     profile: "personal"
     scope: "knowledge_base"
+    tts:
+      enabled: true
+      mode: "responses"      # base técnica: solo respuestas >~200 palabras
+                             # criterio real: contenido denso de KB (Terreno/Mito, bitácoras, reflexiones)
+                             # consolidado en UN solo audio por interacción
 
   "120363426816726918@g.us":
     name: "Toolset"
