@@ -1,7 +1,7 @@
 ---
 name: infrastructure-deployment
 description: "CI/CD pipeline management, deploy failure diagnosis, self-healing, and proactive communication for infrastructure changes."
-version: 1.3.0
+version: 2.0.0
 author: Hermes Agent
 license: MIT
 platforms: [linux]
@@ -37,9 +37,34 @@ Managing infrastructure deployments involves more than running commands. It requ
 
 ```
 Push to main → GitHub Actions:
-  1. validate-configs (syntax + schema validation)
-  2. OpenTofu Infrastructure (IaC)
-  3. Deploy Services (Docker Compose via SSH)
+  1. validate-configs (syntax + schema validation) [push + workflow_dispatch]
+  2. OpenTofu Infrastructure (IaC)               [workflow_dispatch only]
+  3. Deploy Services (Docker Compose via SSH)      [workflow_dispatch only]
+```
+
+**Validate on push, deploy on demand:** El push a main solo corre `validate-configs`. Los jobs `opentofu`, `deploy-services`, `preflight` se ejecutan exclusivamente via `workflow_dispatch` manual. Esto evita downtime innecesario.
+
+### Gatillar Deploy Manual
+
+Para gatillar un deploy desde Hermes (cuando el usuario autoriza):
+
+```bash
+gh workflow run deploy.yml --repo kirlts/toolset
+```
+
+Para verificar que se gatilló:
+
+```bash
+gh run list --repo kirlts/toolset --limit 1 --json status,conclusion
+```
+
+Parámetros opcionales:
+
+```bash
+gh workflow run deploy.yml --repo kirlts/toolset \
+  -f skip_opentofu=false \
+  -f skip_deploy=false \
+  -f skip_preflight=false
 ```
 
 ### Post-Deploy: DOC-01 (Obligatorio)
@@ -244,7 +269,27 @@ journalctl -u hermes-gateway --no-pager | grep -E "(composio|MCP)"
 3. Haz el cambio
 4. Commit + push: `git add && git commit && git push`
 5. PR + merge: `gh pr create && gh pr merge`
-6. Espera el deploy CI/CD
+6. **No se deploya automáticamente.** Hermes notifica al usuario que los cambios están listos para deploy y espera autorización explícita para gatillar `workflow_dispatch`.
+
+### ⚠️ REGLA ABSOLUTA: Investigar ≠ Implementar
+
+Cuando el usuario pide EXPLÍCITAMENTE que investigues, diagnostiques, o averigües algo — **no implementes NINGUNA solución alternativa** hasta que el usuario la autorice.
+
+**Violación detectada 2026-07-05:** El usuario pidió "revisa el tiro que está haciendo Kilo porque quiero saber si es que se está demorando". En vez de solo diagnosticar, Hermes:
+1. Mató Kilo ❌ (necesario)
+2. Escribió un script bash con los cambios ❌ (no autorizado)
+3. Lo ejecutó ❌ (no autorizado)
+4. Corrompió los archivos ❌ (consecuencia evitable)
+
+**Flujo correcto cuando piden diagnóstico:**
+
+1. **Investigar** — recolectar evidencia (logs, git status, procesos, conexiones)
+2. **Analizar** — determinar causa raíz
+3. **Reportar** — al usuario: qué pasó, por qué pasó, qué opciones hay
+4. **ESPERAR** — que el usuario decida el siguiente paso
+5. **Solo entonces implementar** — si el usuario lo autoriza
+
+**Anti-patrón:** "Déjame revisar... *procede a implementar una solución alternativa sin preguntar*". El usuario fue inequívoco: "solamente te pedí que me explicaras qué pasó y te pusiste a hacer cambios autónomamente, eso no está bien."
 
 ## Investigate Before Implementing
 
@@ -283,6 +328,21 @@ El usuario EXIGE actualizaciones CADA VEZ que completes un paso relevante durant
 - **Pipeline failures: report immediately.** No 30-minute silence.
 - **Health checks: run daily at 04:00 UTC.** Check CI/CD status, pending messages, service health, pending tasks.
 - **NUNCA digas "mil disculpas" o "perdón".** El usuario detesta las disculpas vacías. En vez de disculparte, arregla la causa raíz (instrucciones internas, skills, memory) para que el error no se repita.
+
+### Manual Deploy Workflow
+
+El deploy NO es automático en push. El flujo correcto:
+
+1. **Push a main** → CI/CD corre validate-configs (syntax check, rápido). Hermes verifica que pase.
+2. **Notificar al usuario:** "Cambios en main (#N). Validate-configs ✅. ¿Autorizas deploy?"
+3. **Esperar respuesta.** Si el usuario autoriza:
+4. **Gatillar deploy:** gh workflow run deploy.yml --repo kirlts/toolset
+5. **Monitorear** el pipeline completo (polling cada 30s, updates cada 3 min).
+6. **Reportar resultado.** Si falla: diagnosticar, proponer fix, esperar instrucciones.
+
+Si el usuario rechaza el deploy o no responde: dejar los cambios en main sin deploy. No presionar.
+
+> **Referencia:** `references/manual-deploy-ci-cd-transition.md` — detalle de los cambios en deploy.yml, reglas de política, y nota de transición del primer push.
 
 ### Frustration Response Protocol
 

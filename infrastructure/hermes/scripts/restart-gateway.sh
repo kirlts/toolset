@@ -1,3 +1,2 @@
-#!/usr/bin/env bash
-sleep 5
+#!/bin/bash
 sudo systemctl restart hermes-gateway

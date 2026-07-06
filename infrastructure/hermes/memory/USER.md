@@ -8,8 +8,10 @@ User DETESTA disculpas vacías. Exige escritura madura, visceral, +18, sin clich
 §
 Exige: Kilo CLI para código, .agents/ de kairos obligatorio, integraciones directas con Hermes/Toolset, banks Hindsight = nombre exacto del repo.
 §
-Interés en monetización agentes IA (exploró coach de inglés: speaking practice asíncrona, white-label/per-seat/add-on).
+Exploró monetización agentes IA (coach inglés).
 §
-Desarrollando metodología de levantamiento de requerimientos de software para 2026.
+Desarrollando metodología levantamiento requerimientos software.
 §
-Javi: opina que Jey Uso es 'lloroncito', que WWE usa IA con prompts pésimas, y que los conceptos de IA de Hermes superan el creative de Triple H.
+TTS en Chat: on-demand. Regla ABSOLUTA: mensaje >= 50 palabras con contenido sustantivo DEBE incluir audio via text_to_speech como MEDIA en el mismo mensaje. Excepcion: 'solo texto'. Forzar: 'audio'.
+§
+Diseno conversacional organico, no cuestionarios. Las reglas emergen del uso, no de preguntas prefabricadas.

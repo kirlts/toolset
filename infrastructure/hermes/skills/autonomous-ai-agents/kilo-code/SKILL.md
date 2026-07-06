@@ -115,6 +115,55 @@ kilo run "." --dir /path --print-logs 2>&1 | grep -i "prompt\|instruction\|sessi
 
 Kilo NO expone el system prompt completo en logs. La única forma de verificarlo es inferir de las tool calls que ejecuta. Si el agente lee `REPOMAP.md` primero y llama a `hindsight-selfhosted_recall`, las reglas se cargaron bien. Si no, falta la instrucción correspondiente en Fuente B o C.
 
+## 🚨 REGLA CRÍTICA: Diagnóstico de Kilo Hangs
+
+Cuando Kilo CLI se cuelga (>3 min sin tool calls, solo `message.part.updated` en el log), el problema NO es siempre el tamaño del prompt. Hay DOS causas posibles.
+
+**DIAGNÓSTICO PRIMERO, ACCIÓN DESPUÉS.** No hacer cambios mientras diagnosticas. Presenta hallazgos al usuario y espera instrucciones antes de actuar.
+
+**REVISAR CONFIGURACIÓN ANTES DE CULPAR AL MODELO.** Kilo tiene un system prompt pre-inyectado (`infrastructure/kilo-system-prompt.md`) con instrucciones de recall a Hindsight. Revisa eso antes de asumir que el modelo es el problema.
+
+### Causa 1: El recall de Hindsight saturó el contexto
+
+Kilo tiene UNA INSTRUCCIÓN en su system prompt que ordena recuerdos de Hindsight al iniciar:
+```
+hindsight-selfhosted_recall(bank=<nombre-del-repo>-profile)
+```
+Sin parámetros `max_tokens` ni `budget`. Si el banco tiene >100 facts, el recall puede devolver datos masivos (>600KB en el caso del banco `toolset` con 741 facts).
+
+**AMBIGÜEDAD CONOCIDA:** El system prompt dice `bank=<...>-profile`. Pero `docs/RULES.md` (cargado como instructions file) dice "repo name as bank_id, kebab-case". Son contradictorios. Mientras no se unifiquen, el recall puede apuntar al banco equivocado.
+
+### Causa 2: El prompt de Hermes es demasiado grande
+
+Si el prompt que Hermes pasa a Kilo supera ~500 palabras, deepseek-v4-flash se atasca generando texto explicativo sin ejecutar tool calls.
+
+**Evidencia empírica:** 8+ min de streaming sin tool calls, 359KB de log, cero cambios en git status, cero conexiones de red.
+
+### Protocolo de diagnóstico
+
+```
+1. Primeros 30s: git status --porcelain → ¿hay cambios? Si no, no hay tool calls.
+2. Primeros 60s: Revisar log de Kilo:
+   tail -5 ~/.local/share/kilo/log/$(ls -t ~/.local/share/kilo/log/ | head -1)
+   → "message.part.updated" sin otros eventos = modelo atascado generando
+   → "command.executed" o "file.watcher.updated" = está trabajando
+3. Si >3 min sin tool calls:
+   a) Matar proceso (process kill)
+   b) Determinar causa:
+      - Prompt >500 palabras? → Causa 2
+      - Bank target con >100 facts y recall sin max_tokens? → Causa 1
+      - ¿Ambas? → Causa combinada
+   c) Reportar diagnóstico al usuario. NO relanzar sin autorización.
+```
+
+### Reglas post-incidente para delegar a Kilo
+
+1. **Prompts SIEMPRE <500 palabras.** Si la tarea es compleja, usar patrón script + git.
+
+2. **NO usar bash sed para editar GitHub Actions YAML.** Los `${{ }}` colisionan con anclajes de sed. Usar Python.
+
+3. **Señal de alerta temprana:** Si `git status` no muestra cambios tras 30s de ejecución, algo anda mal.
+
 ## Pitfalls
 
 - **Archivos `instructions` faltantes se skipean en silencio**: Si un archivo listado en el array `instructions` de `kilo.jsonc` no existe en el filesystem, Kilo NO muestra warning ni error. Simplemente no se inyecta. Esto es peligroso porque el operador cree que ciertas reglas se están aplicando cuando no. Verificar siempre que los archivos referenciados existan contra el `--dir` usado. La ausencia se detecta indirectamente: si el agente Kilo no ejecuta las tool calls esperadas (ej: no lee REPOMAP.md al inicio), una instrucción se perdió.
@@ -129,7 +178,7 @@ Kilo NO expone el system prompt completo en logs. La única forma de verificarlo
 
 Cuando el prompt contiene caracteres especiales (backticks, comillas, $, saltos de línea), `kilo run 'prompt'` falla con errores de sintaxis bash. Dos estrategias:
 
-**Estrategia A (Recomendada):** Escribir el prompt en un archivo y pasarlo con `--file`:
+**Estrategia A (Recomendada):** Escribir el prompt en un archivo y pasarlo inline con `$(cat)`:
 ```bash
 cat > /tmp/kilo-prompt.txt << 'EOF'
 INSTRUCCIÓN PERMANENTE: Sigue .agents/ y reglas kairos.
@@ -137,8 +186,10 @@ Usa recall/retain en Hindsight con bank_id del repo activo.
 
 [TAREA con carácteres especiales: `backticks`, $variables, "comillas"]
 EOF
-kilo run --file /tmp/kilo-prompt.txt --auto
+kilo run "$(cat /tmp/kilo-prompt.txt)" --auto
 ```
+
+⚠️ **NO usar `kilo run --file file.txt --auto`.** El flag `--file` adjunta archivos como contexto adicional al mensaje, NO como el prompt principal. Sin un positional `[message]`, Kilo falla con "You must provide a message or a command." La forma correcta de pasar un archivo como prompt es `kilo run "$(cat file.txt)" --auto`.
 
 **Estrategia B:** Prompt inline pero con variables de entorno exportadas antes:
 ```bash
