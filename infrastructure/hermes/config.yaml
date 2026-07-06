@@ -256,7 +256,7 @@ display:
   platforms:
     whatsapp:
       tool_progress: false
-  reasoning_full: false
+  reasoning_full: true
   resume_display: full
   resume_exchanges: 10
   resume_max_assistant_chars: 200

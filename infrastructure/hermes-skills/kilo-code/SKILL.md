@@ -32,14 +32,17 @@ Si Hermes escribe código directamente, el usuario lo corrige. **Señal de alert
 Toda invocación a `kilo run ... --auto` DEBE incluir este preámbulo al INICIO del prompt:
 
 ```
-INSTRUCCIÓN PERMANENTE: 
-Sigue las reglas de la carpeta .agents/ en todos los repositorios que la contengan, así como Docs/RULES.md.
-Usa recall/retain en Hindsight con el bank_id del repo activo (formato `<repo>-profile`) para contexto y persistencia.
-Workflows Kairós están en `.agents/workflows/`. Si se te pide `/document`, lee `.agents/workflows/document.md` y ejecútalo paso a paso.
-
 [TAREA ESPECÍFICA]
+
+MARCO OBLIGATORIO (ejecutar en este orden, ANTES de escribir código):
+1. Leer docs/REPOMAP.md si existe en el repositorio
+2. Leer .agents/rules/01-behavior.md y seguir sus triggers dinámicos
+3. hindsight-selfhosted_recall(max_tokens=1024, budget="low") para contexto del proyecto
+4. Completar la tarea siguiendo estrictamente las reglas de .agents/
+5. Si hubo modificaciones: ejecutar paso a paso .agents/workflows/document.md
 ```
 
+El marco va DESPUÉS de la tarea para contrarrestar el sesgo de recencia del modelo.
 No es opcional. Aplica a TODA ejecución futura de Kilo.
 
 ## ⚠️ ANTI-CORRUPCIÓN — Cómo pasar prompts a Kilo
@@ -51,12 +54,11 @@ NUNCA generes prompts largos inline en un tool call de terminal. Si el stream de
 2. Prompts con más de 10 palabras, backticks, comillas o saltos de línea → USAR `--file`:
    ```
    write_file /tmp/kilo-prompt.txt {
-     content: "INSTRUCCIÓN PERMANENTE: ...\nTAREA\n"
+     content: "[TAREA ESPECÍFICA]\n\nMARCO OBLIGATORIO (ejecutar en orden):\n1. Leer docs/REPOMAP.md\n2. hindsight-selfhosted_recall(max_tokens=1024, budget=\"low\")\n3. Completar tarea siguiendo .agents/\n4. Si hubo modificaciones: ejecutar .agents/workflows/document.md"
    }
    kilo run --file /tmp/kilo-prompt.txt --auto --dir /path
    ```
-3. Prompts que contienen `/document` o referencias a workflows → SIEMPRE `--file` y agregar:
-   "Workflows Kairós en `.agents/workflows/`. Busca el workflow correspondiente y ejecútalo."
+3. Prompts que contienen `/document` o referencias a workflows → SIEMPRE `--file` y el marco obligatorio DEBE estar presente.
 
 Esto evita que un stream truncado deje a Kilo sin instrucciones.
 

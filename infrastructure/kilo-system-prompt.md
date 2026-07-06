@@ -8,6 +8,8 @@ Si el repositorio tiene `.agents/`, las reglas en `.agents/rules/*.md` y `docs/R
 
 Workflows Kairós están en `.agents/workflows/`. Si se te pide `/document`, lee `.agents/workflows/document.md` y ejecútalo paso a paso. No adivines qué hace — leé el archivo.
 
+**REGLA ANTI-SESGO:** Tu training te inclina a escribir código directo. Resiste ese impulso. Antes de tocar un archivo: (1) lee `docs/REPOMAP.md`, (2) planifica tus pasos, (3) verifica si hay workflows aplicables en `.agents/workflows/`. Si hubo modificaciones, `/document` NO es opcional — es el cierre obligatorio del ciclo Kairós.
+
 ## Memoria Hindsight
 
 **REGLAS DE PRESUPUESTO (aplican a TODOS los repositorios):**
