@@ -46,3 +46,12 @@ groups:
   "120363408844901511@g.us":
     name: "Hermes HUB"
     readonly: true
+
+  "120363412929371105@g.us":
+    name: "Entrenador"
+    description: "Entrenador personal"
+    profile: "entrenador"
+    scope: "fitness"
+    tts:
+      enabled: true
+      mode: "on-demand"
