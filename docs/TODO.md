@@ -272,7 +272,63 @@
 
 - [ ] 🔲 Por definir — sistema que trackea el ciclo 8x6, predice cambios de estado residencial, y sugiere adaptaciones.
 
----
+|---
+
+## [EPIC-012] Cierre del Día
+
+> Ref: _Sesión Chat 06-07-2026_
+
+### [TASK-017] Definición del cierre de jornada nocturno
+
+> Ref: _Por definir — investigación pendiente_
+
+**Covered checks:** `Transversal governance`
+
+- [ ] 🔲 Por definir — cron complementario del Protocolo Fénix. Mensaje único ~11pm preguntando brevemente cómo estuvo el día, capturando algo con peso, y ejecutando retrain automático. Cierra el ciclo que Fénix abre por la mañana.
+
+|---
+
+## [EPIC-013] Rastreador de Karate
+
+> Ref: _Sesión Chat 06-07-2026_
+
+### [TASK-018] Definición del seguimiento de entrenamiento
+
+> Ref: _Por definir — investigación pendiente_
+
+**Covered checks:** `Transversal governance`
+
+- [ ] 🔲 Por definir — cron cada 2-3 días que pregunta si entrenó, qué practicó, cómo se sintió. Registro en personal-buffer. Julio 2026 sin dojo — seguimiento autogestionado. Cuando vuelva el dojo en agosto, tener historial.
+
+|---
+
+## [EPIC-014] Skill Factory
+
+> Ref: _Sesión Chat 06-07-2026 + Reddit r/hermesagent_
+
+### [TASK-019] Definición del generador automático de skills
+
+> Ref: _Por definir — investigación pendiente_
+
+**Covered checks:** `Transversal governance`
+
+- [ ] 🔲 Por definir — inspirado en hermes-skill-factory de la comunidad. Cron semanal que revisa interacciones, detecta patrones recurrentes, y propone crear skills automáticamente. Similar a suggest-rules pero proactivo y periódico.
+
+|---
+
+## [EPIC-015] WWE Prediction League
+
+> Ref: _Sesión Chat 06-07-2026_
+
+### [TASK-020] Definición del predictor de PPVs
+
+> Ref: _Por definir — investigación pendiente_
+
+**Covered checks:** `Transversal governance`
+
+- [ ] 🔲 Por definir — cron pre-PPV que genera predicciones basadas en datos de Reddit y WWE para que Martín y Javi discutan en el grupo WWE. Complementa el resumen semanal de AAA extendiéndolo con predicciones.
+
+|---
 
 ## Overall Coverage Summary
 
@@ -289,4 +345,8 @@
 | EPIC-009 | TASK-014 | Por definir | 0 | 0 | 0 | 0 |
 | EPIC-010 | TASK-015 | Por definir | 0 | 0 | 0 | 0 |
 | EPIC-011 | TASK-016 | Por definir | 0 | 0 | 0 | 0 |
+| EPIC-012 | TASK-017 | Por definir | 0 | 0 | 0 | 0 |
+| EPIC-013 | TASK-018 | Por definir | 0 | 0 | 0 | 0 |
+| EPIC-014 | TASK-019 | Por definir | 0 | 0 | 0 | 0 |
+| EPIC-015 | TASK-020 | Por definir | 0 | 0 | 0 | 0 |
 | **TOTAL** | | | **20** | **3** | **1** | **24** |
