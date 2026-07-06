@@ -30,7 +30,13 @@ groups:
 
   "120363427331798211@g.us":
     name: "Chat"
+    description: "Pensamiento libre sin categoria. Lo que emerge, se explora y se resuelve aqui."
     profile: "chat"
+    tts:
+      enabled: true
+      mode: "on-demand"      # umbral inicial 50 palabras. Calibracion con uso.
+                             # audio sincrono: texto + archivo viajan juntos.
+                             # forzar con "audio" siempre activa.
 
   "120363428706645773@g.us":
     name: "WWE"
