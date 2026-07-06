@@ -9,7 +9,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 *Nothing pending.*
 
-## [0.5.0] - 2026-06-30
+## [0.6.0] - 2026-07-06
+
+### Added
+- TTS Edge Microsoft activado (voz es-CL-LorenzoNeural, masculina chilena). `tts.enabled: true`, per-group config via whatsapp-groups.yaml TTS block.
+- Onboarding v5.0.0: Phase 4 TTS configuration + retrocompatibilidad (update vs full re-onboard).
+- Fallback model qwen3.7-plus via Hermes `fallback_providers` y Kilo `models`.
+- 3-layer recall safety net: server-side `recall_max_tokens=4096` en 10 bancos, `agent.build.prompt` enforcement, profile SOUL.md explicit params.
+- WhatsApp auto-cleanup: populate-channel-aliases.sh remueve JIDs huérfanos de whatsapp-groups.yaml.
+- Kilo workflow discovery: `.agents/workflows/` referenciado en system prompt como fuente de `/document`.
+- Anti-corruption: regla `--file` para prompts >10 words en kilo-code SKILL.md (evita truncamiento por stream drop).
+- `infrastructure/kilo-recall-policy.md`: documentación del incidente y política.
+
+### Changed
+- **CRITICAL:** deploy.sh ahora despliega `infrastructure/hermes/SOUL.md` en vez de `infrastructure/Hermes-SOUL.md` (archivo obsoleto en inglés). 
+- Kilo CLI model default: `deepseek-v4-flash` → `deepseek-v4-pro` con `reasoning: true`.
+- Hermes reasoning: `reasoning_full: true` (debugging aid, ya tenía `effort: xhigh`).
+- Recency bias combat: Hermes preamble para Kilo ahora pone la tarea PRIMERO y el marco obligatorio DESPUÉS.
+- repo-pull-cron.sh: todos los repos reciben `git pull --ff-only`, sin importar `sync` type.
+- AGENTS.md + hermes-context.md: bank naming `<profile>-profile`, recall params con max_tokens/budget, ROUTE-07 agregado.
+- docs/RULES.md: bank naming consistente. Sin excepciones.
+
+### Fixed
+- deploy.yml líneas 58, 109, 226 restauradas de corrupción sed.
+- Banco `toolset` (741 facts históricos) eliminado. `toolset-profile` fresco con 0 facts.
+- All 31 recall() calls now have explicit `max_tokens` and `budget`. PROHIBIDO `budget="high"`.
+- `infrastructure/kilo-prompt.md` eliminado (DEPRECATED, se contradice a sí mismo línea 30-31).
+- Sistema de perfiles: toolset SOUL.md ahora tiene Memory Cycle completo (antes 0 líneas recall/retain).
+- 8 archivos de skills: bank naming unificado, `bank=` → `bank_id=`, max_tokens agregados.
+- Herramientas MCP: tool definitions son ~5K tokens (aceptable, no hay tool search nativo en Hindsight).
+
+### Removed
+- `infrastructure/Hermes-SOUL.md`: archivo inglés obsoleto (22 líneas, junio 28). Reemplazado por `hermes/SOUL.md` (92 líneas, español, con fixes).
+- Banco `toolset-profile`: eliminado (era shell con 0 facts después de migración).
+- Context management step (step 8) de kilo-code SKILL.md: era iniciativa incorrecta, revertido.
 
 ### Added
 - `infrastructure/kilo-system-prompt.md`: single source of truth for Kilo CLI system prompt (clean, minimal, no redundancy).

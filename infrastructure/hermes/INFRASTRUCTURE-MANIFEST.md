@@ -153,18 +153,28 @@ Cuando se modifica un archivo de configuracion:
 |---|---|
 | `.github/workflows/deploy.yml` | **FIXED** line 58, 109, 226 restored from sed corruption. Pipeline CI/CD functional. |
 | `infrastructure/kilo-prompt.md` | **DELETED** — conflicted with kilo-system-prompt.md, line 30-31 self-contradiction. |
-| `infrastructure/kilo-system-prompt.md` | **REFACTORED** — reduced from 39 to 26 lines. Removed governance duplication. Added explicit recall params: `max_tokens=1024, budget="low"` with `query`. |
-| `infrastructure/kilo.jsonc` | **REGENERATED** from refactored kilo-system-prompt.md. |
-| `infrastructure/hermes/SOUL.md` | **FIXED** recall: `max_tokens` 16384→4096, `budget` high→mid. Added `query` parameter. Uses `bank_id` consistently. |
-| `infrastructure/hermes/profiles/toolset/SOUL.md` | **ADDED** Memory Cycle section with recall/retain rules. Bank references updated to `bank_id="toolset"`. |
-| `infrastructure/hermes/profiles/personal/SOUL.md` | **FIXED** recall: `max_tokens` 16384→4096, `budget` high→mid. Uses `bank_id`. |
-| `infrastructure/hermes/profiles/chat/SOUL.md` | **FIXED** recall: added `max_tokens=2048`, `budget` high→low. Uses `bank_id`. |
-| `.agents/templates/profile-soul.md` | **FIXED** recall template: `max_tokens` 16384→4096, `budget` high→mid. Added `query` placeholder. |
-| `docs/RULES.md` | **FIXED** bank naming: kebab-case of repo → `<profile>-profile`. Documented toolset exception. Added recall params. |
-| `infrastructure/deploy.sh` | **FIXED** landing page: bank naming convention text. |
-| `infrastructure/hermes-skills/toolset-ops/SKILL.md` | **FIXED** bank references toolset→toolset. Added recall params. Fixed reference filename. |
-| `infrastructure/hermes-skills/kilo-code/SKILL.md` | **FIXED** bank_id = `<repo>-profile`, added recall params. |
-| `infrastructure/hermes-skills/whatsapp-router/SKILL.md` | **FIXED** added recall params. |
-| `infrastructure/hermes-skills/onboarding/SKILL.md` | **FIXED** added recall params. |
-| `infrastructure/hermes/skills/` (12 files) | **FIXED** bank naming, recall params, `bank`→`bank_id`, `budget="high"`→`"mid"`, `max_tokens=16384`→`4096`. |
-| Hindsight bank `toolset-profile` | **DELETED** via REST API. Empty bank (2 facts). `toolset` (741 facts) is canonical. |
+| `infrastructure/kilo-system-prompt.md` | **REFACTORED** — reduced from 39 to 26 lines. Removed governance duplication. Added explicit recall params: `max_tokens=1024, budget="low"` with `query`. Added anti-recency-bias section. |
+| `infrastructure/kilo.jsonc` | **REGENERATED** — model deepseek-v4-pro, reasoning=true, qwen3.7-plus fallback, workflow discovery. |
+| `infrastructure/hermes/SOUL.md` | **FIXED** recall: `max_tokens` 16384→4096, `budget` high→mid. Added `query`. `bank=` → `bank_id=`. |
+| `infrastructure/hermes/profiles/toolset/SOUL.md` | **ADDED** Memory Cycle. Bank `toolset`→`toolset-profile`. |
+| `infrastructure/hermes/profiles/personal/SOUL.md` | **FIXED** recall budget. `bank=` → `bank_id=`. |
+| `infrastructure/hermes/profiles/chat/SOUL.md` | **FIXED** recall budget. `bank=` → `bank_id=`. |
+| `infrastructure/hermes/profiles/wwe/SOUL.md` | **FIXED** recall: 16384/high → 4096/mid. Created in repo (was VPS-only). |
+| `.agents/templates/profile-soul.md` | **FIXED** recall template: 16384/high → 4096/mid. |
+| `docs/RULES.md` | **FIXED** bank naming: `<profile>-profile` sin excepciones. recall params agregados. |
+| `docs/CHANGELOG.md` | **ADDED** v0.6.0 with all session changes. |
+| `AGENTS.md` + `infrastructure/hermes-context.md` | **FIXED** bank naming, ROUTE-07, budget, recall params. |
+| `infrastructure/deploy.sh` | **FIXED** landing page + SOUL.md path (hermes/SOUL.md no Hermes-SOUL.md). |
+| `infrastructure/hermes-skills/toolset-ops/SKILL.md` | **FIXED** bank refs, budget, tabla actualizada. |
+| `infrastructure/hermes-skills/kilo-code/SKILL.md` | **REWRITTEN** v1.3.0: arquitectura system prompt, anti-corrupción, recency-bias preamble. |
+| `infrastructure/hermes-skills/whatsapp-router/SKILL.md` | **FIXED** budget params. |
+| `infrastructure/hermes-skills/onboarding/SKILL.md` | **REWRITTEN** v5.0.0: Phase 4 TTS, retrocompatibilidad update vs re-onboard. |
+| `infrastructure/hermes/skills/` (17 files) | **FIXED** bank naming, recall params, `bank`→`bank_id`, budget unificado. |
+| `infrastructure/Hermes-SOUL.md` | **DELETED** (obsoleto en inglés, junio 28). |
+| `infrastructure/kilo-recall-policy.md` | **CREATED** incident documentation. |
+| `infrastructure/hermes/scripts/repo-pull-cron.sh` | **FIXED** ahora git pull ALL repos (ci_cd, deploy, cron). |
+| `infrastructure/hermes/scripts/populate-channel-aliases.sh` | **EXTENDED** auto-cleanup orphaned WhatsApp groups. |
+| `infrastructure/hermes/config.yaml` | **FIXED** TTS enabled (es-CL-LorenzoNeural), fallback_providers qwen3.7-plus, reasoning_full=true, reasoning_effort=xhigh. |
+| `infrastructure/hermes/cloned-repos.yaml` | **UPDATED** schema (TTS field, metadata). |
+| Hindsight bank `toolset` (741 facts) | **DELETED** — data was older system. `toolset-profile` (0 facts) es canónico fresco. |
+| Server-side `recall_max_tokens` | **APPLIED** a 10 bancos Hindsight: 4096 max. |
