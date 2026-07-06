@@ -35,11 +35,30 @@ Toda invocación a `kilo run ... --auto` DEBE incluir este preámbulo al INICIO 
 INSTRUCCIÓN PERMANENTE: 
 Sigue las reglas de la carpeta .agents/ en todos los repositorios que la contengan, así como Docs/RULES.md.
 Usa recall/retain en Hindsight con el bank_id del repo activo (formato `<repo>-profile`) para contexto y persistencia.
+Workflows Kairós están en `.agents/workflows/`. Si se te pide `/document`, lee `.agents/workflows/document.md` y ejecútalo paso a paso.
 
 [TAREA ESPECÍFICA]
 ```
 
 No es opcional. Aplica a TODA ejecución futura de Kilo.
+
+## ⚠️ ANTI-CORRUPCIÓN — Cómo pasar prompts a Kilo
+
+NUNCA generes prompts largos inline en un tool call de terminal. Si el stream del provider se corta, el comando queda truncado y Kilo recibe garbage.
+
+**REGLAS:**
+1. Prompts de 1-3 palabras sin caracteres especiales → inline aceptable: `kilo run "tarea" --auto`
+2. Prompts con más de 10 palabras, backticks, comillas o saltos de línea → USAR `--file`:
+   ```
+   write_file /tmp/kilo-prompt.txt {
+     content: "INSTRUCCIÓN PERMANENTE: ...\nTAREA\n"
+   }
+   kilo run --file /tmp/kilo-prompt.txt --auto --dir /path
+   ```
+3. Prompts que contienen `/document` o referencias a workflows → SIEMPRE `--file` y agregar:
+   "Workflows Kairós en `.agents/workflows/`. Busca el workflow correspondiente y ejecútalo."
+
+Esto evita que un stream truncado deje a Kilo sin instrucciones.
 
 ## API Key — Export Correcto
 
@@ -64,13 +83,14 @@ Para CADA proyecto nuevo o clonado, Hermes DEBE:
 
 ## Estrategia de Delegación
 
-1. **Cargar contexto**: `recall(bank_id="<repo-name>-profile", query="contexto del proyecto", max_tokens=1024, budget="low")`
-2. **Ejecutar tarea**: usar las tools disponibles para completar la tarea
-3. **Documentar**: `/document` al final si hubo modificaciones
-4. **Reportar**: output conciso para Hermes
+1. **Cargar contexto**: `recall(bank_id="<repo-name>-profile", max_tokens=1024, budget="low", query="contexto del proyecto")`
+2. **Si .agents/ no existe** en el repo → clonar desde kirlts/kairos primero
+3. **Delegar TODO** a Kilo (código, tests, docs, debugging)
+4. **Monitorear**: si Kilo excede timeout (exit 124), dividir en subtareas más pequeñas
 5. **Persistir**: `retain(bank_id="<repo-name>-profile", content="qué se hizo, qué se aprendió")`
 6. **/document periódico**: ejecutar `/document` tras bloques de trabajo significativos. **IMPORTANTE:** el `/document` se ejecuta SIEMPRE en el contexto del repo `kirlts/toolset` (el repo de gobierno central), NO en el repo donde se trabajó. Toolset es el repo que contiene la configuración global de Hermes, skills, y documentación de infraestructura.
 7. **Reportar** al usuario concreto y sin verborrea
+8. **Gestión de contexto:** El provider deepseek-v4-flash se vuelve inestable sobre ~64K tokens. No dejes que la conversación se acumule. Si la sesión es larga (>50 mensajes), invoca un summarizer: `kilo run "Resume la conversación actual en un retain de Hindsight" --auto --dir /opt/toolset-repo`, luego ejecuta `retain` y confirma que el usuario puede empezar una sesión nueva.
 
 ## Arquitectura de System Prompt en Kilo
 
