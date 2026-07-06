@@ -18,23 +18,22 @@ REPOS=$(grep -oP '^\s+\K[a-z][a-z0-9_-]+(?=:)' "$MANIFEST" 2>/dev/null || true)
 HAS_NEW_COMMITS=0
 
 for key in $REPOS; do
-  sync=$(awk "/^  ${key}:/{f=1} f{ if(\$1==\"sync:\"){print \$2; exit}} f && /^  [a-z]/{exit}" "$MANIFEST" 2>/dev/null)
   path=$(awk "/^  ${key}:/{f=1} f{ if(\$1==\"path:\"){print \$2; exit}} f && /^  [a-z]/{exit}" "$MANIFEST" 2>/dev/null)
 
   if [ ! -d "${path}/.git" ]; then
     continue
   fi
 
-  # All repos get git pull --ff-only. sync type is informational only.
-  # ci_cd: deployed by CI/CD (toolset). deploy: deployed by deploy.sh (researchit, webui).
-  # cron: pulled by this script (personal, cloned). All benefit from keeping working tree in sync.
-
-  # Fetch first to detect changes before pulling
+  # Fetch first to detect changes before resetting
   (cd "$path" && git fetch origin 2>/dev/null) || true
 
   OLD_HEAD=$(cd "$path" && git rev-parse HEAD 2>/dev/null || echo "")
 
-  OUTPUT=$(cd "$path" && git pull --ff-only 2>&1) || true
+  # Use reset --hard to handle deploy.sh file overrides.
+  # deploy.sh copies config files (SOUL.md, kilo.jsonc, etc.) which create
+  # local modifications that would block git pull --ff-only.
+  # reset --hard ensures the repo always mirrors origin/main.
+  OUTPUT=$(cd "$path" && git reset --hard origin/main 2>&1) || true
   EXIT_CODE=$?
 
   if [ $EXIT_CODE -ne 0 ]; then
