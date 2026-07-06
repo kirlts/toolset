@@ -1,11 +1,11 @@
 ---
 name: onboarding
-description: "Context-aware onboarding for WhatsApp groups and DM. Creates SOUL.md, skills config, and Hindsight bank. No predefined categories — each group defines its own identity. Optional Phase 0 extracts context from artifacts, URLs, voice messages, or conversation history."
-version: 4.2.0
+description: "Context-aware onboarding for WhatsApp groups and DM. Creates SOUL.md, skills config, and Hindsight bank. No predefined categories — each group defines its own identity. Optional Phase 0 extracts context from artifacts, URLs, voice messages, or conversation history. Phase 4 configures TTS per group."
+version: 5.0.0
 platforms: [linux]
 metadata:
   hermes:
-    tags: [onboarding, setup, whatsapp, groups, soul]
+    tags: [onboarding, setup, whatsapp, groups, soul, tts]
     triggers: ["/onboarding"]
 ---
 
@@ -204,6 +204,20 @@ No categories. No predefined types. Phases 1-3 are MECE.
 
 **Exit condition:** Usuario confirma todo.
 
+### Phase 4: Text-to-Speech
+
+**Goal:** Configure whether Hermes sends voice messages in this group.
+
+1. **Enable TTS:** "¿Quieres que Hermes te envíe mensajes de voz (text-to-speech) en este grupo? (si/no)"
+   - TTS global está habilitado en `config.yaml` (provider: edge, voz: es-CL-LorenzoNeural).
+   - Esta fase configura si este grupo específico recibe audio.
+2. **Mode:** Si el usuario dijo "si": "¿En qué momentos quieres recibir audio? (siempre / solo respuestas largas / cuando pidas explícitamente)"
+   - `always`: cada mensaje de Hermes se envía como audio + texto.
+   - `responses`: solo mensajes de más de ~200 palabras.
+   - `on-demand`: solo cuando el usuario lo pide ("dímelo en audio").
+
+**Exit condition:** Usuario confirma preferencia TTS.
+
 ## Post-Phase: Artifact Creation
 
 ### Step 1: Hindsight Bank
@@ -251,10 +265,14 @@ groups:
     repo: "<repo>"          # optional: omit if no repo
     profile: "<profile>"
     scope: "<scope>"        # optional: conversation_kb, infrastructure, research, etc.
+    tts:                    # Phase 4: optional, omit if TTS disabled
+      enabled: true
+      mode: "always"        # always | responses | on-demand
 ```
 
 The bridge reads `profile` and `scope` to inject the `=== PROFILE ACTIVATION ===` block.
 The LLM derives banks by convention: `<profile>-profile` + repo bank if applicable.
+The `tts` block controls per-group voice message delivery. If absent or `enabled: false`, no audio.
 No `banks:` field needed — it's derived deterministically.
 
 ### Step 4: Master SOUL.md (DM only)
@@ -278,10 +296,14 @@ Disponible inmediatamente."
 
 ## Reconfiguration
 
-1. Show current config.
-2. "¿Reconfigurar desde cero? (si/no)"
-3. Si: restart Phase 1. Sobrescribir todo.
-4. No: "¿Ajustar algo especifico? (skills / tone / description / cancelar)"
+When `/onboarding` is invoked in a group that ALREADY has a profile in `whatsapp-groups.yaml`:
+
+1. Show current config summary (name, profile, repo, skills, TTS status).
+2. Offer two options:
+   - **(1) "Actualizar configuración"** — detecta qué features nuevas están disponibles vs lo que ya tiene el grupo (ej: TTS no configurado, nuevos campos en el schema). Solo ejecuta las fases correspondientes a features faltantes. Si el grupo ya tiene TTS configurado, se ofrece cambiar la configuración.
+   - **(2) "Reconfigurar desde cero"** — restart all phases (0-4). Sobrescribe todo. El bank Hindsight se preserva (no se borra).
+3. If the user chooses (1) and the only new feature is TTS: "Este grupo no tiene TTS configurado. ¿Quieres activarlo ahora? (si/no)" → ejecutar Phase 4 únicamente.
+4. If the user chooses (2): full flow, el bank existente se reutiliza (`create_bank` es idempotente).
 
 ## Error Table
 

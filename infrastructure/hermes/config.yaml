@@ -534,11 +534,11 @@ toolsets:
 - hermes-cli
 tts:
   edge:
-    voice: es-CL-CatalinaNeural
+    voice: es-CL-LorenzoNeural
   elevenlabs:
     model: eleven_multilingual_v2
     voice: ''
-  enabled: false
+  enabled: true
   minimax:
     voice: ''
   mistral:
