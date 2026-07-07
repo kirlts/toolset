@@ -22,6 +22,24 @@ mkdir -p /home/opc/workspace/toolset/infrastructure/hermes/banks/{<all-known-ban
 
 Banks discovered at runtime via `list_banks()`. Create them as they appear.
 
+### Step 0: Sync repo state before modifying files
+
+**MANDATORY — prevents merge conflicts from deploy.sh file overrides.**
+
+The CI/CD pipeline (`deploy.sh`) copies config files (`config.yaml`, `SOUL.md`, `kilo.jsonc`) directly to `/opt/toolset-repo/`, leaving the working tree dirty with unstaged changes. If the bank sync tries to commit and push without cleaning these first, git will either (a) commit the wrong state or (b) create merge conflicts on push.
+
+Run BEFORE any bank export:
+
+```bash
+cd /opt/toolset-repo
+git fetch origin
+git reset --hard origin/main
+```
+
+This discards all local changes (which are always deploy artifacts, never user work) and aligns the repo with origin. The deploy.sh pipeline re-deploys config files independently — they don't need to be in the git working tree to be active on the VPS.
+
+**2026-07-07 incident**: The 02:00 UTC bank sync ran while config.yaml had a leftover `<<<<<<< HEAD` merge conflict from a previous deploy.sh override. The commit pushed the broken YAML, causing Validate Configs to fail in CI/CD. Root cause was the timing gap between deploy.sh (which leaves files dirty) and the repo-pull-cron (which runs `reset --hard` every 5 min). This step prevents recurrence.
+
 ## Step 1: Discover banks
 
 Call `mcp_hindsight_selfhosted_list_banks()`. Filter out `"default"` (legacy internal bank — never include it).
