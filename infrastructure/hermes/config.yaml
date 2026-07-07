@@ -279,7 +279,7 @@ email:
 example:
   api_keys: {}
   enabled: false
-<<<<<<< HEAD
+fallback_providers: [opencodego/qwen3.7-plus]
 feishu:
   app_id: ''
   app_secret: ''
