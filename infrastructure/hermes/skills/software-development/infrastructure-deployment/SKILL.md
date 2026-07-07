@@ -23,8 +23,8 @@ Managing infrastructure deployments involves more than running commands. It requ
 
 **Antes de CUALQUIER acción** relacionada con deploy, pipeline CI/CD, notificaciones de deploy, o infraestructura del Toolset:
 
-1. Ejecuta `recall(bank_id="toolset-profile", max_tokens=4096, budget="mid", query="infraestructura, despliegues recientes, estado del pipeline, notificaciones")`
-2. Si el usuario mencionó un repo específico (kairos, cl-concerts-db, etc.), haz recall también de su bank con `max_tokens=2048, budget="low"`
+1. Ejecuta `recall(bank="toolset", query="infraestructura, despliegues recientes, estado del pipeline, notificaciones")`
+2. Si el usuario mencionó un repo específico (kairos, cl-concerts-db, etc.), haz recall también de su bank
 3. Solo después de tener contexto completo, empieza a trabajar
 
 **Por qué es obligatorio:** El bank toolset contiene estado del pipeline, últimas ejecuciones, issues conocidos, y decisiones técnicas. Trabajar sin este contexto = repetir errores y dar respuestas incompletas. Fue instrucción directa del usuario.
@@ -511,6 +511,6 @@ cronjob action=create name="hermes-deploy-watch" schedule="every 3m" \
 
 Esta skill trabaja con infraestructura y despliegues. Por lo tanto:
 
-1. ⚠️ **Pre-flight (OBLIGATORIO — ver sección arriba):** Antes de empezar, ejecuta `recall(bank_id="toolset-profile", max_tokens=4096, budget="mid", query="infraestructura, despliegues recientes, estado del pipeline")`. Fue instrucción directa del usuario no omitir este paso.
+1. ⚠️ **Pre-flight (OBLIGATORIO — ver sección arriba):** Antes de empezar, ejecuta `recall(bank="toolset", query="infraestructura, despliegues recientes, estado del pipeline")`. Fue instrucción directa del usuario no omitir este paso.
 
-2. **Post-action persist:** Al completar un deploy o diagnóstico, ejecuta `retain(bank_id="toolset-profile", content="deploy: <commit>, resultado: ✅/❌, issues: <lista>", tags=["deploy", "YYYY-MM-DD"])`.
+2. **Post-action persist:** Al completar un deploy o diagnóstico, ejecuta `retain(bank="toolset", content="deploy: <commit>, resultado: ✅/❌, issues: <lista>", tags=["deploy", "YYYY-MM-DD"])`.

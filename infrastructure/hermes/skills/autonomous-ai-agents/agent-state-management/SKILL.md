@@ -83,19 +83,49 @@ This protocol only applies when the user explicitly asks about your status. For 
 
 ## Lifecycle Automation Patterns
 
-### Daily Hindsight Consolidation
+### Daily Hindsight Consolidation (Bank Sync)
 
-A cron job that synthesizes the day's interactions into durable memories:
+A cron job that exports ALL Hindsight banks to JSON, synthesizes a daily summary via reflect+retain, and commits to version control. Runs daily (currently 2 AM UTC).
+
+#### Workflow
+
+```
+1. list_banks()              → discover all banks, skip "default"
+2. list_memories(limit=1000) → export every bank sequentially
+   - Banks with <1000 facts: one call, no pagination
+   - Banks with >1000 facts: paginate with offset=1000
+3. Save each export as: infrastructure/hermes/banks/<BANK_ID>/YYYY-MM-DD.json
+4. reflect(bank_id=BANK_ID, query="daily synthesis")   → per bank
+5. retain(bank_id=BANK_ID, content=reflect_result,     → per bank
+     tags=["daily-summary", "YYYY-MM-DD", "BANK_ID"])
+6. git pull --rebase + add + commit + push
+```
+
+#### MCP Output Persistence
+
+When calling `list_memories` (or any MCP tool that returns large data):
+
+- **Output > ~200K chars** → auto-saved to `/tmp/hermes-results/call_*.txt`. Copy from there to the target path.
+- **Output < ~200K chars** → returned inline in the tool result. Save via `write_file()` or `terminal()` with a Python script that constructs the JSON.
+- **`execute_code` is BLOCKED in cron mode** (no user present to approve). Use `terminal()` with inline Python (`python3 << 'EOF'...EOF`) for data processing instead.
 
 ```yaml
-# Cron definition:
-schedule: "0 2 * * *"    # 2 AM daily
+# Cron definition (in ~/.hermes/cron/jobs.json):
+schedule: "0 2 * * *"
 prompt: >
-  Revisa las últimas 24h de sesiones usando session_search(query="...", limit=10).
-  Ejecuta reflect sobre lo aprendido hoy, los cambios realizados, y las decisiones tomadas.
-  retain los hallazgos clave en bank "hermes" con contexto del día.
+  Ejecuta el workflow de sincronización diaria de TODOS los banks de Hindsight:
+  1. list_banks() → descubre todos (ignora "default")
+  2. list_memories(limit=1000) → exporta cada bank como JSON
+  3. reflect + retain diario sobre cada bank
+  4. git pull --rebase + add + commit + push
 skill: agent-state-management
 ```
+
+#### Pitfalls
+
+- **Mismatched file format**: Some MCP tool outputs come as `{"result": "<escaped JSON string>", "structuredContent": {...}}`. All bank files use this exact wrapper format — not just the inner items array.
+- **Partial dumps**: When the tool result is inline (small output), manually extracting all items into a file can miss items. If a bank has significant facts but the tool returned them inline, re-query or use a Python script via `terminal()` instead of `write_file()`.
+- **Sequential required**: `list_memories` calls can be parallelized (independent reads), but `reflect` + `retain` must be sequential per bank (each reflect is stateful).
 
 ### Periodic Git Sync (Instance → Repo)
 
@@ -133,10 +163,22 @@ git push
 
 ### Bank Export / Import (Versioning)
 
-Export Hindsight banks to JSON for version control backup:
+Export Hindsight banks to JSON for version control backup. The current approach uses MCP tools (not curl):
 
 ```bash
-# Export all banks — uses Hindsight API (via funnel)
+# Discovery + export via MCP tools (run in session or cron):
+# 1. list_banks() → identifies all banks (skip "default")
+# 2. For each bank: list_memories(bank_id=BANK_ID, limit=1000)
+# 3. Save result to infrastructure/hermes/banks/BANK_ID/$(date -I).json
+# 4. reflect + retain daily summary per bank
+# 5. git add + commit + push
+```
+
+Full workflow documented in **Daily Hindsight Consolidation (Bank Sync)** section above.
+
+**Legacy curl approach** (alternative, non-MCP path — not currently in use):
+```bash
+# Export all banks — requires Hindsight API key
 for bank in hermes toolset; do
   curl -s "https://funnel/banks/$bank/export" \
     -H "Authorization: Bearer $HINDSIGHT_API_KEY" \

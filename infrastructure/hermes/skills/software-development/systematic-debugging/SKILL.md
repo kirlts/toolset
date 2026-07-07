@@ -433,8 +433,8 @@ From debugging sessions:
 ## Reglas de Memoria
 
 Esta skill trabaja con repositorios y código. Por lo tanto:
-1. Antes de empezar, ejecuta `recall(bank_id="<repo-name>-profile", max_tokens=2048, budget="low", query="contexto del proyecto, bugs previos, debugging history")`.
-2. Al encontrar la causa raíz y la solución, ejecuta `retain(bank_id="<repo-name>-profile", content="bug: <descripción>, causa raíz: <causa>, solución: <solución>, archivos: <lista>", tags=["debug", "YYYY-MM-DD"])`.
+1. Antes de empezar, ejecuta `recall(bank="<repo-name>", query="contexto del proyecto, bugs previos, debugging history")`.
+2. Al encontrar la causa raíz y la solución, ejecuta `retain(bank="<repo-name>", content="bug: <descripción>, causa raíz: <causa>, solución: <solución>, archivos: <lista>", tags=["debug", "YYYY-MM-DD"])`.
 
 
 

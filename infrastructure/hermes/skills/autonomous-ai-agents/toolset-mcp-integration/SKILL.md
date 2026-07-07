@@ -46,7 +46,7 @@ Both are configured in `~/.hermes/config.yaml` under `mcp_servers:` and are star
 | **How they arrive** | Injected at session start via MCP discovery from the hindsight-selfhosted MCP server |
 | **Capacity** | Unlimited (PostgreSQL + pgvector) |
 | **Scope** | Any bank in the system — `toolset`, `kairos`, `cl-concerts-db`, `evidencia-zero`, etc. |
-| **Bank targeting** | Pass `bank_id="<repo-name>-profile"` to operate on a specific bank |
+| **Bank targeting** | Pass `bank_id="<repo-name>"` to operate on a specific bank |
 | **Use for** | All project memory: architectural decisions, code context, task progress, lessons learned |
 
 ### Which one to use
@@ -54,12 +54,12 @@ Both are configured in `~/.hermes/config.yaml` under `mcp_servers:` and are star
 | Situation | Use |
 |-----------|-----|
 | Save "user prefers concise responses" | `memory()` → goes to bank `hermes` |
-| Save "this repo uses pytest with xdist" | `retain(bank_id="<repo>-profile", fact="...")` |
-| Load project context before working | `recall(bank_id="<repo>-profile", max_tokens=2048, budget="low", query="...")` |
-| Synthesize learnings from a bank | `reflect(bank_id="<repo>-profile", query="...")` |
+| Save "this repo uses pytest with xdist" | `retain(bank_id="<repo>", fact="...")` |
+| Load project context before working | `recall(bank_id="<repo>", query="...")` |
+| Synthesize learnings from a bank | `reflect(bank_id="<repo>", query="...")` |
 | Discover available banks | `list_banks()` |
 | Store user preference about behavior | `memory()` (goes to `hermes`) |
-| Store a technical decision about infra | `retain(bank_id="toolset-profile", fact="...")` |
+| Store a technical decision about infra | `retain(bank_id="toolset", fact="...")` |
 
 **Never use `memory()` for project-level or bank-specific operations.** The `memory` tool only addresses the `hermes` bank with a 2KB limit.
 
@@ -71,8 +71,8 @@ Every new session (WebUI, WhatsApp, CLI, any channel) MUST:
 
 ```
 1. memory(query="contexto completo...")   # user profile from bank hermes
-2. recall(bank_id="<active-repo>-profile", max_tokens=2048, budget="low")  # project context from specific bank
-3. If no active repo, recall(bank_id="toolset-profile", max_tokens=4096, budget="mid")  # infra context
+2. recall(bank_id="<active-repo>")        # project context from specific bank
+3. If no active repo, recall(bank_id="toolset")  # infra context
 ```
 
 This is documented in SOUL.md and is mandatory per the toolset's operational rules. The recall must happen BEFORE reading files.
@@ -261,6 +261,12 @@ como host temporal para el archivo. **Esto funciona** porque:
 | Confiabilidad | ❌ REMOTE_WORKBENCH propenso a timeout | ✅ API directa de Google Drive |
 
 **⚠️ Nota:** El link de autorización de OAuth expira (~10 min). Si el usuario no autoriza a tiempo, Kilo falla con timeout. En ese caso, relanzar Kilo con la conexión ya autorizada (el usuario ya aceptó el permiso).
+
+## MCP Output Persistence
+
+When an MCP tool returns a result larger than ~200K characters, the runtime auto-saves it to `/tmp/hermes-results/call_*.txt`. Smaller results stay inline in the tool output. This affects how you save MCP-fetched data to files, especially in cron mode where `execute_code` is blocked.
+
+See `references/mcp-output-persistence.md` for the full pattern and file format.
 
 ## Pitfalls
 

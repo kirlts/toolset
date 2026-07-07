@@ -28,7 +28,7 @@ Execute these steps in order. Each builds on the previous one.
 ### Phase 1: Memory (Hindsight Bank)
 
 1. **Identify the active banks.** Two banks are always needed:
-   - **Project bank** — matches the project directory/repo name with `-profile` suffix (e.g., `toolset` → bank `toolset`, `kairos` → bank `kairos-profile` for project-specific, `toolset` is the exception without `-profile` suffix).
+   - **Project bank** — matches the project directory/repo name (e.g., `toolset` → bank `toolset`).
    - **User profile bank** — always bank `hermes` (user preferences, conventions, meta-rules).
 
 2. **Run `recall` on both banks** with broad, high-budget queries, in parallel:
@@ -37,17 +37,15 @@ Execute these steps in order. Each builds on the previous one.
    # Project context
    mcp_hindsight_selfhosted_recall(
        query="contexto completo del proyecto infraestructura arquitectura",
-       bank_id="<project-name>-profile",
-       max_tokens=4096,
-       budget="mid"
+       bank_id="<project-name>",
+       budget="high"
    )
 
    # User profile
    mcp_hindsight_selfhosted_recall(
        query="perfil del usuario preferencias contexto del entorno",
        bank_id="hermes",
-       max_tokens=4096,
-       budget="mid"
+       budget="high"
    )
    ```
 
@@ -162,7 +160,7 @@ If the project involves deployed infrastructure (like Toolset Personal):
 
 8. **/document en el repo equivocado** — El workflow `/document` debe ejecutarse SIEMPRE en el contexto del repo `kirlts/toolset` (repo de gobierno central), NO en el repo donde se trabajó. Toolset contiene la configuración global, skills, y documentación de infraestructura.
 
-9. **Bank naming** — Los banks de Hindsight se nombran con el sufijo `-profile` (ej. `bank_id="researchit-profile"`, `bank_id="kairos-profile"`). El banco `toolset` es la excepción documentada (sin `-profile`). El name (nombre amigable) también debe ser `<repo>-profile`.
+9. **Bank naming** — Los banks de Hindsight se nombran EXACTAMENTE como el repo al que refieren (bank_id="researchit", no "ResearchIt Engine"). El name (nombre amigable) también debe ser el nombre del repo.
 
 10. **Secrets no van en código** — Todos los secrets (API keys, connection IDs) van en Infisical, respaldados por GitHub Secrets. No hardcodear en el código fuente. Ver `kilo-code` skill para el patrón de exportación (`set -a && source .env`).
 

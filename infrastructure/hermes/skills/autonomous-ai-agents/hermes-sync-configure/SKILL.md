@@ -30,11 +30,11 @@ Configures the daily auto-sync pipeline that versions all Hermes Agent artifacts
 | Cron | Time | What it does |
 |---|---|---|
 | `hermes-sync-files` | 01:00 UTC | Runs the bash sync script (no_agent). Commits + pushes file artifacts. |
-| `hermes-sync-banks` | 02:00 UTC | Agent-driven: discovers ALL non-default banks (~13 active: toolset, hermes, personal-profile, personal-buffer, chat-profile, wwe-profile, witral, yacv, evidencia-zero, cl-concerts-db, researchit, kairos), exports each as JSON dump, runs reflect + retain per bank, commits + pushes. |
+| `hermes-sync-banks` | 02:00 UTC | Agent-driven: discovers ALL non-default banks (~13 active: toolset, hermes, personal-profile, personal-buffer, chat-profile, wwe-profile, toolset-profile, witral, yacv, evidencia-zero, cl-concerts-db, researchit, kairos), exports each as JSON dump, runs reflect + retain per bank, commits + pushes. |
 
 ### 3. SOUL.md updates
 Adds to `~/.hermes/SOUL.md`:
-- **Inicialización de sesión**: recall(bank_id="hermes", max_tokens=4096, budget="mid") mandatory at session start
+- **Inicialización de sesión**: recall(bank="hermes") mandatory at session start
 - **Sincronización diaria automática**: documentation of both cron jobs
 - Banks JSON = backup/audit only, agent uses live Hindsight MCP
 

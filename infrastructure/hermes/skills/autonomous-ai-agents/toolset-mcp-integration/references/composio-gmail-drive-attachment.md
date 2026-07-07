@@ -15,7 +15,7 @@ Composio Gmail `GMAIL_SEND_EMAIL` requiere un `s3key` para adjuntar archivos. El
 
 ```
 INSTRUCCIÓN PERMANENTE: Sigue las reglas de .agents/ y Docs/RULES.md.
-Usa recall/retain en Hindsight con bank_id del repo activo (formato <repo>-profile).
+Usa recall/retain en Hindsight con bank_id del repo activo.
 
 ## TAREA: [enviar/subir/etc.]
 

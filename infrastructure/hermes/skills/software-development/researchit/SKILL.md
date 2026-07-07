@@ -26,7 +26,14 @@ ResearchIt es un motor de investigación profunda auto-hospedado que reemplaza a
 5. **Synthesize** — deepseek-v4-flash sintetiza reporte estructurado (Markdown, temperature=0.3, max_tokens=8192)
 6. **Refine** — Si reporte <8000 chars, expande a 5000+ palabras con segunda llamada LLM
 7. **PDF** — Typst compila Markdown a PDF. Sin cmarker. Conversión directa MD→Typst vía `_md_to_typst()`
-8. **Delivery** — Hermes lee el PDF de `vault/` y lo envía por WhatsApp (MEDIA:/path/to/file)
+8. **Delivery** — Hermes lee el PDF de `vault/` y lo envía por WhatsApp como attachment nativo.
+   - **CRITICAL**: `MEDIA:` tag debe estar en su PROPIA LÍNEA, SIN backticks, SIN markdown, SIN emojis decorativos en la misma línea. Ejemplo correcto:
+     ```
+     MEDIA:/opt/researchit/vault/researchit_tema_20260706_123456.pdf
+     ```
+   - Ejemplo INCORRECTO (no se parsea): 📎 `MEDIA:/opt/researchit/vault/...`
+   - Verificar que el PDF existe con `ls -la /opt/researchit/vault/*.pdf` ANTES de referenciarlo en MEDIA
+   - Siempre usar ruta ABSOLUTA (`/opt/researchit/vault/...`)
 
 ## Prerrequisitos
 
@@ -128,6 +135,8 @@ python -m src.research "tema" --output-dir /tmp/reports
 | .env con `***` | El archivo .env tiene valores masked (`***`) que Python lee literalmente | NO usar .env con valores masked. Usar `set -a && source /home/opc/.hermes/.env && set +a` para heredar env vars de Hermes. El .env de researchit solo debe contener valores reales o no existir. |
 | 401 en OpenCode Go | API key no exportada | Usar `set -a && source .env && set +a` |
 | Reporte corto | Pocas fuentes con contenido útil | Aumentar --max-sources (default 30) o mejorar queries de SearXNG |
+| Síntesis devuelve 0 caracteres | El LLM puede devolver vacío en el primer pase si las fuentes scrapeadas son de baja calidad | Es normal. El refine (segunda llamada LLM) expande automáticamente si <8000 chars. Verificar que el refine sí produjo contenido antes de reintentar. |
+| MEDIA tag no entrega PDF en WhatsApp | MEDIA: fue escrita dentro de backticks o markdown (```MEDIA:/path```) en lugar de línea aparte sin formato | La línea `MEDIA:/ruta/al/archivo.pdf` debe estar SOLA, sin backticks, sin emojis, sin markdown alrededor. Solo así el bridge de WhatsApp la parsea como attachment. |
 
 ## Reddit Integration
 
@@ -153,7 +162,7 @@ ResearchIt puede ejecutarse como cron job semanal para entregar informes periód
 1. Cron job con skill `researchit` cargada y `deliver: origin`
 2. El prompt del cron recolecta contexto dinámico (gh CLI, banks de Hindsight) antes de invocar ResearchIt
 3. ResearchIt genera PDF en `vault/`
-4. El agente del cron encuentra el PDF más reciente y lo entrega con `MEDIA:/path/to/file`
+4. El agente del cron encuentra el PDF más reciente (`ls -t /opt/researchit/vault/*.pdf | head -1`), verifica que existe, y lo entrega con `MEDIA:` en línea aparte (sin backticks, sin markdown alrededor de la línea MEDIA)
 
 Ver `references/weekly-cron-patterns.md` para el patrón completo de inteligencia laboral semanal y ejemplos de configuración.
 
