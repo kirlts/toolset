@@ -99,6 +99,9 @@ print("  \u2713 SOUL.md")
 env_tpl = open(f"{template_dir}/env.template").read()
 env = env_tpl.replace("<TENANT_NAME>", name)
 env = env.replace("<TENANT_BRIDGE_PORT>", str(bridge_port))
+env = env.replace("TZ=America/Santiago", "TZ=America/Santiago")  # ensure present
+if "TZ=" not in env:
+    env += "\nTZ=America/Santiago\n"
 env = env.replace("<TENANT_API_KEY>", os.environ.get("OPENCODE_GO_API_KEY", "PLACEHOLDER"))
 env = env.replace("<TENANT_WHATSAPP_NUMBER>", wa)
 env = env.replace("<TENANT_ALLOWED_USERS_CSV>", ",".join(allowed))

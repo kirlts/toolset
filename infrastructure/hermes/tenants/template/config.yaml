@@ -3,8 +3,8 @@ name: <TENANT_NAME>
 agent:
   api_max_retries: 3
   disabled_toolsets: []
-  environment_hint: ''
-  environment_probe: false
+  environment_hint: 'Hora local: Chile continental (UTC-4 invierno, UTC-3 verano)'
+  environment_probe: true
   gateway_notify_interval: 180
   max_turns: 90
   reasoning_effort: medium
