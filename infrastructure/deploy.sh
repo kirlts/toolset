@@ -1021,6 +1021,19 @@ else
   echo "[DEPLOY] No tenants directory at $TENANTS_DEF_DIR — skipping"
 fi
 
+# ─── Tenant health monitor cron (main Hermes) ───
+# Alerts user via WhatsApp DM if any tenant gateway/bridge goes down.
+echo "[DEPLOY] Syncing tenant health monitor cron..."
+ssh "${SSH_HOST}" \
+  "export PATH=/usr/local/bin:/home/opc/.local/bin:\$PATH; \
+   hermes cron delete tenant-health-monitor 2>/dev/null || true; \
+   hermes cron create '*/5 * * * *' \
+     --name tenant-health-monitor \
+     --script monitor-tenants.sh \
+     --no-agent \
+     --deliver 'whatsapp:163217431068839@lid' \
+     2>&1 | tail -1" 2>/dev/null || echo "  ⚠ Tenant health monitor cron sync skipped"
+
 # --- Hermes runtime config (idempotent) ---
 echo "[DEPLOY] Configuring Hermes runtime..."
 # Transfer standalone inject-composio-key.py to remote server
