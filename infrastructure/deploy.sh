@@ -1007,8 +1007,8 @@ for s in secrets:
       "sudo chown -R opc:opc ${TENANT_PROFILE_DIR} 2>/dev/null || true; \
        systemctl --user restart hermes-gateway-${TENANT_NAME} 2>/dev/null || true" 2>/dev/null || true
 
-    # Mark as tenant if not already
-    ssh "${SSH_HOST}" "touch ${TENANT_PROFILE_DIR}/.tenant" 2>/dev/null || true
+    # Mark as tenant if not already (only for actually provisioned profiles)
+    ssh "${SSH_HOST}" "test -f ${TENANT_PROFILE_DIR}/config.yaml && test ! -f ${TENANT_PROFILE_DIR}/.tenant && touch ${TENANT_PROFILE_DIR}/.tenant; return 0" 2>/dev/null || true
 
     TENANT_COUNT=$((TENANT_COUNT + 1))
     echo "  ✓ Tenant '$TENANT_NAME' synced"
