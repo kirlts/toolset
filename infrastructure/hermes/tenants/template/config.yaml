@@ -18,6 +18,10 @@ cron:
 display:
   personality: ''
   streaming: false
+  platforms:
+    whatsapp:
+      tool_progress: false
+  streaming: false
 file_read_max_chars: 100000
 home: <TENANT_WORKSPACE>
 memory:
