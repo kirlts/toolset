@@ -1048,7 +1048,7 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
 # WHATSAPP_BRIDGE_PORT env var as a fallback.
 # Remove this block when upstream fix lands (track: adapter.py line 349).
 echo "[DEPLOY] Applying multi-tenant bridge port patch..."
-scp -q "${HERMES_SCRIPTS_DIR}/patch-adapter-bridge-port.py" "${SSH_HOST}:/tmp/patch-adapter-bridge-port.py" 2>/dev/null || true
+scp -q "${HERMES_REPO_DIR}/scripts/patch-adapter-bridge-port.py" "${SSH_HOST}:/tmp/patch-adapter-bridge-port.py" 2>/dev/null || true
 ssh "${SSH_HOST}" \
   "sudo python3 /tmp/patch-adapter-bridge-port.py 2>&1 && \
    sudo find /usr/local/lib/hermes-agent -name '__pycache__' -path '*whatsapp*' -exec rm -rf {} + 2>/dev/null; \
