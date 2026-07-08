@@ -7,7 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-*Nothing pending.*
+### Added
+- Multi-tenant architecture: `hermes profile` como unidad de isolation para tenants independientes.
+- Templates para tenants en `infrastructure/hermes/tenants/template/`: `config.yaml`, `SOUL.md`, `.env.template`.
+- Script de provisioning runtime `provision-tenant.sh`: crea perfil Hermes, aplica templates, genera deploy keys SSH, almacena secrets en Infisical via API, clona repos.
+- Validador de JSON `validate-tenant-json.py`: schema validation para definiciones de tenant antes de provisioning.
+- CLI interactiva `tools/tenant-create.py`: construye JSONs de tenant con prompts guiados.
+- Directorio `infrastructure/hermes/tenants/definitions/` para JSONs canonicos de tenants versionados en repo.
+- Memoria Holographic (SQLite) por tenant: cero dependencias externas, aislamiento total via `$HERMES_HOME`.
+- Skill `/grupo` (`infrastructure/hermes-skills/tenant-grupo/SKILL.md`): onboarding simplificado para grupos WhatsApp de tenants. Sin Hindsight, sin Kanban, sin creacion de perfiles Hermes.
+- Comando `/add-user <numero>` para tenants: agrega numeros autorizados al instante.
+- Bloque de tenant sync en `deploy.sh`: resincroniza `.env` de tenants desde Infisical, restaura whatsapp-groups.yaml y group SOUL.md desde backup en desastre.
+- Backup CI/CD de perfiles tenant en `sync-hermes-to-repo.sh` (nuevo paso 9): whatsapp-groups.yaml y group SOUL.md versionados en `infrastructure/hermes/tenants/backups/`.
+- Suite de testing `test-tenant.sh`: 12 checks post-provision ejecutados automaticamente en cada deploy.
+- `docs/TEST.md`: 10 high priority tests, 3 regression tests, politica E2E para tenants.
+- Separacion de secrets: Infisical para tenants (paths `/tenants/<name>/`), GitHub Secrets solo para Hermes main.
+
+### Changed
+- `docs/MASTER-SPEC.md` §1: removida restriccion "No es una plataforma multi-inquilino". Reemplazada por "Soporta perfiles multi-tenant internos".
 
 ## [0.6.0] - 2026-07-06
 

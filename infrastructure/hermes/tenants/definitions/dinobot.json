@@ -1,0 +1,38 @@
+{
+  "name": "dinobot",
+  "description": "Asistente autónomo para DinoWiki",
+  "whatsapp_number": "+56936414929",
+  "allowed_users": ["56994172921"],
+  "repos": [
+    {
+      "url": "https://github.com/kirlts/dinowiki",
+      "push": true,
+      "branch": "main"
+    }
+  ],
+  "model": {
+    "default": "deepseek-v4-flash",
+    "provider": "opencode-go",
+    "fallback": "qwen3.7-plus"
+  },
+  "toolsets": ["terminal", "file", "web", "cronjob", "skills"],
+  "memory": {
+    "provider": "holographic"
+  },
+  "approvals": {
+    "mode": "smart",
+    "cron_mode": "approve"
+  },
+  "terminal": {
+    "cwd": "/home/opc/workspace/tenants/dinobot/repos",
+    "timeout": 180
+  },
+  "cron": {
+    "gateway_notify_interval": 3600
+  },
+  "tts": {
+    "enabled": false,
+    "voice": "es-CL-LorenzoNeural",
+    "scope": "all"
+  }
+}

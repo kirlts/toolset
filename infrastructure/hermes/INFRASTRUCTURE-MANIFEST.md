@@ -26,6 +26,18 @@
 | `infrastructure/kilo-prompt.md` | **[ELIMINADO 2026-07-05]** Legacy system prompt. Reemplazado por kilo-system-prompt.md | No aplica (eliminado) | 2026-07-05 (eliminado) |
 | `scripts/generate-kilo-config.py` | Genera kilo.jsonc desde kilo-system-prompt.md. Ejecutado por deploy.sh | Repo (ejecutado por deploy.sh en CI/CD runner) | 2026-06-30 |
 | `infrastructure/preflight.sh` | Verificacion post-deploy de invariantes MASTER-SPEC (15+ checks) | deploy.sh (copia) | 2026-06-30 |
+| `infrastructure/hermes/tenants/template/config.yaml` | Template de config.yaml para nuevos tenants. Placeholders reemplazados por provision-tenant.sh | deploy.sh (sincroniza .env y config de cada tenant) | 2026-07-07 |
+| `infrastructure/hermes/tenants/template/SOUL.md` | Template de SOUL.md para tenants. Identidad, herramientas, repos, memoria Holographic | deploy.sh (sincroniza SOUL.md de cada tenant) | 2026-07-07 |
+| `infrastructure/hermes/tenants/template/env.template` | Template de estructura .env. Placeholders de secretos, sin valores reales | provision-tenant.py (runtime) | 2026-07-07 |
+| `infrastructure/hermes/tenants/definitions/` | Directorio de JSONs de definicion de tenants. Un JSON por tenant, versionado en repo | deploy.sh (lee y sincroniza tenants activos) | 2026-07-07 |
+| `infrastructure/hermes/scripts/provision-tenant.sh` | Script de provisioning runtime: lee JSON, crea perfil Hermes, escribe config/SOUL/.env, genera deploy keys, almacena secrets en Infisical | deploy.sh (copia al VPS) | 2026-07-07 |
+| `infrastructure/hermes/scripts/validate-tenant-json.py` | Validador de schema JSON para definiciones de tenant. Usado antes de provisionar | deploy.sh (copia al VPS) | 2026-07-07 |
+| `tools/tenant-create.py` | CLI interactiva para crear JSONs de definicion de tenant. Ejecutable localmente | Repo (herramienta de desarrollo, no desplegada al VPS) | 2026-07-07 |
+| `infrastructure/hermes/tenants/backups/` | Backups de whatsapp-groups.yaml y group SOUL.md de tenants. Generado por sync-hermes-to-repo.sh, restaurado por deploy.sh | sync-hermes-to-repo.sh (push al repo) → deploy.sh (restore al VPS) | 2026-07-07 |
+| `infrastructure/hermes-skills/tenant-grupo/SKILL.md` | Skill `/grupo` para onboarding de grupos WhatsApp en tenants. Simplificado: sin Hindsight, sin Kanban, sin perfiles Hermes | external_skills_dirs (repo clone) | 2026-07-07 |
+| `infrastructure/hermes/sync-hermes-to-repo.sh` | Cron diario: backupea perfiles de tenants (whatsapp-groups.yaml, group SOUL.md) al repo | Cron (01:00 UTC via hermes-sync-files) | 2026-07-07 |
+| `infrastructure/hermes/scripts/test-tenant.sh` | Suite de validacion post-provision de tenants: verifica profile dir, config.yaml, .env, SOUL.md, memoria holographic, toolsets, workspace, CI/CD backup | deploy.sh (ejecutado post-sync) + ejecucion manual en VPS | 2026-07-07 |
+| `docs/TEST.md` | Estrategia de testing del proyecto. Define HP-001 a HP-010, REG-001 a REG-003, test-tenant.sh embebido | No aplica (documentacion). Ejecutable via preflight.sh | 2026-07-07 |
 | `docs/MASTER-SPEC.md` | Especificacion fundacional del proyecto | No aplica (documentacion) | 2026-06-28 |
 | `docs/Hermes-integration.md` | Plan de integracion Hermes. Puede estar desactualizado tras iteraciones | No aplica (documentacion) | 2026-06-23 |
 
@@ -57,9 +69,30 @@ Cuando se modifica un archivo de configuracion:
 
 ---
 
-## Current Session Changes (2026-06-30)
+## Current Session Changes (2026-07-07)
 
-### Session 6 — Kilo CLI System Prompt Architecture
+### Session 8 — Multi-Tenant Architecture: DinoBot
+
+| File | Change |
+|---|---|
+| `infrastructure/hermes/tenants/template/config.yaml` | **CREATED** — template config for tenants: name, model, toolsets, memory (holographic), approvals, terminal.cwd, WhatsApp. Placeholder-driven. |
+| `infrastructure/hermes/tenants/template/SOUL.md` | **CREATED** — template SOUL.md for tenants. Identity, tools, repos, Holographic memory instructions. No reference to Hermes. |
+| `infrastructure/hermes/tenants/template/.env.template` | **CREATED** — .env structure template. Placeholders for secrets, no real values committed. |
+| `infrastructure/hermes/tenants/definitions/` | **CREATED** — directory for per-tenant JSON definitions. Versioned in repo, canonical source for tenant config. |
+| `infrastructure/hermes/scripts/provision-tenant.sh` | **CREATED** — runtime provisioning: reads JSON, creates Hermes profile, applies templates, generates deploy keys, stores secrets in Infisical via API, clones repos, outputs QR instructions. |
+| `infrastructure/hermes/scripts/validate-tenant-json.py` | **CREATED** — JSON schema validator. Enforces name format, phone patterns, toolsets allowlist, memory provider, approvals mode. Used before provisioning. |
+| `tools/tenant-create.py` | **CREATED** — interactive CLI for building tenant JSONs. Prompts for all fields, validates, writes to definitions dir. |
+| `infrastructure/deploy.sh` | **UPDATED** — added tenant sync block: iterates tenant JSONs, rebuilds .env from Infisical, restores whatsapp-groups.yaml + group SOUL.md from repo backup (disaster recovery), restarts gateways. |
+| `infrastructure/hermes/sync-hermes-to-repo.sh` | **UPDATED** — added tenant profile backup (step 9): backs up whatsapp-groups.yaml + group SOUL.md from VPS → repo for all .tenant-marked profiles. |
+| `infrastructure/hermes/tenants/template/SOUL.md` | **UPDATED** — added `/grupo` and `/add-user` commands, multi-group section, references tenant-grupo skill. |
+| `infrastructure/hermes-skills/tenant-grupo/SKILL.md` | **CREATED** — v1.0.0. 3-phase onboarding for tenant WhatsApp groups. No Hindsight, no Kanban, no profile creation. Generates group SOUL.md + whatsapp-groups.yaml entries within tenant scope. |
+| `infrastructure/hermes/tenants/backups/` | **CREATED** — directory for CI/CD-backed tenant state backups. |
+| `infrastructure/hermes/scripts/test-tenant.sh` | **CREATED** — post-provision validation suite for tenants. 12 checks: profile, config, holographic memory, toolsets, .env, SOUL.md, workspace, CI/CD backup, gateway service. |
+| `docs/TEST.md` | **CREATED** — testing contract for toolset. 10 high priority tests, 3 regression tests, tenant-specific E2E policy, test-tenant.sh embedded. |
+| `docs/MASTER-SPEC.md` | **UPDATED** — §1: removida la restriccion "No es una plataforma multi-inquilino". Actualizado a "Soporta perfiles multi-tenant internos". |
+| `infrastructure/hermes/INFRASTRUCTURE-MANIFEST.md` | **UPDATED** — registered all new tenant + testing files. |
+
+### Session 7 — Context Engineering + Banco Consolidation (2026-07-05)
 
 | File | Change |
 |---|---|

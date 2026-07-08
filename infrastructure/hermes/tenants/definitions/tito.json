@@ -1,0 +1,37 @@
+{
+  "name": "tito",
+  "description": "Asistente personal autonomo de Javi Hernandez. Responde rapido, en chileno, con humor ligero y sin tecnicismos. Ayuda con recordatorios, listas, busquedas web, y conversacion cotidiana.",
+  "whatsapp_number": "+56940062891",
+  "allowed_users": ["56991003292", "56994172921"],
+  "repos": [],
+  "model": {
+    "default": "deepseek-v4-flash",
+    "provider": "opencode-go",
+    "fallback": "qwen3.7-plus"
+  },
+  "toolsets": ["terminal", "file", "web", "cronjob", "skills"],
+  "memory": {
+    "provider": "holographic"
+  },
+  "approvals": {
+    "mode": "off",
+    "cron_mode": "approve"
+  },
+  "terminal": {
+    "cwd": "/home/opc/workspace/tenants/tito/repos",
+    "timeout": 180
+  },
+  "cron": {
+    "gateway_notify_interval": 3600
+  },
+  "tts": {
+    "enabled": true,
+    "voice": "es-CL-LorenzoNeural",
+    "scope": "all"
+  },
+  "stt": {
+    "enabled": true,
+    "provider": "groq",
+    "model": "whisper-large-v3-turbo"
+  }
+}

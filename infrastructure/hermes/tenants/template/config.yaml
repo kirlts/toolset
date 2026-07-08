@@ -1,0 +1,56 @@
+_config_version: 30
+name: <TENANT_NAME>
+agent:
+  api_max_retries: 3
+  disabled_toolsets: []
+  environment_hint: ''
+  environment_probe: false
+  gateway_notify_interval: 180
+  max_turns: 90
+  reasoning_effort: medium
+  tool_use_enforcement: auto
+approvals:
+  cron_mode: approve
+  mode: smart
+  timeout: 60
+cron:
+  wrap_response: true
+display:
+  personality: ''
+  streaming: false
+file_read_max_chars: 100000
+home: <TENANT_WORKSPACE>
+memory:
+  provider: holographic
+model:
+  default: <TENANT_MODEL>
+  provider: <TENANT_PROVIDER>
+fallback_providers:
+- <TENANT_FALLBACK_MODEL>
+tts:
+  edge:
+    voice: <TENANT_TTS_VOICE>
+  enabled: <TENANT_TTS_ENABLED>
+  provider: edge
+stt:
+  enabled: <TENANT_STT_ENABLED>
+  groq:
+    model: whisper-large-v3-turbo
+  provider: groq
+security:
+  allow_lazy_installs: true
+  allow_private_urls: false
+  redact_secrets: true
+terminal:
+  backend: local
+  cwd: <TENANT_WORKSPACE>/repos
+  timeout: 180
+  auto_source_bashrc: true
+toolsets:
+<TENANT_TOOLSETS>
+whatsapp:
+  allowed_users:
+<TENANT_ALLOWED_USERS>
+  enabled: true
+  mode: bot
+  sandbox_for_code: false
