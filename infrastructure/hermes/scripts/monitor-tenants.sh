@@ -13,6 +13,7 @@ for profile_dir in "$PROFILES_DIR"/*/; do
   tenant=$(basename "$profile_dir")
   [ "$tenant" = "default" ] && continue
   [ -f "$profile_dir/.tenant" ] || continue
+  [ -f "$profile_dir/config.yaml" ] || continue  # solo perfiles realmente provisionados
 
   # 1. Systemd gateway service
   if ! systemctl --user is-active "hermes-gateway-${tenant}" >/dev/null 2>&1 && \
