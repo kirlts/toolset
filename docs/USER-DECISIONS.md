@@ -345,3 +345,36 @@
 **Discarded alternatives:** Usar API de WhatsApp Business para obtener descripciones (descartado: no hay API pública para grupos de comunidad).
 **Consequences:** Cualquier herramienta que consulte el bridge obtiene descripciones. Sin LLM involvement.
 **Reversion conditions:** Si Hermes actualiza el bridge.js y el parche ya no aplica (patch-bridge.sh detecta y falla grácilmente).
+
+---
+
+## [UD-022] Perfiles nativos de Hermes como unidad de tenant
+
+**Date:** 2026-07-08
+**Context:** Necesidad de aislar instancias de Hermes para terceros (DinoBot, Tito, etc.) sin interferir con la IaC de Toolset ni requerir infraestructura separada.
+**Decision:** Cada tenant es un perfil nativo de Hermes (`hermes profile create`) con su propio `$HERMES_HOME`, numero WhatsApp, bridge en puerto unico (3000+N), memoria Holographic (SQLite local), y gateway systemd independiente. Sin Docker, sin Hindsight, sin Kanban.
+**Discarded alternatives:** Contenedores Docker separados (descartado: consumo excesivo de RAM/CPU por tenant, no escala a N>3 en VPS actual). Perfil unico con system prompt de personalidad (descartado: no aísla filesystem, secretos, ni memoria). Multiplexing nativo de Hermes (descartado: no soporta numeros WhatsApp distintos para cada perfil en v0.17.0).
+**Consequences:** Cada tenant escala linealmente (~200MB RAM, 100MB disco). Aislamiento real por `$HERMES_HOME` + `WHATSAPP_ALLOWED_USERS`. Provisionamiento 100% automatizado excepto QR de WhatsApp. Requiere parche de adapter.py para bridge port por env var (UD-023).
+**Reversion conditions:** Si Hermes upstream agrega soporte nativo de bridge_port en config.extra para perfiles secundarios, eliminar parche adapter.py. Si el VPS no da abasto (>6 tenants), migrar a contenedores Docker.
+
+---
+
+## [UD-023] WHATSAPP_BRIDGE_PORT via env var (workaround config.extra)
+
+**Date:** 2026-07-08
+**Context:** `config.extra.get("bridge_port", 3000)` en adapter.py no funciona para perfiles secundarios de Hermes v0.17.0. Cada tenant necesita un puerto de bridge unico (3000 para main, 3001 para Tito, etc.) pero el adapter ignora el valor seteado en `whatsapp.extra.bridge_port` del config.yaml del perfil.
+**Decision:** Parchear `adapter.py` (linea 349) para leer `WHATSAPP_BRIDGE_PORT` del entorno del perfil como fallback. El parche se re-aplica en cada deploy via `patch-adapter-bridge-port.py`. Provision-tenant.py asigna puertos incrementalmente (3000+N).
+**Discarded alternatives:** Usar multiplexing nativo (descartado: no soporta sesiones de WhatsApp distintas en v0.17.0). Hardcodear 3001 en adapter.py (descartado: no escala a N tenants). Asignar IP distinta por bridge (descartado: requiere VPN/Tailscale, demasiado complejo).
+**Consequences:** Parche fragil pero documentado en INFRASTRUCTURE-MANIFEST.md con linea exacta. Si Hermes cambia adapter.py, el parche falla silenciosamente (deploy.sh lo ignora con `|| true`). El puerto asignado persiste en `.env` del tenant.
+**Reversion conditions:** Cuando Hermes upstream corrija el bug de config.extra, eliminar parche y script asociado.
+
+---
+
+## [UD-024] Systemd TimeoutStopSec=210s para gateways (REG-002)
+
+**Date:** 2026-07-08
+**Context:** TimeoutStopSec=90s (default de systemd) causa SIGKILL durante reinicios del gateway. El gateway tiene drain_timeout=180s, por lo que systemd lo mata antes de que termine de drenar. El bridge muere abruptamente, y al reconectar queda en estado de polling roto (el endpoint `/messages` deja de funcionar aunque `/health` reporte "connected").
+**Decision:** Regenerar unit de systemd con `hermes gateway install --force` para todos los gateways (main y tenants) con TimeoutStopSec=210s (drain_timeout + 30s). Documentado como REG-002 en TEST.md.
+**Discarded alternatives:** `systemctl set-property TimeoutStopSec` (descartado: no persiste tras regenerar el unit). Reducir drain_timeout a 90s (descartado: necesario para que el gateway cierre sesiones gracefulmente).
+**Consequences:** Sin SIGKILL sorpresa en reinicios. Bridge ya no queda en estado degradado. Fix aplicado manualmente al VPS (commit 2934d6b). El CI/CD sincroniza el unit en cada deploy.
+**Reversion conditions:** Si systemd actualiza el default de TimeoutStopSec a >= 210s, se puede revertir. Mantener documentado en TEST.md REG-002.
