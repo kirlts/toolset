@@ -378,3 +378,31 @@
 **Discarded alternatives:** `systemctl set-property TimeoutStopSec` (descartado: no persiste tras regenerar el unit). Reducir drain_timeout a 90s (descartado: necesario para que el gateway cierre sesiones gracefulmente).
 **Consequences:** Sin SIGKILL sorpresa en reinicios. Bridge ya no queda en estado degradado. Fix aplicado manualmente al VPS (commit 2934d6b). El CI/CD sincroniza el unit en cada deploy.
 **Reversion conditions:** Si systemd actualiza el default de TimeoutStopSec a >= 210s, se puede revertir. Mantener documentado en TEST.md REG-002.
+
+---
+
+## [UD-016] Arquitectura de perfil Trazambiental: asistente conservador con navegación bidireccional KB + Drive
+
+**Date:** 2026-07-09
+
+**Context:** Onboarding del grupo "Equipo Trazambiental" (Dino, Ricardo, Martín). Grupo de coordinación de desarrollo de plataforma NFU bajo Ley REP. Se requería un perfil extremadamente conservador (no iniciar conversaciones, no opinar sin solicitud) pero con alta capacidad de consulta sobre 3 fuentes de conocimiento: Knowledge Base local (dos polos Kratos/Khaos), Google Drive (7 recursos) y documentos legacy (OpenTech). El frontmatter YAML de la KB está inconsistente, por lo que la navegación debía basarse en [[wikilinks]] y no en metadatos.
+
+**Decision:** Perfil único `trazambiental` que consolida 3 fuentes de conocimiento bajo un protocolo unificado:
+1. KB local (read-only): navegación vía hubs → [[wikilinks]] → profundidad proporcional a la consulta
+2. Google Drive: folder IDs mapeados por alias en SOUL.md, consulta vía Composio MCP (GOOGLEDRIVE_FIND_FILE + GOOGLEDOCS_*)
+3. Legacy OpenTech: solo consultable a pedido explícito, marcado como "conocimiento no confirmado"
+
+Sin Kilo CLI (KB es read-only). Sin skills adicionales. Sin MCP extra (solo hindsight + composio). Evolución automática. El bank Hindsight `trazambiental-profile` registra decisiones y contexto operativo.
+
+**Discarded alternatives:**
+- Dos perfiles separados (planning vs legacy): descartado por el usuario, prefiere un perfil único que conozca ambos dominios.
+- Frontmatter como guía de navegación: descartado por frontmatter inconsistente en la KB.
+- Delegación a Kanban para consultas: descartado, el perfil opera directo sin sub-agentes.
+
+**Consequences:**
+- El perfil puede consultar ambas ramas del repo sin cambiar de identidad.
+- La navegación vía wikilinks es más lenta que frontmatter (requiere leer y seguir enlaces) pero funcional.
+- Se registró el repo en cloned-repos.yaml para que CI/CD lo clone automáticamente.
+- Pendiente: ajustar deploy.sh para que clone_repos() lea cloned-repos.yaml de la ruta correcta.
+
+**Reversion conditions:** Si el usuario decide activar Kilo CLI para modificar la KB, o si se agregan skills adicionales, se reconfigura vía /onboarding update.

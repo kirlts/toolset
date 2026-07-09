@@ -8,7 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Multi-tenant architecture: `hermes profile` como unidad de isolation para tenants independientes.
+- Onboarding perfil `trazambiental` para grupo "Equipo Trazambiental" (120363410438624857@g.us). Asistente conservador: lenguaje simple y breve, no inicia conversaciones.
+- Profile SOUL.md con arquitectura de KB (two-pole navigation: Kratos/Khaos), mapeo de 7 recursos Google Drive, memory cycle (MEM-01 a MEM-05), 4 workflows (bitácora, consulta MECE, memoria decisiones, contexto reuniones).
+- KB navigation protocol: Kratos (realidad normativa inmutable, 122 nodos) y Khaos (estrategia de producto mutable, 11 nodos). Navegación vía [[wikilinks]] con profundidad proporcional a la consulta.
+- 4 workflows: WF-01 bitácora inteligente, WF-02 consulta normativa MECE, WF-03 memoria de decisiones (retain silencioso), WF-04 contexto de reuniones.
+- Drive resource mapping: TrazAmbiental 2026 root, Datos y Credenciales, Bitácora (escritura vía GOOGLEDOCS_UPDATE_DOCUMENT_SECTION_MARKDOWN), OpenTech docs, NotebookLM Dino, Transcripciones Presencial/Online.
+- Equipo Trazambiental en whatsapp-groups.yaml con TTS on-demand.
+- Repo `kirlts/traza-ambiental` registrado en cloned-repos.yaml (path /opt/traza-ambiental, cloned, sync cron).
+- Dino (56995920409) y Ricardo (56996422007) agregados a config.yaml whatsapp.allowed_users.
+
+### Changed
+- `WHATSAPP_ALLOWED_USERS` GitHub Secret actualizado: Dino + Ricardo agregados.
+- `config.yaml` whatsapp.allowed_users: Dino + Ricardo agregados.
 - Templates para tenants en `infrastructure/hermes/tenants/template/`: `config.yaml`, `SOUL.md`, `.env.template`.
 - Script de provisioning runtime `provision-tenant.sh`: crea perfil Hermes, aplica templates, genera deploy keys SSH, almacena secrets en Infisical via API, clona repos.
 - Validador de JSON `validate-tenant-json.py`: schema validation para definiciones de tenant antes de provisioning.
