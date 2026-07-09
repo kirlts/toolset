@@ -25,6 +25,12 @@ repos:
     path: /opt/hermes-webui
     type: native
     sync: deploy
+  traza-ambiental:
+    url: https://github.com/kirlts/traza-ambiental.git
+    path: /opt/traza-ambiental
+    type: cloned
+    sync: cron
+    sandbox: optional
   personal:
     url: https://github.com/kirlts/personal.git
     path: /home/opc/personal

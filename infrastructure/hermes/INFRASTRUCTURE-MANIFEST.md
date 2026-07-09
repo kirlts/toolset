@@ -69,7 +69,18 @@ Cuando se modifica un archivo de configuracion:
 
 ---
 
-## Current Session Changes (2026-07-07)
+## Current Session Changes (2026-07-09)
+
+### Session 9 — Trazambiental Onboarding
+
+| File | Change |
+|---|---|
+| `infrastructure/hermes/profiles/trazambiental/SOUL.md` | **CREATED** — full profile: identity, team, KB navigation (Kratos/Khaos), Drive resource mapping (7 recursos), memory cycle (MEM-01 a MEM-05), 4 workflows (bitácora, consulta MECE, memoria decisiones, contexto reuniones), constraints, tone. |
+| `infrastructure/hermes/whatsapp-groups.yaml` | **UPDATED** — added Equipo Trazambiental (120363410438624857@g.us), profile trazambiental, scope product_development, repo kirlts/traza-ambiental, TTS on-demand. |
+| `infrastructure/hermes/config.yaml` | **UPDATED** — added Dino (56995920409) and Ricardo (56996422007) to whatsapp.allowed_users. |
+| `infrastructure/hermes/cloned-repos.yaml` | **UPDATED** — added traza-ambiental repo (kirlts/traza-ambiental.git), path /opt/traza-ambiental, type cloned, sync cron. |
+| Hindsight bank `trazambiental-profile` | **CREATED** — memory bank for Equipo Trazambiental. |
+| `infrastructure/hermes/INFRASTRUCTURE-MANIFEST.md` | **UPDATED** — registered Session 9 changes. |
 
 ### Session 8 — Multi-Tenant Architecture: DinoBot
 

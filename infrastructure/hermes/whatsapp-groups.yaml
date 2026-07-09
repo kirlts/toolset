@@ -47,6 +47,18 @@ groups:
     name: "Hermes HUB"
     readonly: true
 
+  "120363410438624857@g.us":
+    name: "Equipo Trazambiental"
+    description: "Coordinacion del equipo Trazambiental. Martin, Dino y Ricardo. Desarrollo de plataforma de gestion de residuos NFU bajo Ley REP."
+    repo: "kirlts/traza-ambiental"
+    profile: "trazambiental"
+    scope: "product_development"
+    tts:
+      enabled: true
+      mode: "on-demand"
+      provider: "edge"
+      voice: "es-CL-LorenzoNeural"
+
   "120363412929371105@g.us":
     name: "Entrenador"
     description: "Entrenador personal"
