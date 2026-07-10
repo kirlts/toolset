@@ -67,3 +67,15 @@ groups:
     tts:
       enabled: true
       mode: "on-demand"
+
+  "120363412210379112@g.us":
+    name: "Desarrollo Trazambiental"
+    description: "Grupo de desarrollo de Trazambiental. Alcance similar al grupo Equipo Trazambiental, pero solo con los informaticos."
+    repo: "kirlts/traza-ambiental-mvp"
+    profile: "desarrollo-trazambiental"
+    scope: "product_development"
+    tts:
+      enabled: true
+      mode: "responses"
+      provider: "edge"
+      voice: "es-CL-LorenzoNeural"
