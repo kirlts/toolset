@@ -36,3 +36,9 @@ repos:
     path: /home/opc/personal
     type: cloned
     sync: cron
+  traza-ambiental-mvp:
+    url: https://github.com/kirlts/traza-ambiental-mvp.git
+    path: /opt/traza-ambiental-mvp
+    type: cloned
+    sync: cron
+    sandbox: optional
