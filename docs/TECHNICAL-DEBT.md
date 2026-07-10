@@ -85,3 +85,30 @@
 **Description:** El health check actual (`.github/workflows/healthcheck.yml`) corre cada 5 min desde GitHub Actions y verifica URLs. Si falla, crea un issue en el repo (notificación por correo). Pero no hay integración con Hermes Agent: no puede iniciar un deploy de recuperación, no reporta el estado a Hermes, y no hay un dashboard de uptime.
 **Remediation plan:** En futura iteración, el health check debe notificar a Hermes vía WhatsApp (en lugar de/issues/además del issue de GitHub). Hermes podría gatillar un auto-deploy si detecta caída. Idealmente, el health check corre desde el propio Hermes (cron dentro del VPS) para no depender de GitHub Actions.
 **Status:** ☐ Pending
+
+---
+
+## [DT-008] deploy.sh chown -R recursivo sobre /home/opc/.hermes/ rompe con immutable flags en profiles
+
+**Severity:** Medium
+**Origin:** session 2026-07-09 (pipeline failure)
+**Description:** El paso "Writing Hermes .env" en deploy.sh ejecuta `sudo chown -R opc:opc ${HERMES_DIR}` que recorre TODO `/home/opc/.hermes/`. Los perfiles tenant como `tito` tienen `chattr +i` en sus `config.yaml`, lo que hace que `chown` falle con "Operation not permitted". Actualmente se mitiga con `2>/dev/null || true`, pero la solución correcta es cambiar a `sudo chown opc:opc ${HERMES_DIR}/.env` (solo el archivo recién escrito, no el directorio completo).
+**Status:** 🚨 Pending — mitigado con || true, no corregido estructuralmente.
+
+---
+
+## [DT-009] Workspace repo (/home/opc/workspace/toolset) puede revertir archivos de infraestructura vía hermes-sync
+
+**Severity:** Low
+**Origin:** session 2026-07-09 (compute.tf revertido por hermes-sync)
+**Description:** `sync-hermes-to-repo.sh` opera sobre `/home/opc/workspace/toolset`, un clon separado de `/opt/toolset-repo`. Si este workspace repo tiene archivos stale en staging (ej: `git add .` previo), `git commit` los incluye aunque el script solo haga `git add` de archivos específicos. El fix `git reset HEAD -- .` mitiga, pero el riesgo persiste si el workspace no se mantiene en sync con origin/main.
+**Status:** ☐ Pending — mitigado con git reset HEAD en sync script, no eliminado estructuralmente.
+
+---
+
+## [DT-010] deploy.sh tiene set -e pero múltiples comandos sin || true
+
+**Severity:** Medium
+**Origin:** session 2026-07-09 (pipeline failure)
+**Description:** deploy.sh arranca con `set -euo pipefail`, por lo que cualquier comando con salida no-cero rompe el pipeline. Comandos que pueden fallar por razones no críticas (permisos, immutable flags, registry auth) no siempre tienen `|| true`. Ejemplos: `sudo chattr -i` en perfiles tenant, `sudo docker compose pull`, `sudo chown -R` sobre directorios con immutable. Cada nuevo comando frágil añadido al deploy.sh es un riesgo de pipeline break.
+**Status:** ☐ Pending — revisión manual de cada comando en deploy.sh para evaluar tolerancia a fallos.
