@@ -197,11 +197,11 @@ if [ -f "$MANIFEST" ]; then
      echo '  cloned-repos.yaml deployed'"
 fi
 
-# --- Pull images ---
+# --- Pull images (authenticate to ghcr.io via gh CLI token on VPS) ---
+echo "[DEPLOY] Authenticating to ghcr.io via cached gh CLI token..."
+ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null   "${SSH_HOST}"   "echo \$(sudo -u opc gh auth token 2>/dev/null) | sudo docker login ghcr.io -u kirlts --password-stdin 2>&1 || echo '  [AUTH] ghcr.io login skipped (will use cached images)'" | sed 's/^/  [AUTH] /'
 echo "[DEPLOY] Pulling container images..."
-ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-  "${SSH_HOST}" \
-  "cd ${REMOTE_DIR} && sudo docker compose pull 2>&1" | sed 's/^/  [PULL] /'
+ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null   "${SSH_HOST}"   "cd ${REMOTE_DIR} && sudo docker compose pull 2>&1 || echo '  Pull failed — using locally cached images'" | sed 's/^/  [PULL] /'
 
 # --- Port cleanup (prevent "address already in use" from zombie processes) ---
 echo "[DEPLOY] Cleaning up ports..."

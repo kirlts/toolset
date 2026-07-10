@@ -46,7 +46,7 @@ resource "oci_core_instance" "toolset" {
   source_details {
     source_type             = "image"
     source_id               = "ocid1.image.oc1.sa-valparaiso-1.aaaaaaaabwwliv7irrkwvxq5ga5lqd5b6ape2cuauxz4knvechf4fwsvl23q"
-    boot_volume_size_in_gbs = 100
+    boot_volume_size_in_gbs = 200
   }
 
   create_vnic_details {
