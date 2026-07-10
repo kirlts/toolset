@@ -285,7 +285,7 @@ Use session_search or bank recall to retrieve context if needed.
 
 #### 2. Fetch Fresh Reddit Data
 
-Use COMPOSIO_SEARCH_TOOLS to plan the search, then COMPOSIO_MULTI_EXECUTE_TOOL with parallel calls:
+Use COMPOSIO_SEARCH_TOOLS to plan the search, then COMPOSIO_MULTI_EXECUTE_TOOL with parallel calls. **CRITICAL**: run BOTH of these in a single multi-execute call — they are complements, not alternatives. Keyword-only search misses spoiler-tagged event threads (see Pitfall #12). The top-post sweep catches those; the keyword search catches specific discussion threads.
 
 **Option A — Top posts from relevant subreddits** (general pulse):
 ```
@@ -421,6 +421,8 @@ When the user returns ~24 hours after an event and asks for an update:
 10. **Comment bodies with newlines and image-only content.** Reddit comment bodies are multi-line text with embedded `\n` — always flatten to single space for PDF cells. Many comments are image/gif-only (`![gif](...)`, bare `.png` URLs) and must be filtered at extraction time with `is_image_only()` + `sanitize_body()` (see Commment extraction pattern above). A comment whose cleaned body is `< 3 chars` is a gif/emoji-only post, skip it.
 
 11. **Two-phase cron pattern.** In cron mode, do NOT try to do everything in one tool. Phase 1: COMPOSIO_MULTI_EXECUTE_TOOL to fetch posts + COMPOSIO_REMOTE_WORKBENCH to parse/save report JSON. Phase 2: `terminal` with Python heredoc to read the report dict and generate the PDF. This avoids `execute_code` being blocked and keeps each phase under the 3-minute workbench limit.
+
+12. **Spoiler-tagged posts invisible to keyword search (event communities).** Subreddits like r/SquaredCircle, r/NBA, r/movies, and other event-focused communities use spoiler tags or generic titles for result threads: `[RAW SPOILERS] Main Event Result`, `[Post Game Thread] Final Score`, `Official Discussion Megathread`. These titles DON'T contain wrestler/player/movie names, so REDDIT_SEARCH_ACROSS_SUBREDDITS with `search_query=\"CM Punk\"` or `search_query=\"LeBron James\"` returns ZERO results for the most important threads. **Fix**: always run REDDIT_GET_R_TOP (subreddit-wide scope, `t=\"day\"` or `t=\"week\"`) in parallel with keyword searches. The spoiler-tagged threads show up by engagement, not by keyword matching. For sports/wrestling/event sentiment analysis, this is mandatory — never rely on keyword search alone.
 
 ## Verification Checklist
 

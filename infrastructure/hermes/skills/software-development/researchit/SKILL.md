@@ -164,6 +164,22 @@ ResearchIt puede ejecutarse como cron job semanal para entregar informes periód
 3. ResearchIt genera PDF en `vault/`
 4. El agente del cron encuentra el PDF más reciente (`ls -t /opt/researchit/vault/*.pdf | head -1`), verifica que existe, y lo entrega con `MEDIA:` en línea aparte (sin backticks, sin markdown alrededor de la línea MEDIA)
 
+**Pitfall — múltiples PDFs generados en una ejecución:** El agente del cron no debe asumir un solo PDF. Si el cron generó N reportes (e.g., dos temas diferentes en la misma ejecución programada), TODOS deben entregarse. NO hacer `ls -t ... | head -1`. En su lugar, encontrar todos los PDFs creados después del inicio de la ejecución actual, ordenar por tiempo de creación, y entregar cada uno con su propia línea `MEDIA:`.
+
+```python
+import glob, os, time
+batch_start = time.time()
+pdfs = sorted(glob.glob("/opt/researchit/vault/researchit_*.pdf"), key=os.path.getctime)
+for pdf in pdfs:
+    if os.path.getctime(pdf) >= batch_start - 60:  # created during this run
+        print(f"MEDIA:{pdf}")  # one line per PDF
+```
+
+Si ocurre que un PDF no se entrega (síntoma: el reflect lo menciona como "pendiente" días después), verificar:
+1. ¿El cron generó >1 PDF pero el agente solo tomó el primero?
+2. ¿El archivo aún existe en `vault/`? (Si pasaron 4+ días, puede haber sido limpiado.)
+3. Si el archivo ya no existe, la única opción es re-ejecutar la investigación.
+
 Ver `references/weekly-cron-patterns.md` para el patrón completo de inteligencia laboral semanal y ejemplos de configuración.
 
 ## Mobile PDF — Formato para WhatsApp

@@ -16,73 +16,136 @@ This loads the last session's retain context so the sync knows what "last known 
 
 ### Directory creation
 
+Dirs are created on-demand by the export script or manually:
+
 ```bash
 mkdir -p /home/opc/workspace/toolset/infrastructure/hermes/banks/{<all-known-bank-ids>}
 ```
 
-Banks discovered at runtime via `list_banks()`. Create them as they appear.
+Banks discovered at runtime via `list_banks()`. Create dirs as they appear.
 
 ## Step 1: Discover banks
 
 Call `mcp_hindsight_selfhosted_list_banks()`. Filter out `"default"` (legacy internal bank — never include it).
 
-Current active banks and approximate fact counts (as of 2026-07-05):
+**Live check**: Bank counts change over time. Re-run `list_banks()` each sync for the actual `fact_count` field, not any static table.
 
-| Bank | Facts | Activity |
-|---|---|---|
-| toolset | ~727 | Core infra decisions |
-| hermes | ~354 | Orchestrator identity & state |
-| researchit | ~158 | Research engine |
-| chat-profile | ~92 | General chat ideas & patterns |
-| personal-profile | ~85 | Curated KB (Terreno/Mito) |
-| kairos | ~80 | Governance framework |
-| wwe-profile | ~72 | WWE preferences |
-| cl-concerts-db | ~68 | Concert DB project |
-| personal-buffer | ~52 | Staging for KB candidates |
-| evidencia-zero | ~45 | Data sanitization tool |
-| yacv | ~40 | Resume builder |
-| witral | ~27 | Plugin-based data router |
-| toolset-profile | ~2 | Toolset worker (empty) |
-
-**Live check**: Bank counts change over time. Re-run `list_banks()` each sync for the actual `fact_count` field, not the table above.
-
-**Edge case — empty bank**: toolset-profile has ~2 facts (created by onboarding, no content yet). It's fine to run reflect+retain on it; the reflect will simply report "no activity". Do not skip it — the retain creates the daily-summary tag chain.
+**Edge case — empty bank**: Some banks have ~2 facts (created by onboarding, no content yet). Run reflect+retain on them anyway; the reflect will report "no activity". Do not skip — the retain creates the daily-summary tag chain.
 
 ## Step 2: Export each bank as JSON
 
 For each bank (process SEQUENTIALLY, one at a time):
 
-### 2a. Fetch memories
+### Method A (RECOMMENDED): Direct MCP JSON-RPC via curl
 
+Call the hindsight MCP endpoint directly using JSON-RPC over HTTP SSE. This is more reliable than extracting from MCP tool output because it avoids temp-file hunting and double-encoded JSON issues.
+
+The endpoint is at the URL configured in `~/.hermes/config.yaml` under `memory.hindsight.url`:
 ```
-mcp_hindsight_selfhosted_list_memories(bank=BANK_ID, limit=1000)
+https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/mcp/
 ```
 
-**Pagination check**: if the response shows `"total" > limit`, paginate with `offset` to get all pages.
+The response is SSE-streamed (`event: message\r\ndata: {...}`). Parse the `data:` line for the result.
 
-### 2b. Extract and save to file
+#### Python export script
 
-**Cron-mode constraint**: `execute_code` is blocked by `approvals.cron_mode`. All data extraction MUST use `terminal()` — either `cp` for persisted temp files or `cat` heredocs for inline data.
+Create `/tmp/export_bank.py` on each run (it's ephemeral — recreate if missing):
 
-**Large outputs** (>100K chars) are auto-saved to `/tmp/hermes-results/call_*.txt` as `persisted-output`. The simplest extraction is a plain `cp`:
+```python
+#!/usr/bin/env python3
+"""Export all memories from a hindsight bank to a JSON file via MCP JSON-RPC."""
+import json, sys, os, urllib.request, urllib.error
+
+MCP_URL = "https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/mcp/"
+
+def call_mcp(method, params):
+    payload = json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call",
+                          "params":{"name":method,"arguments":params}})
+    req = urllib.request.Request(MCP_URL, data=payload.encode(),
+                                  headers={"Content-Type":"application/json"},
+                                  method="POST")
+    resp = urllib.request.urlopen(req, timeout=120).read().decode()
+    for line in resp.split("\n"):
+        if line.startswith("data: "):
+            data = json.loads(line[6:])
+            if "result" in data:
+                content = data["result"].get("content", [])
+                for c in content:
+                    if c.get("type") == "text":
+                        return json.loads(c["text"])
+            elif "error" in data:
+                raise Exception(f"MCP error: {data['error']}")
+    raise Exception(f"No result in response: {resp[:200]}")
+
+def export_bank(bank_id, output_path):
+    all_items = []
+    offset = 0
+    limit = 1000
+    total = None
+    while total is None or offset < total:
+        result = call_mcp("list_memories", {"bank_id": bank_id, "limit": limit, "offset": offset})
+        items = result.get("items", [])
+        total = result.get("total", len(items))
+        all_items.extend(items)
+        offset += limit
+        if not items:
+            break
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    output = {"bank_id": bank_id, "exported_at": "YYYY-MM-DDT00:00:00Z",
+              "total": total, "exported_count": len(all_items), "items": all_items}
+    with open(output_path, "w") as f:
+        json.dump(output, f, indent=2, default=str)
+    print(f"Exported {len(all_items)}/{total} memories to {output_path}")
+    return len(all_items)
+
+if __name__ == "__main__":
+    export_bank(sys.argv[1], sys.argv[2])
+```
+
+Run it for each bank:
+```bash
+python3 /tmp/export_bank.py <bank_id> /home/opc/workspace/toolset/infrastructure/hermes/banks/<bank_id>/YYYY-MM-DD.json
+```
+
+**Batch execution**: Since requests are I/O-bound, run multiple banks concurrently with `&` + `wait`:
+```bash
+python3 /tmp/export_bank.py bank1 /path/bank1/date.json 2>&1 &
+python3 /tmp/export_bank.py bank2 /path/bank2/date.json 2>&1 &
+...
+wait
+```
+
+**Pagination**: The script handles pagination automatically (limit=1000, offset-based). No bank has exceeded 1000 facts as of 2026-07-10, but the loop is defensive.
+
+### Method B (legacy): MCP tool output → persisted temp file
+
+When MCP tool output exceeds ~100K chars, Hermes auto-saves it to `/tmp/hermes-results/call_*.txt`:
 
 ```bash
 cp /tmp/hermes-results/call_<FILE>.txt /home/opc/workspace/toolset/infrastructure/hermes/banks/<BANK_ID>/YYYY-MM-DD.json
+# Clean the MCP wrapper (the file is {"result": "...{escaped JSON}..."}):
+python3 -c "
+import json
+d = json.load(open('f.json'))
+raw = json.loads(d['result']) if isinstance(d.get('result'), str) else d['result']
+json.dump(raw, open('f.json','w'), indent=2, ensure_ascii=False)
+"
 ```
 
-The file is already valid JSON — no parsing needed. Banks like `toolset` (420 facts, ~870KB), `hermes` (227 facts, ~450KB), and `researchit` (112 facts, ~218KB) consistently hit this threshold.
+This approach works but has downsides:
+- Temp file path must be located in tool output headers
+- Double-encoded JSON needs unwrapping
+- Some response sizes fall between thresholds (not persisted, too large for heredoc)
+- The raw `cp` retains the MCP outer wrapper; the cleanup step is mandatory
 
-**Small outputs** (<100K chars, typically banks with <50 facts) return inline. Save with a `cat` heredoc (single-quoted EOF delimiter to prevent shell expansion):
+### Method C (legacy): `write_file` for small banks
 
-```bash
-cat > /home/opc/workspace/toolset/infrastructure/hermes/banks/<BANK_ID>/YYYY-MM-DD.json << 'EOF'
-{"result": "<full JSON output from MCP tool result>"}
-EOF
+For banks under ~50 facts (~60-200KB total), the MCP response is inline. Use `write_file` with the `structuredContent` JSON:
+
+```python
+# Extract via the tool's structuredContent.result field
+# Not via cat heredoc — unicode escapes and embedded quotes break heredocs
 ```
-
-For inline data, verify the JSON is well-formed by testing a quick `python3 -m json.tool` on the file after writing. Some MCP responses include multi-line strings with Unicode escapes that are valid JSON but fragile in heredocs.
-
-**Combo pattern**: fetch the next bank's `list_memories()` while processing the current bank's reflect+retain, to reduce wall-clock time. But always process reflect+retain sequentially per bank.
 
 ## Step 3: Reflect + Retain daily summary
 
@@ -93,93 +156,110 @@ For each bank:
 ```
 mcp_hindsight_selfhosted_reflect(
     bank_id=BANK_ID,
-    budget="mid" for large banks (200+ facts), "low" for small banks,
+    budget="mid" for large banks (200+ facts), "low" for others,
     query="Sintetiza las interacciones, decisiones, aprendizajes y cambios de las últimas 24 horas..."
 )
 ```
 
+**Edge case — reflect returns empty**: If `finish_reason=length` or `Provider returned empty message content`, retry with a shorter, more targeted query:
+```
+query="¿Qué cambios, entradas nuevas o decisiones de procesamiento hubo en el buffer en las últimas 24 horas?"
+```
+and `budget="low"`. This happened with `personal-buffer` (344 facts, large bank) — the full synthesis query exceeded the model's output window.
+
 ### 3b. Retain the result
 
-Use `retain()` (async) — it returns instantly and doesn't block the sync pipeline. The write is queued and completes asynchronously:
+Use `retain()` (async) — it returns instantly:
 
 ```json
 {"status":"accepted","operation_id":"<uuid>"}
 ```
 
-`sync_retain` is available but NOT recommended here — it blocks until Hindsight finishes processing, which can take seconds on large banks. The sync pipeline prioritizes throughput; async retention is sufficient for daily summaries.
-
-Keep the retain content concise (3-8 sentences, not the full reflect text). Focus on: what was done, what was learned, what decisions were made.
+Keep the retain content concise (3-8 sentences, not the full reflect text). Focus on: what was done, what was learned, what decisions were made. Tags always: `["daily-summary", "YYYY-MM-DD", "BANK_ID"]`
 
 ## Step 4: Git commit + push
 
-Two patterns depending on what state the working tree is in:
+### Pre-push: resolve repo state
 
-### Pattern A — Clean working tree (no pre-existing changes)
+**Stale rebase-merge directory**: The previous cron run may have left `.git/rebase-merge/` on the filesystem if it crashed mid-rebase:
+```bash
+rm -fr ".git/rebase-merge" && git pull --rebase origin main
+```
+
+**Detached HEAD**: If previous cron ran on detached HEAD (common when rebasing), any commits made there are orphaned. Cherry-pick them onto main before proceeding:
+```bash
+git checkout main
+git cherry-pick <orphaned-commit-hash>   # if relevant
+```
+
+**Diverged main**: If local main and origin/main have diverged (local has commits from orphaned detached HEAD, remote has 15+ different commits), use soft reset instead of rebase:
+```bash
+git reset --soft origin/main
+```
+This keeps your staged/new files and aligns the branch pointer. Then add + commit + push normally.
+
+### Standard push
 
 ```bash
 cd /home/opc/workspace/toolset
 git add infrastructure/hermes/banks/
-git pull --rebase origin main
 git commit -m "hermes-sync: banks YYYY-MM-DD"
+git pull --rebase origin main
 git push origin main
 ```
 
-Pull before commit when the tree is clean — avoids diverging from remote.
+### Pattern B — Pre-existing unstaged/staged changes
 
-### Pattern B — Pre-existing unstaged/staged changes (most common)
-
-When other files (e.g. `docs/TODO.md`, `infrastructure/hermes-context.md`) were modified outside this sync:
+When other files were modified outside this sync:
 
 ```bash
 cd /home/opc/workspace/toolset
 git add infrastructure/hermes/banks/
 git commit -m "hermes-sync: banks YYYY-MM-DD"
-# Now git pull --rebase will fail because of the other modified files.
-# Stash only those, not our committed changes:
-git stash push -- docs/TODO.md infrastructure/hermes-context.md
+git stash push -- docs/TODO.md infrastructure/hermes-context.md  # only pre-existing files
 git pull --rebase origin main
 git push origin main
-# git stash pop later when convenient
 ```
-
-**Why commit first**: The new bank files are versioned and safe. Stashing only the pre-existing unrelated changes isolates them from the sync commit. The stash doesn't need to be popped for push.
-**Why not `git stash` (unqualified)**: That stashes everything including the new files we just committed. `git stash pop` can then fail on merge conflicts if the rebase touched the same areas.
 
 ### Verification
-
-After push, confirm:
 
 ```bash
 git log --oneline -3
 # Should show: <hash> hermes-sync: banks YYYY-MM-DD
 ```
 
-## Combo pattern (parallelism within sequential processing)
-
-While banks are processed sequentially (one reflect+retain at a time), you can overlap I/O with computation:
-
-```
-Fetch bank N list_memories  →  while waiting:  process bank N-1 reflect+retain
-                              ↓
-Save bank N JSON             →  reflect bank N  →  retain bank N
-                              ↓
-Fetch bank N+1 list_memories →  (overlap starts again)
-```
-
-This reduces wall-clock time significantly on the 14-bank pipeline without violating the "sequential per-bank" requirement. The pattern works because MCP tools are async at the transport level — you issue the next `list_memories` immediately after saving the previous bank's output.
-
 ## Known pitfalls
 
 | Pitfall | Mitigation |
 |---------|-----------|
-| `execute_code` blocked in cron mode | Use `terminal()` with `python3 << 'PYEOF'` or `python3 -c "..."` instead. The `terminal()` tool is available in cron mode. |
-| `git pull --rebase` fails with pre-existing unstaged/staged changes | Use **Pattern B** (commit first, stash only pre-existing files, pull, push). Do NOT use unqualified `git stash` — it buries the committed files and risks merge conflicts on pop. |
-| Banks file grows with each daily dump | This is intentional — dumps are versioned by date for audit trail |
-| **Inline MCP data too large for heredoc, too small for temp file** — banks with 30-90 facts (~60-200KB total chars) return inline in the MCP response but contain unicode escapes, embedded quotes, and multiline strings that break `cat << 'EOF'` heredocs | **Primary method (reliable):** use `write_file` tool with the JSON content from the MCP `structuredContent` field. The write_file tool handles special characters correctly. **Secondary method:** use `terminal()` with `python3 -c "import json,sys; json.dump(json.loads(sys.stdin.read())['result'], open('/path/file.json','w'), indent=2)"` piping raw JSON through stdin. **NOT recommended:** `cat << 'EOF'` heredocs — they break on unicode escapes and embedded quotes. |
-| `default` bank exists and has facts | Skip it — it's an internal Hindsight bank, not a project bank |
-| Large banks (200+ facts) generate 500KB+ tool output with persisted file at `/tmp/hermes-results/call_*.txt` | Use `cp /tmp/hermes-results/call_*.txt .../BANK_ID/YYYY-MM-DD.json` then clean the MCP wrapper with `python3 -c "import json; d=json.load(open('f.json')); json.dump(json.loads(d['result']) if isinstance(d.get('result'),str) else d['result'], open('f.json','w'), indent=2, ensure_ascii=False)"`. The raw `cp` retains the MCP outer wrapper; this command strips it to clean JSON. |
-| Medium banks (50-200 facts) may cross the persistence threshold (~200-500KB total output) | Check for `persisted-output` header in tool response + `/tmp/hermes-results/call_*.txt` path. If present, use `cp` + clean. If inline, use `write_file`. |
-| MCP `list_memories` for banks under ~50 facts often returns inline data that's NOT auto-persisted | These are the trickiest. The data is in the MCP response's `structuredContent.result.items` but not in a temp file. Extract with `write_file` before the data scrolls out of context, or use `terminal()` with python piping via a second MCP call. |
-| Hindsight MCP might be slow on large reflects | Set budget="mid" for 200+ fact banks; budget="low" for <50 fact banks. Budget="low" produces adequate summaries even for larger banks. |
-| `sync_retain` vs `retain` — sync_retain blocks, retain returns instantly | Use async `retain()` for throughput. The backed-up retain queue on Hindsight is non-blocking and doesn't degrade on burst writes. |
-| File cleanup — `cp` from `/tmp/hermes-results/` preserves the MCP wrapper `{"result": "{...}"}` | This is expected. The inner JSON (`result.items`) is what matters. Use the `python3` cleanup command above after the `cp` to unwrap. Without unwrapping, downstream consumers get a double-encoded string instead of a proper JSON array. |
+| `execute_code` blocked in cron mode | Use `terminal()` with inline Python or the export script via `python3 /tmp/export_bank.py`. The `terminal()` tool is available in cron mode. |
+| `git pull --rebase` fails with stale `.git/rebase-merge/` | `rm -fr ".git/rebase-merge"` before the pull. Previous cron crashes leave this behind. |
+| Detached HEAD from previous rebase | `git checkout main` then `git cherry-pick` any orphaned commits from the sync. Use `git log` on the orphan to check if it's relevant sync content. |
+| Local main diverged from origin/main | `git reset --soft origin/main` — aligns pointer while preserving staged/unstaged work. |
+| reflect returns empty content for large banks | Retry with shorter query + lower budget. The full synthesis prompt can hit output length limits on 300+ fact banks. |
+| Export script missing at `/tmp/export_bank.py` | The script is ephemeral by nature. Re-create from the script block in this reference doc. Consider making it persistent if it's used 3+ times. |
+| `default` bank exists and has facts | Skip it — it's an internal Hindsight bank, not a project bank. |
+| Banks file grows with each daily dump | This is intentional — dumps are versioned by date for audit trail. |
+
+## Appendix: Bank Inventory (as of 2026-07-10)
+
+| Bank | Facts | Notes |
+|---|---|---|
+| hermes | 641 | Orchestrator identity & state |
+| personal-buffer | 344 | Staging for KB candidates |
+| wwe-profile | 220 | WWE preferences |
+| chat-profile | 202 | General chat ideas & patterns |
+| researchit | 190 | Research engine |
+| personal-profile | 165 | Curated KB (Terreno/Mito) |
+| toolset-profile | 161 | Toolset infra decisions |
+| entrenador-profile | 117 | Personal trainer profile |
+| kairos | 99 | Governance framework |
+| cl-concerts-db | 97 | Concert DB project |
+| toolset | 68 | Infra multi-tenant |
+| evidencia-zero | 57 | Data sanitization tool |
+| yacv | 57 | Resume builder |
+| witral | 35 | Plugin-based data router |
+| desarrollo-trazambiental-profile | 10 | Dev sub-group Trazambiental |
+| trazambiental-profile | 10 | Equipo Trazambiental |
+
+This table is for orientation only — always use live `list_banks()` for the actual counts.

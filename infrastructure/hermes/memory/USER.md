@@ -4,7 +4,7 @@ Ante blockers técnicos: explorar alternativas, implementar sin preguntar. No re
 §
 PDFs: WeasyPrint+CSS (DejaVu Sans, A4, márgenes 1.6cm, colores, portada). NO pandoc+typst. Validado 25-jun-2026.
 §
-User DETESTA disculpas vacías. Exige escritura madura, visceral, +18, sin clichés ni moralina. Da feedback brutalmente directo. Rechaza historias genéricas que suenen a IA. Prefiere personajes reales de WWE (Oba, Roman, Cody, Jey, Brock). No tolera fórmula repetitiva.
+User DETESTA disculpas vacías. Exige escritura visceral y autenticidad. Da feedback directo — odia el 'yes man' y modismos forzados para encajar. Quiere que discrepe cuando corresponda. Prefiere personajes reales de WWE (Oba, Roman, Cody, Jey, Brock). No tolera fórmula ni historias genéricas.
 §
 Exige: Kilo CLI para código, .agents/ de kairos obligatorio, integraciones directas con Hermes/Toolset, banks Hindsight = nombre exacto del repo.
 §
