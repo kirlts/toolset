@@ -18,7 +18,7 @@
 
 **Indirect beneficiary:** Los proyectos y clientes cuyos sistemas son desarrollados y mantenidos mediante este toolset.
 
-**What it IS NOT:** No es una plataforma multi-inquilino SaaS de nube publica, ni un servicio comercial externo. Soporta perfiles multi-tenant internos (DinoBot, etc.) como instancias aisladas de Hermes dentro del mismo VPS.
+**What it IS NOT:** No es una plataforma multi-inquilino (multi-tenant), ni un servicio de nube publica comercial.
 
 ---
 

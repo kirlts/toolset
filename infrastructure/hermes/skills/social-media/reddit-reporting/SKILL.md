@@ -1,7 +1,7 @@
 ---
 name: reddit-reporting
 description: "Use when generating scheduled reports from Reddit subreddits via Composio Reddit tools (REDDIT_GET_R_TOP, REDDIT_SEARCH_ACROSS_SUBREDDITS, REDDIT_RETRIEVE_POST_COMMENTS). Covers fetching posts, computing engagement, extracting top comments, and producing either a single-page PDF (fpdf2) or a text summary for group chat delivery."
-version: 1.1.0
+version: 1.2.0
 author: Hermes Agent (user-local)
 license: MIT
 metadata:
@@ -10,9 +10,13 @@ metadata:
     related_skills: [nano-pdf, ocr-and-documents]
 ---
 
-# Reddit Reporting
+## Reference Files
 
-## Overview
+- `references/cm-punk-sami-zayn-community-analysis.md` — Case study: live community sentiment analysis for a major WWE title change, including Reddit threads, comment extraction, personal message crafting, and full session flow.
+
+## Version History
+
+v1.1.0 — Initial version. Added scheduled report patterns, PDF generation, and text summary delivery.
 
 Generate scheduled reports from Reddit subreddits by fetching posts via Composio Reddit tools, computing engagement scores (score * num_comments), extracting top comments, and producing either:
 
@@ -27,6 +31,8 @@ The workflow is designed for cron jobs: fully autonomous, no user interaction ne
 - Scheduled monitoring of specific subreddits (r/chile, r/chileit, r/SquaredCircle, etc.)
 - Generating weekly themed summaries (wrestling promotion recaps, event discussion roundups, community sentiment reports)
 - Any task that fetches Reddit posts + comments and produces a static report
+- **On-demand community sentiment analysis**: When a group member asks "what is Reddit saying about [event/wrestler/storyline]" — fetch fresh posts and comments, extract sentiment/themes, and respond conversationally in the group's language/tone
+- **Personal message for another group member**: When the requesting user asks "do you have any message for [other member]" — synthesize community sentiment into a direct, empathetic message addressed to that person
 - **Don't use for**: one-off Reddit lookups (use search tools directly), interactive Reddit browsing, posting/commenting on Reddit
 
 ## Prerequisites
@@ -253,6 +259,144 @@ For delivery to WhatsApp, Discord, Telegram, or Slack groups — the final respo
 - **Cross-promotional content**: When reporting on a promotion, include relevant crossovers on other shows (e.g., AAA championships defended on WWE SmackDown).
 
 For cron jobs: the text summary IS your final tool response. The system delivers it automatically.
+
+## On-Demand Community Sentiment Analysis (Live Mode)
+
+When a group member asks for live community reactions (e.g., "what is Reddit saying about [event/wrestler]?"), use this workflow instead of the scheduled report pattern. This mode prioritizes conversational tone, empathy, and group-specific language over structured PDF output.
+
+### Trigger Signals
+
+- "Que dice la comunidad" / "qué está diciendo Reddit" / "busca en Reddit"
+- "Que opina la gente" / "cómo reaccionaron"
+- Explicit request to check community reaction to a specific event
+- Follow-up request after a day has passed: "ya pasó un día, qué dice la comunidad ahora?"
+
+### Workflow Steps
+
+#### 1. Map the Event
+
+Identify what the user is referring to:
+- The specific show/episode (Raw, SmackDown, PLE)
+- The wrestlers involved (who vs who)
+- The outcome (who won, title change, return, debut, injury)
+- How long ago it happened (live vs "a day later")
+
+Use session_search or bank recall to retrieve context if needed.
+
+#### 2. Fetch Fresh Reddit Data
+
+Use COMPOSIO_SEARCH_TOOLS to plan the search, then COMPOSIO_MULTI_EXECUTE_TOOL with parallel calls:
+
+**Option A — Top posts from relevant subreddits** (general pulse):
+```
+REDDIT_GET_R_TOP (subreddit="SquaredCircle", t="day", limit=25)
+REDDIT_GET_R_TOP (subreddit="WWE", t="day", limit=25)
+REDDIT_GET_R_TOP (subreddit="Wrasslin", t="day", limit=10)
+```
+
+**Option B — Targeted search** (specific event/wrestler):
+```
+REDDIT_SEARCH_ACROSS_SUBREDDITS (search_query="CM Punk Sami Zayn title change", sort="new", limit=25)
+REDDIT_SEARCH_ACROSS_SUBREDDITS (search_query="Sami Zayn reaction WWE Championship", sort="top", limit=25)
+```
+
+Set `sync_response_to_workbench=true` so the full JSON lands at `/mnt/files/mex/...json` for parsing.
+
+#### 3. Parse and Identify Top Threads
+
+In COMPOSIO_REMOTE_WORKBENCH, load the saved JSON and extract posts filtered by `created_utc >= (now - 86400)`. Score posts by relevance (keywords matching the event/wrestlers in title+selftext) and engagement (score × num_comments). Identify 3-5 top posts.
+
+Key posts to look for:
+- Main event result thread (usually highest engagement)
+- Conspiracy/theory threads about booking decisions
+- "Spoiler" or backstage update threads
+- Post-show promo/video reaction threads
+- Meme/jerk subreddit takes (SCJerk, Wrasslin — often the funniest)
+
+#### 4. Fetch Comments from Top Threads
+
+Call COMPOSIO_MULTI_EXECUTE_TOOL with REDDIT_RETRIEVE_POST_COMMENTS for each selected post's article ID (base-36, without `t3_` prefix). Up to 5 parallel calls.
+
+#### 5. Extract Sentiment Themes
+
+In COMPOSIO_REMOTE_WORKBENCH, parse comments from all threads. Extract:
+
+- **Top comments by score** (highest upvoted)
+- **Recurring sentiment categories** (sympathy for loser, hype for winner, anger at booking, conspiracy theories, memes)
+- **The tone of the majority** (is the subreddit happy, angry, conflicted, laughing?)
+- **Standout quotes** — memorable or funny comments that capture the room
+
+Record the raw score and author for each notable comment.
+
+#### 6. Craft Community Report + Personal Message
+
+The response has TWO parts:
+
+**Part A — Community Sentiment Summary**
+Use the group's specified tone/language (e.g., Chilean Spanish, Mexican Spanish, English). Structure:
+- Overall feeling ("la mayoría está pal lado de Sami")
+- Key threads and their scores
+- Comment highlights with score and paraphrase
+- Conspiracy theories / booking speculation
+- Meme/jerk takes for flavor
+
+**Part B — Personal Message for Other Group Member** (if requested)
+When the user asks "do you have a message for [someone]" or "what should I tell [person]":
+- Synthesize the community sentiment into an empathetic, direct message
+- Address the person by name
+- Acknowledge how they feel (if they're sad/upset about a result)
+- Share a specific comment or insight from Reddit showing they're not alone
+- Include a hopeful/optimistic note if the community consensus supports it
+- Keep it personal and warm, not analytical
+- DO NOT frame as "Hermes says" — frame as the community talking
+
+Example response structure for Javi:
+```
+Pa la Javi: Decile que no está sola — Reddit entero está con ella. El top comment es "Poor Sami" con 638 ups. Un weon dijo: "Esto debería llevar a que gane de nuevo." El consuelo real: a Sami lo están tratando como main eventer, no como chiste.
+```
+
+#### 7. Retain to Bank
+
+Store the conversation's community report to the profile bank. Include:
+- What was discussed
+- The community sentiment consensus
+- Any new preferences about wrestlers or booking learned from the user
+- That personal messages were delivered
+
+### Delayed Follow-Up Pattern ("A Day Later")
+
+When the user returns ~24 hours after an event and asks for an update:
+1. Fetch fresh Reddit data (same search queries but 24h later)
+2. Compare with previous session's sentiment — has opinion shifted?
+3. Key patterns to watch for:
+   - Analysis/hot takes replacing raw emotional reactions
+   - New backstage news or spoilers emerging
+   - Meme evolution (new templates, running jokes)
+   - Long-term booking speculation gaining traction
+4. Highlight the *evolution* in sentiment, not just new posts
+5. For the personal message: reinforce the previous message if sentiment is still supportive, or update it if the wind has shifted
+
+### Language & Tone for Group Chat Delivery
+
+- **Group language**: Use the group's specified dialect and slang (Chilean: "po", "weon", "cachai", "eri", "jsjsj"; Mexican: "wey", "no mames"; neutral Spanish; English).
+- **Voice**: Conversational, not report-like. No headers or bullet structures. Weave community reactions naturally.
+- **Length**: 1500-3000 chars for the community part, 200-500 chars for the personal message.
+- **Humor**: Include the funny/crazy takes from the jerk subreddits or meme posts.
+- **Empathy**: If the community is sympathetic to the loser, lean into that. If they're celebrating, match that energy.
+- **Certainty**: Use hedging where appropriate ("la mayoría", "varios weones", "un comentario dijo") — don't present Reddit as a monolith.
+
+### On-Demand vs Scheduled: Key Differences
+
+| Aspect | Scheduled Report | Live Sentiment Analysis |
+|--------|-----------------|------------------------|
+| Trigger | Cron job | User message |
+| Output | PDF or text summary | Conversational response |
+| Audience | Read-only | Active group members |
+| Personal message? | No | Yes (if requested) |
+| Language | Neutral | Group-specific dialect |
+| Structure | Headers, bullets, data | Flowing conversation |
+| Comment depth | Top 2-3 per post | Top 10-15 across all posts |
+| Follow-up | Next cron tick | "A day later" pattern |
 
 ## Common Pitfalls
 

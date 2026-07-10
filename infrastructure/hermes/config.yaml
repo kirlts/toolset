@@ -574,8 +574,6 @@ wecom:
 whatsapp:
   allowed_users:
   - 56994172921
-  - 56995920409
-  - 56996422007
   auto_media_delivery: true
   enabled: true
   mode: bot

@@ -197,11 +197,11 @@ if [ -f "$MANIFEST" ]; then
      echo '  cloned-repos.yaml deployed'"
 fi
 
-# --- Pull images (authenticate to ghcr.io via gh CLI token on VPS) ---
-echo "[DEPLOY] Authenticating to ghcr.io via cached gh CLI token..."
-ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null   "${SSH_HOST}"   "echo \$(sudo -u opc gh auth token 2>/dev/null) | sudo docker login ghcr.io -u kirlts --password-stdin 2>&1 || echo '  [AUTH] ghcr.io login skipped (will use cached images)'" | sed 's/^/  [AUTH] /'
+# --- Pull images ---
 echo "[DEPLOY] Pulling container images..."
-ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null   "${SSH_HOST}"   "cd ${REMOTE_DIR} && sudo docker compose pull 2>&1 || echo '  Pull failed — using locally cached images'" | sed 's/^/  [PULL] /'
+ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  "${SSH_HOST}" \
+  "cd ${REMOTE_DIR} && sudo docker compose pull 2>&1" | sed 's/^/  [PULL] /'
 
 # --- Port cleanup (prevent "address already in use" from zombie processes) ---
 echo "[DEPLOY] Cleaning up ports..."
@@ -648,7 +648,7 @@ HERMES_DIR="/home/opc/.hermes"
 echo "[DEPLOY] Writing Hermes .env with CI/CD secrets..."
 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   "${SSH_HOST}" \
-  "sudo mkdir -p ${HERMES_DIR} && sudo chattr -i ${HERMES_DIR}/config.yaml 2>/dev/null; sudo tee ${HERMES_DIR}/.env > /dev/null && sudo chown -R opc:opc ${HERMES_DIR} 2>/dev/null || true; sudo chattr +i ${HERMES_DIR}/config.yaml 2>/dev/null" <<HERMESENV
+  "sudo mkdir -p ${HERMES_DIR} && sudo chattr -i ${HERMES_DIR}/config.yaml 2>/dev/null; sudo tee ${HERMES_DIR}/.env > /dev/null && sudo chown -R opc:opc ${HERMES_DIR} && sudo chattr +i ${HERMES_DIR}/config.yaml 2>/dev/null" <<HERMESENV
 # Hermes .env — managed by deploy.sh (CI/CD). DO NOT EDIT MANUALLY.
 OPENCODE_GO_API_KEY=${OPENCODE_GO_API_KEY}
 OPENCODE_GO_BASE_URL=https://opencode.ai/zen/go/v1
@@ -779,14 +779,8 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
         printf 'Y\nY\n' | sudo /usr/local/bin/hermes gateway install --system 2>&1 | sudo tee -a ${HERMES_LOG}
         sudo sed -i '/^Group=opc$/a SupplementaryGroups=docker' /etc/systemd/system/hermes-gateway.service 2>/dev/null
         sudo sed -i 's/^TimeoutStopSec=.*/TimeoutStopSec=210/' /etc/systemd/system/hermes-gateway.service 2>/dev/null
-        # Clean stale lock files on every gateway startup (prevents crash loop)
-        if ! grep -q "gateway.lock" /etc/systemd/system/hermes-gateway.service 2>/dev/null; then
-          sudo sed -i "/^ExecStart=/i ExecStartPre=-/usr/bin/rm -f /home/opc/.hermes/gateway.lock /home/opc/.hermes/gateway.pid" /etc/systemd/system/hermes-gateway.service 2>/dev/null
-          sudo systemctl daemon-reload 2>/dev/null
-        fi
+        sudo systemctl daemon-reload 2>/dev/null
       else
-        # Clean stale lock/PID files from previous runs (prevents crash loop after SIGKILL)
-        sudo rm -f /home/opc/.hermes/gateway.lock /home/opc/.hermes/gateway.pid 2>/dev/null || true
         echo '[hermes] Gateway service already enabled' | sudo tee -a ${HERMES_LOG}
         sudo systemctl kill -s KILL hermes-gateway 2>/dev/null || true
         sleep 1
@@ -943,101 +937,6 @@ if [ -d "$PROFILES_DIR" ]; then
   echo "[DEPLOY] Profile SOUL.md files synced"
 fi
 
-# ─── Tenant Sync: refresh all tenant .env files from Infisical ───
-echo "[DEPLOY] Syncing tenant profiles..."
-TENANTS_DEF_DIR="$(dirname "${COMPOSE_FILE}")/hermes/tenants/definitions"
-if [ -d "$TENANTS_DEF_DIR" ]; then
-  TENANT_COUNT=0
-  for tenant_json in "$TENANTS_DEF_DIR"/*.json; do
-    [ -f "$tenant_json" ] || continue
-    TENANT_NAME=$(python3 -c "import json; print(json.load(open('$tenant_json'))['name'])" 2>/dev/null || echo "")
-    [ -z "$TENANT_NAME" ] && continue
-
-    TENANT_PROFILE_DIR="/home/opc/.hermes/profiles/$TENANT_NAME"
-    TENANT_CWD=$(python3 -c "import json; print(json.load(open('$tenant_json'))['terminal']['cwd'])" 2>/dev/null || echo "")
-
-    echo "  Syncing tenant '$TENANT_NAME'..."
-
-    # Ensure profile directory exists
-    ssh "${SSH_HOST}" "mkdir -p ${TENANT_PROFILE_DIR} ${TENANT_CWD}" 2>/dev/null || true
-
-    # Sync template files (config.yaml, SOUL.md) from repo if they exist
-    TENANT_CONFIG_SRC="$TENANTS_DEF_DIR/../template/config.yaml"
-    TENANT_SOUL_SRC="$TENANTS_DEF_DIR/../template/SOUL.md"
-
-    # Rebuild .env from Infisical if token available
-    if [ -n "$INFISICAL_TOKEN" ] && [ -n "$INFISICAL_PID" ]; then
-      ssh "${SSH_HOST}" \
-        "sudo chattr -i ${TENANT_PROFILE_DIR}/config.yaml 2>/dev/null || true; \
-         curl -sf -H 'Authorization: Bearer ${INFISICAL_TOKEN}' \
-           'http://localhost:8080/api/v3/secrets?workspaceId=${INFISICAL_PID}&path=/tenants/${TENANT_NAME}/&environment=prod' 2>/dev/null | \
-         python3 -c \"
-import sys, json
-secrets = json.load(sys.stdin).get('secrets', [])
-for s in secrets:
-    key = s['secretKey']
-    val = s.get('secretValue', '')
-    _, leaf = key.rsplit('/', 1) if '/' in key else ('', key)
-    print(f'{leaf}={val}')
-\" > /tmp/tenant-${TENANT_NAME}.env 2>/dev/null && \
-         [ -s /tmp/tenant-${TENANT_NAME}.env ] && cp /tmp/tenant-${TENANT_NAME}.env ${TENANT_PROFILE_DIR}/.env || echo '  ⚠ ${TENANT_NAME}: Infisical returned no secrets'" 2>/dev/null || true
-    fi
-
-    # Restore whatsapp-groups.yaml and group SOUL.md from repo backup (disaster recovery)
-    TENANT_BACKUP_DIR="$TENANTS_DEF_DIR/../backups/$TENANT_NAME"
-    if [ -d "$TENANT_BACKUP_DIR" ]; then
-      # Restore whatsapp-groups.yaml if missing on VPS
-      if [ -f "$TENANT_BACKUP_DIR/whatsapp-groups.yaml" ]; then
-        ssh "${SSH_HOST}" \
-          "[ ! -f ${TENANT_PROFILE_DIR}/whatsapp-groups.yaml ] && cp /tmp/tenant-wg-${TENANT_NAME}.yaml ${TENANT_PROFILE_DIR}/whatsapp-groups.yaml && echo '  [restore] whatsapp-groups.yaml' || true" 2>/dev/null || true
-        scp -q "$TENANT_BACKUP_DIR/whatsapp-groups.yaml" "${SSH_HOST}:/tmp/tenant-wg-${TENANT_NAME}.yaml" 2>/dev/null || true
-      fi
-      # Restore group SOUL.md files if missing on VPS
-      if [ -d "$TENANT_BACKUP_DIR/groups" ]; then
-        ssh "${SSH_HOST}" "[ ! -d ${TENANT_PROFILE_DIR}/groups ] && mkdir -p ${TENANT_PROFILE_DIR}/groups" 2>/dev/null || true
-        for group_soul in "$TENANT_BACKUP_DIR/groups"/*/SOUL.md; do
-          [ -f "$group_soul" ] || continue
-          group_name=$(basename "$(dirname "$group_soul")")
-          scp -q "$group_soul" "${SSH_HOST}:/tmp/tenant-group-${TENANT_NAME}-${group_name}.md" 2>/dev/null || true
-          ssh "${SSH_HOST}" \
-            "mkdir -p ${TENANT_PROFILE_DIR}/groups/${group_name} && \
-             [ ! -f ${TENANT_PROFILE_DIR}/groups/${group_name}/SOUL.md ] && \
-             cp /tmp/tenant-group-${TENANT_NAME}-${group_name}.md ${TENANT_PROFILE_DIR}/groups/${group_name}/SOUL.md && \
-             echo '  [restore] groups/${group_name}/SOUL.md' || true" 2>/dev/null || true
-        done
-      fi
-    fi
-
-    # Restart gateway if .env or config changed
-    ssh "${SSH_HOST}"       "sudo chown -R opc:opc ${TENANT_PROFILE_DIR} 2>/dev/null || true;        sudo rm -f ${TENANT_PROFILE_DIR}/gateway.lock ${TENANT_PROFILE_DIR}/gateway.pid 2>/dev/null || true;        systemctl --user restart hermes-gateway-${TENANT_NAME} 2>/dev/null || true" 2>/dev/null || true
-
-    # Mark as tenant if not already (only for actually provisioned profiles)
-    ssh "${SSH_HOST}" "test -f ${TENANT_PROFILE_DIR}/config.yaml && test ! -f ${TENANT_PROFILE_DIR}/.tenant && touch ${TENANT_PROFILE_DIR}/.tenant; return 0" 2>/dev/null || true
-
-    TENANT_COUNT=$((TENANT_COUNT + 1))
-    echo "  ✓ Tenant '$TENANT_NAME' synced"
-
-    # Run tenant test suite (non-blocking: warns but doesn't fail the deploy)
-    ssh "${SSH_HOST}" "bash /home/opc/.hermes/scripts/test-tenant.sh $TENANT_NAME 2>&1" 2>/dev/null | sed "s/^/    /" || echo "    ⚠ Tenant test suite had failures (non-blocking)"
-  done
-  echo "[DEPLOY] ${TENANT_COUNT} tenant(s) synced"
-else
-  echo "[DEPLOY] No tenants directory at $TENANTS_DEF_DIR — skipping"
-fi
-
-# ─── Tenant health monitor cron (main Hermes) ───
-# Alerts user via WhatsApp DM if any tenant gateway/bridge goes down.
-echo "[DEPLOY] Syncing tenant health monitor cron..."
-ssh "${SSH_HOST}" \
-  "export PATH=/usr/local/bin:/home/opc/.local/bin:\$PATH; \
-   hermes cron delete tenant-health-monitor 2>/dev/null || true; \
-   hermes cron create '*/5 * * * *' \
-     --name tenant-health-monitor \
-     --script monitor-tenants.sh \
-     --no-agent \
-     --deliver 'whatsapp:163217431068839@lid' \
-     2>&1 | tail -1" 2>/dev/null || echo "  ⚠ Tenant health monitor cron sync skipped"
-
 # --- Hermes runtime config (idempotent) ---
 echo "[DEPLOY] Configuring Hermes runtime..."
 # Transfer standalone inject-composio-key.py to remote server
@@ -1056,20 +955,8 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     hermes config set model.default 'opencodego/deepseek-v4-flash' 2>/dev/null; \
     hermes config set model.provider 'opencode-go' 2>/dev/null; \
     python3 /tmp/inject-composio-key.py 2>&1; \
-     sudo chattr +i /home/opc/.hermes/config.yaml 2>/dev/null || true; \
-     rm -f /tmp/inject-composio-key.py"
-
-# ─── Multi-tenant bridge port patch (workaround for Hermes v0.17.0) ───
-# Named profiles need unique WhatsApp bridge ports but config.extra.get("bridge_port")
-# is not populated for secondary profiles. Patch adapter.py to read
-# WHATSAPP_BRIDGE_PORT env var as a fallback.
-# Remove this block when upstream fix lands (track: adapter.py line 349).
-echo "[DEPLOY] Applying multi-tenant bridge port patch..."
-scp -q "${HERMES_REPO_DIR}/scripts/patch-adapter-bridge-port.py" "${SSH_HOST}:/tmp/patch-adapter-bridge-port.py" 2>/dev/null || true
-ssh "${SSH_HOST}" \
-  "sudo python3 /tmp/patch-adapter-bridge-port.py 2>&1 && \
-   sudo find /usr/local/lib/hermes-agent -name '__pycache__' -path '*whatsapp*' -exec rm -rf {} + 2>/dev/null; \
-   echo '  ✓ Bridge port patch applied' || echo '  ⚠ Bridge port patch skipped (already applied or adapter structure changed)'" 2>/dev/null || true
+    sudo chattr +i /home/opc/.hermes/config.yaml 2>/dev/null || true; \
+    rm -f /tmp/inject-composio-key.py"
 
 echo "[DEPLOY] Hermes runtime configuration complete."
 
@@ -1088,10 +975,15 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
 echo "[DEPLOY] Config protection applied."
 
 echo "[DEPLOY] Worker profiles ready."
+
 # --- Restart hermes-gateway (post-config changes) ---
 echo "[DEPLOY] Restarting hermes-gateway..."
-# Clean stale lock/PID files before restart (prevents crash loop after SIGKILL)
-ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null   "${SSH_HOST}"   "sudo rm -f /home/opc/.hermes/gateway.lock /home/opc/.hermes/gateway.pid 2>/dev/null || true;    sudo systemctl kill -s KILL hermes-gateway 2>/dev/null || true;    sleep 1;    sudo systemctl reset-failed hermes-gateway 2>/dev/null || true;    sudo systemctl start hermes-gateway --no-block 2>/dev/null || true"
+ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  "${SSH_HOST}" \
+  "sudo systemctl kill -s KILL hermes-gateway 2>/dev/null || true; \
+   sleep 1; \
+   sudo systemctl reset-failed hermes-gateway 2>/dev/null || true; \
+   sudo systemctl start hermes-gateway --no-block 2>/dev/null || true"
 echo "[DEPLOY] hermes-gateway restart issued."
 
 # --- Verify hermes-gateway ---

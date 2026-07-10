@@ -43,7 +43,6 @@ check "grep -q 'terminal' '$PROFILE/config.yaml'"               "terminal toolse
 # ── WhatsApp ──
 check "grep -q 'WHATSAPP_BOT_NUMBER' '$PROFILE/.env'"           "WHATSAPP_BOT_NUMBER in .env"
 check "grep -q 'WHATSAPP_ALLOWED_USERS' '$PROFILE/.env'"        "WHATSAPP_ALLOWED_USERS in .env"
-check "grep -q 'WHATSAPP_BRIDGE_PORT' '$PROFILE/.env'"          "WHATSAPP_BRIDGE_PORT in .env"
 check "grep -q 'enabled: true' '$PROFILE/config.yaml'"          "whatsapp enabled in config"
 
 # ── TTS ──

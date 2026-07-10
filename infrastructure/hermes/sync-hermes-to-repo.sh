@@ -78,35 +78,11 @@ if [ -f "$KILO_SRC" ]; then
   echo "  kilo.jsonc synced"
 fi
 
-# ---- 9. Tenant profiles: backup whatsapp-groups.yaml + group SOUL.md files ----
-echo "[SYNC] Tenant profiles..."
-TENANTS_BACKUP_DIR="${REPO_DIR}/infrastructure/hermes/tenants/backups"
-mkdir -p "$TENANTS_BACKUP_DIR"
-for profile_dir in "$HERMES_HOME/profiles/"*/; do
-  [ -d "$profile_dir" ] || continue
-  tenant_name=$(basename "$profile_dir")
-  [ "$tenant_name" = "default" ] && continue
-  [ -f "$profile_dir/.tenant" ] || continue  # Only backup actual tenants
-
-  tenant_backup="$TENANTS_BACKUP_DIR/$tenant_name"
-  mkdir -p "$tenant_backup"
-
-  if [ -f "$profile_dir/whatsapp-groups.yaml" ]; then
-    cp "$profile_dir/whatsapp-groups.yaml" "$tenant_backup/whatsapp-groups.yaml"
-    echo "  [$tenant_name] whatsapp-groups.yaml backed up"
-  fi
-  if [ -d "$profile_dir/groups" ]; then
-    rm -rf "$tenant_backup/groups"
-    cp -a "$profile_dir/groups" "$tenant_backup/groups"
-    echo "  [$tenant_name] group SOUL.md files backed up"
-  fi
-done
-
-# ---- 10. Redact secrets from config.yaml before commit ----
+# ---- 9. Redact secrets from config.yaml before commit ----
 # COMPOSIO_MCP_KEY es escrita por deploy.sh desde env var; no debe quedar hardcodeada en el repo.
 sed -i 's|\(x-consumer-api-key:\) .*|\1 PLACEHOLDER_REPLACED_BY_DEPLOY|' "${HERMES_DIR}/config.yaml"
 
-# ---- 11. Commit local changes (exclude banks/ — handled by hermes-sync-banks) ----
+# ---- 10. Commit local changes (exclude banks/ — handled by hermes-sync-banks) ----
 if ! git diff --quiet infrastructure/hermes/; then
   echo "[SYNC] Committing local changes (excluding banks/)..."
   git add infrastructure/hermes/SOUL.md
@@ -117,7 +93,6 @@ if ! git diff --quiet infrastructure/hermes/; then
   git add infrastructure/hermes/hooks/
   git add infrastructure/hermes/webui/
   git add infrastructure/hermes/CRONS.md
-  git add infrastructure/hermes/tenants/
   git add infrastructure/kilo.jsonc
   git commit -m "${COMMIT_MSG}"
   CHANGES_COMMITTED=true
@@ -126,7 +101,7 @@ else
   CHANGES_COMMITTED=false
 fi
 
-# ---- 12. Pull rebase + push to main ----
+# ---- 11. Pull rebase + push to main ----
 echo "[SYNC] Syncing with remote..."
 git fetch origin main 2>&1
 if [ "${CHANGES_COMMITTED}" = "true" ]; then

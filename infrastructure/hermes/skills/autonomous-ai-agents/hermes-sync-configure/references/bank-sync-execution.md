@@ -22,24 +22,6 @@ mkdir -p /home/opc/workspace/toolset/infrastructure/hermes/banks/{<all-known-ban
 
 Banks discovered at runtime via `list_banks()`. Create them as they appear.
 
-### Step 0: Sync repo state before modifying files
-
-**MANDATORY — prevents merge conflicts from deploy.sh file overrides.**
-
-The CI/CD pipeline (`deploy.sh`) copies config files (`config.yaml`, `SOUL.md`, `kilo.jsonc`) directly to `/opt/toolset-repo/`, leaving the working tree dirty with unstaged changes. If the bank sync tries to commit and push without cleaning these first, git will either (a) commit the wrong state or (b) create merge conflicts on push.
-
-Run BEFORE any bank export:
-
-```bash
-cd /opt/toolset-repo
-git fetch origin
-git reset --hard origin/main
-```
-
-This discards all local changes (which are always deploy artifacts, never user work) and aligns the repo with origin. The deploy.sh pipeline re-deploys config files independently — they don't need to be in the git working tree to be active on the VPS.
-
-**2026-07-07 incident**: The 02:00 UTC bank sync ran while config.yaml had a leftover `<<<<<<< HEAD` merge conflict from a previous deploy.sh override. The commit pushed the broken YAML, causing Validate Configs to fail in CI/CD. Root cause was the timing gap between deploy.sh (which leaves files dirty) and the repo-pull-cron (which runs `reset --hard` every 5 min). This step prevents recurrence.
-
 ## Step 1: Discover banks
 
 Call `mcp_hindsight_selfhosted_list_banks()`. Filter out `"default"` (legacy internal bank — never include it).
@@ -172,16 +154,32 @@ git log --oneline -3
 # Should show: <hash> hermes-sync: banks YYYY-MM-DD
 ```
 
+## Combo pattern (parallelism within sequential processing)
+
+While banks are processed sequentially (one reflect+retain at a time), you can overlap I/O with computation:
+
+```
+Fetch bank N list_memories  →  while waiting:  process bank N-1 reflect+retain
+                              ↓
+Save bank N JSON             →  reflect bank N  →  retain bank N
+                              ↓
+Fetch bank N+1 list_memories →  (overlap starts again)
+```
+
+This reduces wall-clock time significantly on the 14-bank pipeline without violating the "sequential per-bank" requirement. The pattern works because MCP tools are async at the transport level — you issue the next `list_memories` immediately after saving the previous bank's output.
+
 ## Known pitfalls
 
 | Pitfall | Mitigation |
 |---------|-----------|
-| `execute_code` blocked in cron mode | Use `terminal()` with `python3 << 'PYEOF'` instead |
+| `execute_code` blocked in cron mode | Use `terminal()` with `python3 << 'PYEOF'` or `python3 -c "..."` instead. The `terminal()` tool is available in cron mode. |
 | `git pull --rebase` fails with pre-existing unstaged/staged changes | Use **Pattern B** (commit first, stash only pre-existing files, pull, push). Do NOT use unqualified `git stash` — it buries the committed files and risks merge conflicts on pop. |
 | Banks file grows with each daily dump | This is intentional — dumps are versioned by date for audit trail |
-| Small bank inline JSON (25-50 facts, ~30-80KB) fragile in heredocs — backslash escapes, Unicode, or nested quotes in `text` fields can break `cat << 'EOF'` | **Best**: the `res = {"result": {...}}` wrapper from MCP is pure JSON. Use `python3 -c "import json,sys; json.dump(json.loads(sys.stdin.read())['result'], open('/path/file.json','w'), indent=2)" << 'EOF'` piping the raw JSON payload. **Fallback for very small banks (<20 facts, <10KB)**: `cat > file.json << 'EOF'` works, but always validate with `python3 -m json.tool <file>`. |
+| **Inline MCP data too large for heredoc, too small for temp file** — banks with 30-90 facts (~60-200KB total chars) return inline in the MCP response but contain unicode escapes, embedded quotes, and multiline strings that break `cat << 'EOF'` heredocs | **Primary method (reliable):** use `write_file` tool with the JSON content from the MCP `structuredContent` field. The write_file tool handles special characters correctly. **Secondary method:** use `terminal()` with `python3 -c "import json,sys; json.dump(json.loads(sys.stdin.read())['result'], open('/path/file.json','w'), indent=2)"` piping raw JSON through stdin. **NOT recommended:** `cat << 'EOF'` heredocs — they break on unicode escapes and embedded quotes. |
 | `default` bank exists and has facts | Skip it — it's an internal Hindsight bank, not a project bank |
-| Large banks (400+ facts) generate 800KB+ tool output with persisted file at `/tmp/hermes-results/call_*.txt` | Use `cp /tmp/hermes-results/call_*.txt .../BANK_ID/YYYY-MM-DD.json` — simplest and most reliable extraction |
-| Medium banks (50-200 facts, 100-300KB) may return inline or persisted depending on total chars | Check for `persisted-output` header in tool response. If present, use `cp`. If inline, use the `python3` piping method above, not heredocs. |
+| Large banks (200+ facts) generate 500KB+ tool output with persisted file at `/tmp/hermes-results/call_*.txt` | Use `cp /tmp/hermes-results/call_*.txt .../BANK_ID/YYYY-MM-DD.json` then clean the MCP wrapper with `python3 -c "import json; d=json.load(open('f.json')); json.dump(json.loads(d['result']) if isinstance(d.get('result'),str) else d['result'], open('f.json','w'), indent=2, ensure_ascii=False)"`. The raw `cp` retains the MCP outer wrapper; this command strips it to clean JSON. |
+| Medium banks (50-200 facts) may cross the persistence threshold (~200-500KB total output) | Check for `persisted-output` header in tool response + `/tmp/hermes-results/call_*.txt` path. If present, use `cp` + clean. If inline, use `write_file`. |
+| MCP `list_memories` for banks under ~50 facts often returns inline data that's NOT auto-persisted | These are the trickiest. The data is in the MCP response's `structuredContent.result.items` but not in a temp file. Extract with `write_file` before the data scrolls out of context, or use `terminal()` with python piping via a second MCP call. |
 | Hindsight MCP might be slow on large reflects | Set budget="mid" for 200+ fact banks; budget="low" for <50 fact banks. Budget="low" produces adequate summaries even for larger banks. |
 | `sync_retain` vs `retain` — sync_retain blocks, retain returns instantly | Use async `retain()` for throughput. The backed-up retain queue on Hindsight is non-blocking and doesn't degrade on burst writes. |
+| File cleanup — `cp` from `/tmp/hermes-results/` preserves the MCP wrapper `{"result": "{...}"}` | This is expected. The inner JSON (`result.items`) is what matters. Use the `python3` cleanup command above after the `cp` to unwrap. Without unwrapping, downstream consumers get a double-encoded string instead of a proper JSON array. |

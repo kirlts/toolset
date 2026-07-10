@@ -1,0 +1,5 @@
+# Tito WhatsApp Group Configuration
+groups:
+  "102113568907482:1@lid":
+    name: "DM"
+    description: "Canal directo de Javi"

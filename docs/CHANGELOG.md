@@ -7,40 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-- Onboarding perfil `trazambiental` para grupo "Equipo Trazambiental" (120363410438624857@g.us). Asistente conservador: lenguaje simple y breve, no inicia conversaciones.
-- Profile SOUL.md con arquitectura de KB (two-pole navigation: Kratos/Khaos), mapeo de 7 recursos Google Drive, memory cycle (MEM-01 a MEM-05), 4 workflows (bitácora, consulta MECE, memoria decisiones, contexto reuniones).
-- KB navigation protocol: Kratos (realidad normativa inmutable, 122 nodos) y Khaos (estrategia de producto mutable, 11 nodos). Navegación vía [[wikilinks]] con profundidad proporcional a la consulta.
-- 4 workflows: WF-01 bitácora inteligente, WF-02 consulta normativa MECE, WF-03 memoria de decisiones (retain silencioso), WF-04 contexto de reuniones.
-- Drive resource mapping: TrazAmbiental 2026 root, Datos y Credenciales, Bitácora (escritura vía GOOGLEDOCS_UPDATE_DOCUMENT_SECTION_MARKDOWN), OpenTech docs, NotebookLM Dino, Transcripciones Presencial/Online.
-- Equipo Trazambiental en whatsapp-groups.yaml con TTS on-demand.
-- Repo `kirlts/traza-ambiental` registrado en cloned-repos.yaml (path /opt/traza-ambiental, cloned, sync cron).
-- Dino (56995920409) y Ricardo (56996422007) agregados a config.yaml whatsapp.allowed_users.
-
-### Fixed
-- Gateway crash loop: stale `gateway.lock`/`.pid` tras SIGKILL impedía reinicio del gateway (restart counter llegó a 2466). Fix: `ExecStartPre` en systemd unit + `rm -f` en deploy.sh antes de cada restart (3 puntos).
-- `deploy.sh`: autenticación a ghcr.io vía `gh auth token` antes de `docker compose pull`. Pull tolerante a fallos — no bloquea el pipeline si registry no responde.
-- `compute.tf`: `boot_volume_size_in_gbs` 100→200 (sincronizado con estado remoto real de OCI). OpenTofu ya no intenta downsizing imposible.
-
-### Changed
-- `WHATSAPP_ALLOWED_USERS` GitHub Secret actualizado: Dino + Ricardo agregados.
-- `config.yaml` whatsapp.allowed_users: Dino + Ricardo agregados.
-- Templates para tenants en `infrastructure/hermes/tenants/template/`: `config.yaml`, `SOUL.md`, `.env.template`.
-- Script de provisioning runtime `provision-tenant.sh`: crea perfil Hermes, aplica templates, genera deploy keys SSH, almacena secrets en Infisical via API, clona repos.
-- Validador de JSON `validate-tenant-json.py`: schema validation para definiciones de tenant antes de provisioning.
-- CLI interactiva `tools/tenant-create.py`: construye JSONs de tenant con prompts guiados.
-- Directorio `infrastructure/hermes/tenants/definitions/` para JSONs canonicos de tenants versionados en repo.
-- Memoria Holographic (SQLite) por tenant: cero dependencias externas, aislamiento total via `$HERMES_HOME`.
-- Skill `/grupo` (`infrastructure/hermes-skills/tenant-grupo/SKILL.md`): onboarding simplificado para grupos WhatsApp de tenants. Sin Hindsight, sin Kanban, sin creacion de perfiles Hermes.
-- Comando `/add-user <numero>` para tenants: agrega numeros autorizados al instante.
-- Bloque de tenant sync en `deploy.sh`: resincroniza `.env` de tenants desde Infisical, restaura whatsapp-groups.yaml y group SOUL.md desde backup en desastre.
-- Backup CI/CD de perfiles tenant en `sync-hermes-to-repo.sh` (nuevo paso 9): whatsapp-groups.yaml y group SOUL.md versionados en `infrastructure/hermes/tenants/backups/`.
-- Suite de testing `test-tenant.sh`: 12 checks post-provision ejecutados automaticamente en cada deploy.
-- `docs/TEST.md`: 10 high priority tests, 3 regression tests, politica E2E para tenants.
-- Separacion de secrets: Infisical para tenants (paths `/tenants/<name>/`), GitHub Secrets solo para Hermes main.
-
-### Changed
-- `docs/MASTER-SPEC.md` §1: removida restriccion "No es una plataforma multi-inquilino". Reemplazada por "Soporta perfiles multi-tenant internos".
+*Nothing pending.*
 
 ## [0.6.0] - 2026-07-06
 

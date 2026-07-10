@@ -1,6 +1,6 @@
 # REPOMAP: Toolset Personal
 
-> Generated: 2026-07-08 (Kairós v4.0.0)  
+> Generated: 2026-06-30 (Kairós v4.0.0)  
 > Purpose: Routing matrix. Defines when the AI is authorized to read each directory or file.
 
 ## Authoring Constraints (Read Before Populating)
@@ -15,16 +15,14 @@
 
 | Directory / File | Nature | When to Consult |
 |---|---|---|
- | `.agents/` | **[Active Governance]** Rules, skills, workflows, and templates that define agent behavior. | **MANDATORY.** The agent consults `01-behavior.md` at session start; the agent dynamically loads other files per `[RULE: DYNAMIC CONTEXT LOAD]` and `[RULE: DYNAMIC SKILL ACTIVATION]` triggers. |
+| `.agents/` | **[Active Governance]** Rules, skills, workflows, and templates that define agent behavior. | **MANDATORY.** The agent consults `01-behavior.md` at session start; the agent dynamically loads other files per `[RULE: DYNAMIC CONTEXT LOAD]` and `[RULE: DYNAMIC SKILL ACTIVATION]` triggers. |
 | `docs/MASTER-SPEC.md` | **[Domain Axiom]** Foundational architectural and operational specification of the project (identity, stack, constraints, trade-offs, modules, rules). | Consult before any architectural decision, infrastructure mutation, or cross-module change. Authoritative source for project boundaries and inviolable constraints (§4). |
-| `docs/` (excluding MASTER-SPEC.md) | **[Documentation]** Project documentary axis: RULES.md, VERIFICATION.md, TODO.md, MEMORY.md, USER-DECISIONS.md, CHANGELOG.md, TECHNICAL-DEBT.md, REPOMAP.md, TEST.md, and doc-gen/. | Consult per `[RULE: TASK INITIATION & AUTHORIZATION]` conditions — task completion verification, strategic decision review, version history updates, or rule lookup. |
-| `infrastructure/` | **[Infrastructure Module]** OpenTofu provisioning (`.tf`), Docker Compose services, deploy.sh CI/CD script, Hermes agent config (SOUL.md, config.yaml, banks/, memory/, skills/, scripts/, webui/), tenants/ (multi-tenant provisioning: templates, definitions, backups, sync, and adapter patches), Caddyfile, cloud-init, and external Hermes skills. | Consult when modifying infrastructure provisioning, CI/CD pipeline, service deployment, Hermes agent configuration, tenant creation/maintenance, or when verifying deployed system state. Maps to MASTER-SPEC §7.1. |
-| `infrastructure/hermes-skills/` (e.g., tenant-grupo/) | **[External Skills]** Skills loaded by Hermes via external_skills_dirs. Onboarding, group configuration, and platform-specific capabilities. | Consult when modifying Hermes skill logic, onboarding flows, or platform-specific agent behavior. |
+| `docs/` (excluding MASTER-SPEC.md) | **[Documentation]** Project documentary axis: RULES.md, VERIFICATION.md, TODO.md, MEMORY.md, USER-DECISIONS.md, CHANGELOG.md, TECHNICAL-DEBT.md, REPOMAP.md, and doc-gen/. | Consult per `[RULE: TASK INITIATION & AUTHORIZATION]` conditions — task completion verification, strategic decision review, version history updates, or rule lookup. |
+| `infrastructure/` | **[Infrastructure Module]** OpenTofu provisioning (`.tf`), Docker Compose services, deploy.sh CI/CD script, Hermes agent config (SOUL.md, config.yaml, banks/, memory/, skills/, scripts/, webui/), Caddyfile, cloud-init, and external Hermes skills. | Consult when modifying infrastructure provisioning, CI/CD pipeline, service deployment, Hermes agent configuration, or when verifying deployed system state. Maps to MASTER-SPEC §7.1. |
 | `.github/` | **[CI/CD Module]** GitHub Actions workflow definitions (deploy.yml). | Consult when modifying the CI/CD pipeline, troubleshooting deployment failures, or reviewing workflow structure. |
 | `.kilo/` | **[Editor Configuration]** Kilo CLI config (agent-manager.json, package.json, worktrees/). | Consult when troubleshooting Kilo CLI setup, agent-manager state, worktree management, or editor integration issues. |
 | `.ssh/` | **[Infrastructure Access]** SSH key pair for OCI server (toolset-oci, toolset-oci.pub). | Consult during SSH connectivity troubleshooting or when verifying key-based access to the OCI instance. |
- | `scripts/` | **[Utility Module]** Standalone utility scripts (validate-kilo-config.py). | Consult when validating Kilo configuration or running standalone repo utility tasks. |
-| `tools/` | **[Utility Module]** Interactive CLI tools for multi-tenant provisioning (tenant-create.py). | Consult when creating new tenant definitions via interactive CLI. Maps to MASTER-SPEC §7.1 (multi-tenant profile Infrastructure). |
+| `scripts/` | **[Utility Module]** Standalone utility scripts (validate-kilo-config.py). | Consult when validating Kilo configuration or running standalone repo utility tasks. |
 | `Root Config Files` | **[Configuration]** `.gitignore` and `.env.example`. | Consult `.gitignore` to verify file tracking policy; consult `.env.example` as schema reference for environment variables required by the system. |
 | `Project Documentation` | **[Documentation]** `README.md` (high-level project overview) and `AGENTS.md` (Hermes agent operational context). | Consult README.md at session start for project orientation; consult AGENTS.md when understanding Hermes agent capabilities, architecture, memory banks, and autonomy protocol. |
 | `Kairós Metadata` | **[Distribution Artifact]** `README-KAIROS.md` (framework quick reference) and `kairos-version.txt` (version manifest). | Consult only when verifying Kairós framework version or reviewing governance command reference. |
