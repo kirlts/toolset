@@ -81,6 +81,9 @@ Cuando se modifica un archivo de configuracion:
 | `infrastructure/hermes/cloned-repos.yaml` | **UPDATED** — added traza-ambiental repo (kirlts/traza-ambiental.git), path /opt/traza-ambiental, type cloned, sync cron. |
 | Hindsight bank `trazambiental-profile` | **CREATED** — memory bank for Equipo Trazambiental. |
 | `infrastructure/hermes/INFRASTRUCTURE-MANIFEST.md` | **UPDATED** — registered Session 9 changes. |
+| `infrastructure/deploy.sh` | **UPDATED** — lock file cleanup antes de restart (3 puntos: setup, post-config, tenants). Autenticación ghcr.io vía `gh auth token` antes de `docker compose pull`. Pull tolerante a fallos (`|| true`). `ExecStartPre` en systemd unit install. |
+| `infrastructure/compute.tf` | **UPDATED** — `boot_volume_size_in_gbs` 100 → 200. Sincronizado con estado real OCI (fue extendido manualmente). |
+| `docs/CHANGELOG.md` | **UPDATED** — added Fixed section: gateway crash loop, ghcr.io auth, boot volume sync. |
 
 ### Session 8 — Multi-Tenant Architecture: DinoBot
 

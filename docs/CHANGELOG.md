@@ -17,6 +17,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Repo `kirlts/traza-ambiental` registrado en cloned-repos.yaml (path /opt/traza-ambiental, cloned, sync cron).
 - Dino (56995920409) y Ricardo (56996422007) agregados a config.yaml whatsapp.allowed_users.
 
+### Fixed
+- Gateway crash loop: stale `gateway.lock`/`.pid` tras SIGKILL impedía reinicio del gateway (restart counter llegó a 2466). Fix: `ExecStartPre` en systemd unit + `rm -f` en deploy.sh antes de cada restart (3 puntos).
+- `deploy.sh`: autenticación a ghcr.io vía `gh auth token` antes de `docker compose pull`. Pull tolerante a fallos — no bloquea el pipeline si registry no responde.
+- `compute.tf`: `boot_volume_size_in_gbs` 100→200 (sincronizado con estado remoto real de OCI). OpenTofu ya no intenta downsizing imposible.
+
 ### Changed
 - `WHATSAPP_ALLOWED_USERS` GitHub Secret actualizado: Dino + Ricardo agregados.
 - `config.yaml` whatsapp.allowed_users: Dino + Ricardo agregados.
