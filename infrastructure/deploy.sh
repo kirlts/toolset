@@ -779,8 +779,14 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
         printf 'Y\nY\n' | sudo /usr/local/bin/hermes gateway install --system 2>&1 | sudo tee -a ${HERMES_LOG}
         sudo sed -i '/^Group=opc$/a SupplementaryGroups=docker' /etc/systemd/system/hermes-gateway.service 2>/dev/null
         sudo sed -i 's/^TimeoutStopSec=.*/TimeoutStopSec=210/' /etc/systemd/system/hermes-gateway.service 2>/dev/null
-        sudo systemctl daemon-reload 2>/dev/null
+        # Clean stale lock files on every gateway startup (prevents crash loop)
+        if ! grep -q "gateway.lock" /etc/systemd/system/hermes-gateway.service 2>/dev/null; then
+          sudo sed -i "/^ExecStart=/i ExecStartPre=-/usr/bin/rm -f /home/opc/.hermes/gateway.lock /home/opc/.hermes/gateway.pid" /etc/systemd/system/hermes-gateway.service 2>/dev/null
+          sudo systemctl daemon-reload 2>/dev/null
+        fi
       else
+        # Clean stale lock/PID files from previous runs (prevents crash loop after SIGKILL)
+        sudo rm -f /home/opc/.hermes/gateway.lock /home/opc/.hermes/gateway.pid 2>/dev/null || true
         echo '[hermes] Gateway service already enabled' | sudo tee -a ${HERMES_LOG}
         sudo systemctl kill -s KILL hermes-gateway 2>/dev/null || true
         sleep 1
@@ -1003,9 +1009,7 @@ for s in secrets:
     fi
 
     # Restart gateway if .env or config changed
-    ssh "${SSH_HOST}" \
-      "sudo chown -R opc:opc ${TENANT_PROFILE_DIR} 2>/dev/null || true; \
-       systemctl --user restart hermes-gateway-${TENANT_NAME} 2>/dev/null || true" 2>/dev/null || true
+    ssh "${SSH_HOST}"       "sudo chown -R opc:opc ${TENANT_PROFILE_DIR} 2>/dev/null || true;        sudo rm -f ${TENANT_PROFILE_DIR}/gateway.lock ${TENANT_PROFILE_DIR}/gateway.pid 2>/dev/null || true;        systemctl --user restart hermes-gateway-${TENANT_NAME} 2>/dev/null || true" 2>/dev/null || true
 
     # Mark as tenant if not already (only for actually provisioned profiles)
     ssh "${SSH_HOST}" "test -f ${TENANT_PROFILE_DIR}/config.yaml && test ! -f ${TENANT_PROFILE_DIR}/.tenant && touch ${TENANT_PROFILE_DIR}/.tenant; return 0" 2>/dev/null || true
@@ -1084,15 +1088,10 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
 echo "[DEPLOY] Config protection applied."
 
 echo "[DEPLOY] Worker profiles ready."
-
 # --- Restart hermes-gateway (post-config changes) ---
 echo "[DEPLOY] Restarting hermes-gateway..."
-ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-  "${SSH_HOST}" \
-  "sudo systemctl kill -s KILL hermes-gateway 2>/dev/null || true; \
-   sleep 1; \
-   sudo systemctl reset-failed hermes-gateway 2>/dev/null || true; \
-   sudo systemctl start hermes-gateway --no-block 2>/dev/null || true"
+# Clean stale lock/PID files before restart (prevents crash loop after SIGKILL)
+ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null   "${SSH_HOST}"   "sudo rm -f /home/opc/.hermes/gateway.lock /home/opc/.hermes/gateway.pid 2>/dev/null || true;    sudo systemctl kill -s KILL hermes-gateway 2>/dev/null || true;    sleep 1;    sudo systemctl reset-failed hermes-gateway 2>/dev/null || true;    sudo systemctl start hermes-gateway --no-block 2>/dev/null || true"
 echo "[DEPLOY] hermes-gateway restart issued."
 
 # --- Verify hermes-gateway ---
