@@ -83,6 +83,8 @@ fi
 sed -i 's|\(x-consumer-api-key:\) .*|\1 PLACEHOLDER_REPLACED_BY_DEPLOY|' "${HERMES_DIR}/config.yaml"
 
 # ---- 10. Commit local changes (exclude banks/ — handled by hermes-sync-banks) ----
+# Clear any stale staged files before adding (prevents old versions leaking into commit)
+git reset HEAD -- . 2>/dev/null || true
 if ! git diff --quiet infrastructure/hermes/; then
   echo "[SYNC] Committing local changes (excluding banks/)..."
   git add infrastructure/hermes/SOUL.md
