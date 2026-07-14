@@ -10,6 +10,29 @@ The cron job runs as an LLM-driven agent (not no_agent) with the `researchit` sk
 
 1. **Gather context** — Use `gh search commits --author=kirlts --limit=10 --order=desc --json=repository,commit,url` and `gh search issues --author=kirlts --state=open --limit=5 --json=title,repository,createdAt` for recent activity. **Known quirk**: `gh search commits` does not expose `message` or `createdAt` as top-level JSON fields — they nest inside the `commit` object. Always request `--json=commit` and parse `commit.message` / `commit.author.date`.
 2. **Define research topic** — Based on GitHub activity + user's static profile (stack, projects, interests), pick a specific job market / industry intelligence topic. **Avoid duplicates**: check `ls /opt/researchit/vault/*.pdf` to see which topics were already covered and pick a different angle.
+
+   ### Topic selection methodology
+
+   Use this structured approach to pick the strongest topic each week:
+
+   a. **Scan recent commits** (from step 1) — identify the repo(s) with the most recent activity. That repo represents the user's active focus area for the week.
+   b. **Map repo domain → market opportunity** — translate each active repo's domain into a market vertical:
+      - `traza-ambiental[-mvp]` → environmental traceability, ESG compliance, sustainability tech
+      - `BlinData` / `evidenciaZero` → data sanitization, labor compliance (Ley Karin), privacy tech
+      - `jarvis` → multi-tenant SaaS operations, B2B platform engineering
+      - `Prometeo` → OSINT, threat intelligence, B2B data services
+      - `YaCV` → HR tech, recruitment SaaS, credential verification
+      - `cl-concerts-db` → cultural data platforms, public databases
+   c. **Cross-reference with existing product portfolio** — find thematic intersections. A report on "B2B compliance SaaS in Chile" connects traza-ambiental (environmental) + BlinData (data protection/Ley Karin) + Prometeo (intelligence) under one umbrella. This produces more actionable intelligence than a single-vertical report.
+   d. **Consider the user's geography and career stage** — Martín is 25, in Viña del Mar, with a CS degree. Chilean-market reports (salaries, hiring trends, regulatory SaaS opportunities, startup ecosystem) are more relevant than generic global market research.
+   e. **Vet the topic** — after forming a candidate, check:
+      - Is it specific enough? ("El mercado SaaS en Chile" is too broad; "Oportunidades B2B SaaS de compliance regulatorio en Chile 2026" is specific.)
+      - Does it connect to at least one active repo? (If no repo maps to it, the user may not care.)
+      - Is it differentiable from the last 2-3 PDFs in vault/? (Skip if same angle was covered within 4 weeks.)
+   f. **Fallback** — if commits are stale (>2 weeks without activity) or gh fails, use the static profile alone and pick a topic from the user's project list that hasn't been explored recently.
+
+   The goal is a topic that is: **(a) specific, (b) tied to active work, (c) Chilean-market relevant, (d) not a duplicate.** A report meeting all four criteria will be more useful than one that only satisfies (a).
+
 3. **Invoke ResearchIt** — Standard invocation:
    ```bash
    set -a && source /home/opc/.hermes/.env && set +a && cd /opt/researchit && python3 -m src.research 'specific topic' --max-sources 30 --language es
