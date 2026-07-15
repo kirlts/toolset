@@ -92,8 +92,9 @@ A cron job that exports ALL Hindsight banks to JSON, synthesizes a daily summary
 ```
 1. list_banks()              → discover all banks, skip "default"
 2. list_memories(limit=1000) → export every bank sequentially
-   - Banks with <1000 facts: one call, no pagination
-   - Banks with >1000 facts: paginate with offset=1000
+   - Banks with <200 facts: one call at limit=1000
+   - Banks with 200-1000 facts: use limit=500 to avoid sandbox overflow
+   - Banks with >1000 facts: paginate with offset=1000 (limit=1000 works for these because they paginate naturally)
 3. Save each export as: infrastructure/hermes/banks/<BANK_ID>/YYYY-MM-DD.json
 4. reflect(bank_id=BANK_ID, query="daily synthesis")   → per bank
 5. retain(bank_id=BANK_ID, content=reflect_result,     → per bank
@@ -123,9 +124,11 @@ skill: agent-state-management
 
 #### Pitfalls
 
-- **Mismatched file format**: Some MCP tool outputs come as `{"result": "<escaped JSON string>", "structuredContent": {...}}`. All bank files use this exact wrapper format — not just the inner items array.
-- **Partial dumps**: When the tool result is inline (small output), manually extracting all items into a file can miss items. If a bank has significant facts but the tool returned them inline, re-query or use a Python script via `terminal()` instead of `write_file()`.
-- **Sequential required**: `list_memories` calls can be parallelized (independent reads), but `reflect` + `retain` must be sequential per bank (each reflect is stateful).
+- **Mismatched file format**: Some MCP tool outputs come as {"result": "<escaped JSON string>", "structuredContent": {...}}. All bank files use this exact wrapper format — not just the inner items array.
+- **Partial dumps**: When the tool result is inline (small output), manually extracting all items into a file can miss items. If a bank has significant facts but the tool returned them inline, re-query or use a Python script via terminal() instead of write_file().
+- **Sandbox overflow on medium banks**: list_memories(limit=1000) on banks with 200-280 facts can produce responses that the sandbox can't persist (>~460K chars). Use limit=500 as a safe fallback for banks in this range. Check fact_count from list_banks() before calling.
+- **Reflect failure fallback**: When reflect returns "Provider returned empty message content" even after retrying with a shorter query and budget="low", compose a manual summary from the list_memories output. Scan items for patterns (dates, entities, tags) and write a 3-8 sentence summary. This has been observed on banks as small as toolset (125 facts) and personal-profile (224 facts).
+- **Sequential required**: list_memories calls across different banks ARE independent reads and can be parallelized to save wall-clock time. But reflect + retain must be sequential per bank (each reflect is stateful).
 
 ### Periodic Git Sync (Instance → Repo)
 
@@ -168,7 +171,10 @@ Export Hindsight banks to JSON for version control backup. The current approach 
 ```bash
 # Discovery + export via MCP tools (run in session or cron):
 # 1. list_banks() → identifies all banks (skip "default")
-# 2. For each bank: list_memories(bank_id=BANK_ID, limit=1000)
+# 2. For each bank: list_memories(bank_id=BANK_ID)
+#    - Banks <200 facts: limit=1000
+#    - Banks 200-1000 facts: limit=500 (avoid sandbox overflow)
+#    - Banks >1000 facts: offset pagination at limit=1000
 # 3. Save result to infrastructure/hermes/banks/BANK_ID/$(date -I).json
 # 4. reflect + retain daily summary per bank
 # 5. git add + commit + push
