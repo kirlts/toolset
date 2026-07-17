@@ -36,6 +36,8 @@ Call `mcp_hindsight_selfhosted_list_banks()`. Filter out `"default"` (legacy int
 
 For each bank (process SEQUENTIALLY per bank — reflect+retain are stateful; but `list_memories` calls across different banks ARE independent reads and CAN be batched into parallel MCP calls to save wall-clock time):
 
+**IMPORTANT — parallel list_memories constraint:** Do NOT batch more than 2 list_memories calls in the same turn. When 3+ concurrent list_memories calls are made, some responses are truncated with "Full output could not be saved to sandbox" — even for small banks (58 facts, 116KB). The runtime can only persist ~2 concurrent large responses to /tmp/hermes-results/. Serialize list_memories calls, or at most pair them. reflect() and retain() calls are safe to batch since their payloads are small.
+
 ### Method A (RECOMMENDED): Direct MCP JSON-RPC via curl
 
 Call the hindsight MCP endpoint directly using JSON-RPC over HTTP SSE. This is more reliable than extracting from MCP tool output because it avoids temp-file hunting and double-encoded JSON issues.
@@ -169,11 +171,13 @@ and `budget="low"`. This happened with `personal-buffer` (344 facts, large bank)
 
 ### 3b. Retain the result
 
-Use `retain()` (async) — it returns instantly:
+Use `retain()` (sends the operation to the server) — normally returns immediately with an `operation_id`:
 
 ```json
 {"status":"accepted","operation_id":"<uuid>"}
 ```
+
+**Known timeout:** The MCP call itself can timeout at 300s under server load for larger banks (200+ facts). This is a transport-level timeout — the async operation is often still accepted on the server side despite the client-side timeout. If a retain call times out, **retry once** — the second attempt reliably succeeds.
 
 Keep the retain content concise (3-8 sentences, not the full reflect text). Focus on: what was done, what was learned, what decisions were made. Tags always: `["daily-summary", "YYYY-MM-DD", "BANK_ID"]`
 
@@ -237,31 +241,33 @@ git log --oneline -3
 | Detached HEAD from previous rebase | `git checkout main` then `git cherry-pick` any orphaned commits from the sync. Use `git log` on the orphan to check if it's relevant sync content. |
 | Local main diverged from origin/main | `git reset --soft origin/main` — aligns pointer while preserving staged/unstaged work. |
 | `list_memories(limit=1000)` sandbox overflow | Banks with 200-280 facts produce 420K-520K char responses at `limit=1000`. The sandbox can fail to persist the output file when it exceeds ~460K chars. **Workaround:** use `limit=500` for any bank with 200-1000 facts. Check the bank's `fact_count` from `list_banks()` output first. If the tool result says "could not be saved to sandbox", re-call with `limit=500`. |
+| **Parallel list_memories causes truncation** | 3+ concurrent `list_memories` calls produce "could not be saved to sandbox" even for small banks (58 facts, 116KB). **Do not batch more than 2 list_memories calls.** Serialize them, or at most parallelize 2 at a time. reflect() and retain() calls ARE safe to batch. |
 | reflect returns empty content for large banks | Retry with shorter query + lower budget (`budget="low", max_tokens=512`). The full synthesis prompt can hit output length limits on 300+ fact banks. **If retry also fails** (observed with `toolset` at 125 facts and `personal-profile` at 224 facts on 2026-07-15): compose a manual summary from the `list_memories` output. Scan the items for patterns (dates, entities, tags) and write a 3-8 sentence summary focusing on what was done/learned/decided. The reflect failure appears to be a `deepseek-v4-flash` output length issue, not a data problem — the manual fallback produces a valid retain. |
+| **retain() MCP call timeout** | retain() initiates an async operation on the server side, but the MCP call itself can timeout (300s). Observed with researchit (~226 facts) and wwe-profile (~403 facts). **Mitigation:** Retry once — the async operation is often accepted server-side despite the transport timeout. A second attempt reliably succeeds. |
 | Export script missing at `/tmp/export_bank.py` | The script is ephemeral by nature. Re-create from the script block in this reference doc. Consider making it persistent if it's used 3+ times. |
 | `default` bank exists and has facts | Skip it — it's an internal Hindsight bank, not a project bank. |
 | Banks file grows with each daily dump | This is intentional — dumps are versioned by date for audit trail. |
 
-## Appendix: Bank Inventory (as of 2026-07-15)
+## Appendix: Bank Inventory (as of 2026-07-17)
 
 | Bank | Facts | Notes |
 |---|---|---|
-| personal-buffer | 1419 | Staging for KB candidates (largest bank) |
-| hermes | 1183 | Orchestrator identity & state |
-| wwe-profile | 369 | WWE preferences |
-| chat-profile | 256 | General chat ideas & patterns |
-| personal-profile | 224 | Curated KB (Terreno/Mito) |
-| researchit | 216 | Research engine |
-| toolset-profile | 222 | Toolset infra decisions |
-| entrenador-profile | 154 | Personal trainer profile |
-| cl-concerts-db | 126 | Concert DB project |
-| toolset | 125 | Infra multi-tenant |
-| kairos | 124 | Governance framework |
-| evidencia-zero | 79 | Data sanitization tool |
-| yacv | 69 | Resume builder |
-| desarrollo-trazambiental-profile | 67 | Dev sub-group Trazambiental |
-| trazambiental-profile | 67 | Equipo Trazambiental |
-| witral | 54 | Plugin-based data router |
+| personal-buffer | 1871 | Staging for KB candidates (largest bank, needs 2 pages) |
+| hermes | 1354 | Orchestrator identity & state (needs 2 pages) |
+| wwe-profile | 403 | WWE preferences |
+| chat-profile | 274 | General chat ideas & patterns |
+| personal-profile | 249 | Curated KB (Terreno/Mito) |
+| toolset-profile | 254 | Toolset infra decisions |
+| researchit | 226 | Research engine |
+| entrenador-profile | 168 | Personal trainer profile |
+| cl-concerts-db | 146 | Concert DB project |
+| toolset | 152 | Infra multi-tenant |
+| kairos | 135 | Governance framework |
+| evidencia-zero | 89 | Data sanitization tool |
+| desarrollo-trazambiental-profile | 85 | Dev sub-group Trazambiental |
+| trazambiental-profile | 87 | Equipo Trazambiental |
+| yacv | 73 | Resume builder |
+| witral | 58 | Plugin-based data router |
 
 **Threshold guide**: Banks with >200 facts (hermes, personal-buffer, wwe-profile, personal-profile, researchit, toolset-profile) are the most expensive to export. Banks in the 200-280 range (personal-profile, researchit, toolset-profile, wwe-profile) need `limit=500` to avoid sandbox overflow. Banks below 200 facts work fine with `limit=1000`.
 
