@@ -35,3 +35,13 @@ metadata:
 - "Do you want me to keep monitoring?" — the order was already given
 - Re-reporting the same failure without a state change
 - Status updates faster than 30s per service
+
+## WhatsApp Group Activity Verification
+
+Daily consolidation crons and health checks need to determine whether a
+WhatsApp group had messages today. The procedure spans four log sources
+(gateway.log, agent.log, bridge.log, channel_aliases.json) and handles
+the bridge's known instability patterns.
+
+See `references/whatsapp-group-activity-procedure.md` for the full
+procedure, source truths, UTC→Chile time conversion, and pitfalls.

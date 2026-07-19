@@ -1,2 +1,2 @@
 #!/bin/bash
-sudo systemctl restart hermes-gateway
+sudo systemctl restart --no-block hermes-gateway

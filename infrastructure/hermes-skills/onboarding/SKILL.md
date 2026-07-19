@@ -1,7 +1,7 @@
 ---
 name: onboarding
 description: "Context-aware onboarding for WhatsApp groups and DM. Creates SOUL.md, skills config, and Hindsight bank. No predefined categories — each group defines its own identity. Optional Phase 0 extracts context from artifacts, URLs, voice messages, or conversation history. Phase 4 configures TTS per group."
-version: 5.0.0
+version: 5.1.0
 platforms: [linux]
 metadata:
   hermes:
@@ -15,7 +15,8 @@ metadata:
 
 | Context | Behavior |
 |---|---|
-| WhatsApp group | Onboarding for that group. Creates/updates group config + bank + profile SOUL.md. |
+| WhatsApp group | Onboarding for that group. Creates/updates group config + bank + profile SOUL.md. JID auto-detected from message source. |
+| WhatsApp group (remote) | Remote onboarding — configure a target group from a DIFFERENT WhatsApp group. JID must be discovered via bridge or provided by user. Useful for pre-configuration before Hermes joins, or to avoid polluting the target group. See "Remote Onboarding" section. |
 | WhatsApp DM | Master orchestrator SOUL.md modification. Requires explicit user confirmation. |
 | WebUI / CLI | Not supported. Redirect to WhatsApp group or DM. |
 
@@ -43,7 +44,110 @@ If `/onboarding` is invoked in a DM:
 No categories. No predefined types. Phases 1-3 are MECE.
 **Phase 0 is optional**: executes only when context exists (artifacts, conversation history, attached documents, voice messages, URLs).
 
+## Remote Onboarding (from a different group)
+
+**Trigger:** The user requests onboarding for a WhatsApp group from a DIFFERENT group (e.g., configuring "Equipo X" from the Toolset group). Motivation: avoid polluting the target group with configuration messages, or pre-configure before Hermes joins.
+
+**Key differences from standard group onboarding:**
+
+| Aspect | Standard | Remote |
+|---|---|---|
+| JID detection | Auto-extracted from message source | User MUST provide the JID, OR bridge must have it |
+| Channel alias resolution | Automatic via bridge | May need bridge restart + manual sync |
+| Onboarding messages | Go to the target group | Go to the CURRENT group (where the user is talking) |
+| Post-onboarding | Immediate availability | Group appears in config; active when Hermes joins |
+
+**Pre-flight:**
+
+1. Determine the target group JID (`\d+@g.us`). Sources (in priority order):
+   - **Already in bridge directory**: run `populate-channel-aliases.sh` → check `channel_aliases.json` → if the JID appears, name/desc are resolved
+   - **Bridge knows the group but directory hasn't synced**: query bridge API directly: `curl -s http://127.0.0.1:3000/chat/<jid>` — returns name, desc, participants. Then re-run `populate-channel-aliases.sh` which reads the bridge API and writes channel_aliases.json
+   - **User provides the JID**: from WhatsApp group info → "Invitar via link" → the link contains the group JID. Or a group admin shares it
+   - **Fallback**: ask the user to add Hermes to the group first, wait for bridge sync, then proceed
+
+2. **Bridge discovery pitfalls:**
+   - New groups may not appear in `channel_directory.json` immediately after adding Hermes — the bridge needs time to process the invite notification
+   - If the bridge had connection issues (503 errors, reconnections), the invite notification may be lost entirely — the user may need to re-add Hermes or someone must send a message in the group
+   - After adding Hermes, `channel_directory.json` may show the group's JID even before `channel_aliases.json` has its name — re-run `populate-channel-aliases.sh` after the bridge has processed the invite
+   - If the bridge was restarted (e.g., killed by HUP), the gateway respawns it automatically with the correct env vars — the new bridge reconnects and eventually receives pending group data
+
+3. **Allowlist check (CRITICAL for team groups):**
+   - All group members must be in `WHATSAPP_ALLOWED_USERS` (bridge env var, in `~/.hermes/.env` and synced via deploy.sh)
+   - The gateway also has a separate filter at `config.yaml` → `whatsapp.allowed_users`
+   - Both are TWO INDEPENDENT LAYERS — a user must pass BOTH for Hermes to process their messages
+   - If a team member's messages are ignored, check both allowlists
+   - Current bridge allowlist value: `cat /proc/<bridge_pid>/environ | tr '\0' '\n' | grep WHATSAPP_ALLOWED_USERS`
+   - Current gateway allowlist: `grep -A5 'whatsapp:' ~/.hermes/config.yaml | grep allowed_users`
+
+4. **Without JID?** Cannot proceed — the JID is required for `whatsapp-groups.yaml` routing. Without it, messages from the target group can't be matched to the correct profile.
+
+**Phase flow (Phases 0-4):** Same as standard. Differences:
+- Phase 1 name/description come from user input (or channel_aliases if bridge synced)
+- The JID is passed explicitly — no auto-detection from message source
+- Onboarding response is sent to the CURRENT group (the configurator), not the target
+
+**Post-onboarding artifact creation:** Same as standard (Steps 1-6). The `whatsapp-groups.yaml` entry uses the provided JID. After commit + deploy:
+- The group config is live in the repo and deployed
+- When Hermes eventually joins or receives messages from the group, routing works immediately
+- `channel_aliases.json` fills in name/desc on the next cron sync (every 10 min)
+
+**Pitfall:** If the provided JID is wrong, routing silently fails — the profile never activates for the target group. Always verify before writing `whatsapp-groups.yaml`. If unsure, ask the user to confirm via the group invite link.
+
+### Pre-Flight: Channel Alias Resolution
+
+Before Phase 1, verify that the group JID exists in `channel_aliases.json`.
+
+1. Read `~/.hermes/channel_aliases.json` → check if the source JID (`<jid>@g.us`) is present.
+2. If **found**: skip to Phase 1 — name and description are resolved.
+3. If **NOT found**: locate and run the bridge-sync script before asking the user:
+   - Script location (try in order): `workspace/toolset/infrastructure/hermes/scripts/populate-channel-aliases.sh`, or search filesystem for `populate-channel-aliases.sh`.
+   - The script queries the WhatsApp bridge for group names/descriptions and writes `channel_aliases.json`.
+   - Prerequisites: the bridge service must be running (check via `curl -s --max-time 3 http://127.0.0.1:3000/health`).
+   - After successful run, re-read `channel_aliases.json` — the JID should now be present.
+4. If the script doesn't exist or fails: fall back to asking the user for name and description directly in Phase 1.
+
+**Verification:** Before running the script, confirm the bridge is responding:
+   `curl -s --max-time 3 http://127.0.0.1:3000/health`
+   And verify `channel_directory.json` exists at `~/.hermes/channel_directory.json`.
+   Without the directory file, the script exits silently with no output — and the agent would be left hanging for data.
+
+**Pitfall:** The script exits 0 even when `channel_directory.json` is missing, producing no aliases and no error message. Always check it exists before running. If it's absent, explain to the user that the bridge hasn't synced group data yet (bridge may be recently started or the group was just created).
+
+This avoids asking the user for information the bridge already has.
+
 ---
+
+### Remote Onboarding (from a different group)
+
+**Trigger:** The onboarding `/onboarding` request comes from a DIFFERENT WhatsApp group than the target group (e.g., configuring "Equipo X" from the Toolset group).
+
+**Key differences from standard group onboarding:**
+
+| Aspect | Standard | Remote |
+|---|---|---|
+| JID detection | Auto-extracted from message source | User MUST provide the JID manually |
+| channel_aliases.json | Resolved from bridge data automatically | Bridge may not yet know the group — name/desc come from user |
+| Phase 0-4 flow | Same questions | Same questions, but user provides group name + JID instead of auto-detection |
+| Post-onboarding | Available immediately | Group appears in config but has no active messages until Hermes joins |
+
+**Pre-flight:**
+
+1. User must provide the target group's JID (format `\d+@g.us`). Sources:
+   - WhatsApp group info → "Invitar via link" → the link contains the JID
+   - A group admin can share it
+   - WhatsApp Web debug mode shows it
+2. If the user doesn't have the JID: suggest they add Hermes to the group first, then `populate-channel-aliases.sh` can sync it.
+3. The bridge may not yet have the group in `channel_directory.json`. If it does (e.g., group existed but Hermes wasn't in it, or the invite was just sent), run `populate-channel-aliases.sh` to sync. If not, proceed with user-provided name/desc.
+4. **Proceed without JID?** No — the JID is required for `whatsapp-groups.yaml` routing. Without it, the group's messages cannot be routed to the correct profile.
+
+**Phase flow:** Same as standard Phases 1-4 + Post-Phase artifact creation. The only differences:
+- Phase 1's name/description are populated from user input (or from channel_aliases if the bridge synced)
+- The JID is used explicitly in the whatsapp-groups.yaml entry
+- The onboarding response goes to the CURRENT group, not the target group (target group has no Hermes yet)
+
+**Bridge sync after onboarding:** Once Hermes is added to the target group, the bridge eventually receives the group notification → `channel_directory.json` updates → `populate-channel-aliases.sh` picks up the group info on next cron run (every 10 min). No manual action needed.
+
+**Pitfall:** If the JID is wrong, routing silently fails — messages from the target group won't match the configured profile. Verify the JID by checking the group invite link or having the user confirm before writing `whatsapp-groups.yaml`.
 
 ### Phase 0: Context Ingestion (optional)
 
@@ -294,6 +398,12 @@ git push origin main
 Descripcion: `<description>` | Repo: `<repo>` | Skills: `<skills>` | Bank: `<name>-profile`
 Disponible inmediatamente."
 
+### Step 7: Post-Onboarding — Bitácora Management
+
+Profile workloads often involve maintaining a Google Docs bitácora (see WF-01 in SOUL.md workflows). For detailed formatting rules, tool-selection guidance, pending-item criteria, and known pitfalls, load the companion reference:
+
+`references/bitacora-management.md`
+
 ## Reconfiguration
 
 When `/onboarding` is invoked in a group that ALREADY has a profile in `whatsapp-groups.yaml`:
@@ -324,3 +434,10 @@ When `/onboarding` is invoked in a group that ALREADY has a profile in `whatsapp
 | Skills pre-seleccionadas por categoria | Skills vacias por defecto. El usuario elige |
 | Extender el proceso mas alla de 3 fases | Editar SOUL.md directamente si se necesita mas |
 | Preguntas condicionales por tipo | Mismas preguntas para todos los grupos |
+
+## Reference Files
+
+| File | Content |
+|---|---|
+| `references/repo-context-extraction.md` | Repo analysis via Kilo CLI for Phase 0 context ingestion |
+| `references/remote-onboarding-bridge-discovery.md` | Bridge discovery sequence, API endpoints, pitfalls, and restore commands for remote onboarding |

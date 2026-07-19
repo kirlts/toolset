@@ -46,6 +46,19 @@ rm -f "${HERMES_DIR}/skills/.usage.json" 2>/dev/null || true
 # Remove .hub directory (hub-installed skills cache)
 rm -rf "${HERMES_DIR}/skills/.hub" 2>/dev/null || true
 
+# ---- 4.5. Profiles (config.yaml de cada perfil) ----
+echo "[SYNC] Profiles..."
+for profile_dir in "${HERMES_HOME}/profiles/"*/; do
+  profile_name=$(basename "$profile_dir")
+  profile_config="${profile_dir}config.yaml"
+  repo_profile_dir="${HERMES_DIR}/profiles/${profile_name}"
+  if [ -f "$profile_config" ]; then
+    mkdir -p "$repo_profile_dir"
+    cp "$profile_config" "${repo_profile_dir}/config.yaml"
+    echo "  ${profile_name}/config.yaml synced"
+  fi
+done
+
 # ---- 5. Scripts (excluye node_modules) ----
 echo "[SYNC] Scripts..."
 if [ -d "${HERMES_HOME}/scripts" ] && [ -n "$(ls -A ${HERMES_HOME}/scripts 2>/dev/null)" ]; then
@@ -95,6 +108,7 @@ if ! git diff --quiet infrastructure/hermes/; then
   git add infrastructure/hermes/hooks/
   git add infrastructure/hermes/webui/
   git add infrastructure/hermes/CRONS.md
+  git add infrastructure/hermes/profiles/
   git add infrastructure/kilo.jsonc
   git commit -m "${COMMIT_MSG}"
   CHANGES_COMMITTED=true
