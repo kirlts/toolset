@@ -36,7 +36,7 @@ Call `mcp_hindsight_selfhosted_list_banks()`. Filter out `"default"` (legacy int
 
 For each bank (process SEQUENTIALLY per bank — reflect+retain are stateful; but `list_memories` calls across different banks ARE independent reads and CAN be batched into parallel MCP calls to save wall-clock time):
 
-**IMPORTANT — parallel list_memories constraint:** Do NOT batch more than 2 list_memories calls in the same turn. When 3+ concurrent list_memories calls are made, some responses are truncated with "Full output could not be saved to sandbox" — even for small banks (58 facts, 116KB). The runtime can only persist ~2 concurrent large responses to /tmp/hermes-results/. Serialize list_memories calls, or at most pair them. reflect() and retain() calls are safe to batch since their payloads are small.
+**IMPORTANT — parallel list_memories constraint:** Do NOT batch more than 2 list_memories calls in the same turn for banks likely to produce >500KB responses. When 3+ concurrent list_memories calls are made for larger banks, some responses can be truncated with "Full output could not be saved to sandbox". However, batching 3-5 *small* banks (<300KB response expected, i.e. under ~100 facts) in one turn has been observed to work reliably (2026-07-19: 5 banks up to 427 facts/~852KB each all succeeded). Err on the side of serializing any bank you're unsure about. reflect() and retain() calls are safe to batch since their payloads are small.
 
 ### Method A (RECOMMENDED): Direct MCP JSON-RPC via curl
 

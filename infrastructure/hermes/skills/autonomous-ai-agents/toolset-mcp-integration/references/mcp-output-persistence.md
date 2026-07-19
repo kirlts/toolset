@@ -2,12 +2,12 @@
 
 When an MCP tool returns a result larger than ~500KB (~200K chars), the Hermes runtime auto-saves it to a temporary file under `/tmp/hermes-results/call_<session>_<random>.txt`. Smaller results are returned inline in the tool output's `structuredContent` field.
 
-**Observed behavior (empirical, as of 2026-07-09):**
+**Observed behavior (empirical, as of 2026-07-19):**
 
 | Total chars | Facts (typical) | Behavior | Access method |
 |------------|-----------------|----------|---------------|
-| > ~200K chars (>500KB) | 90+ facts | Auto-persisted to `/tmp/hermes-results/call_*.txt` | `cp` or `cat` from temp file |
-| < ~200K chars (<500KB) | <90 facts | Inline in `structuredContent.result` | Read from MCP response, save via `write_file` |
+| > ~100K chars | 60+ facts | Auto-persisted to `/tmp/hermes-results/call_*.txt` | `cp` or `cat` from temp file |
+| < ~100K chars | <60 facts | Inline in `structuredContent.result` | Read from MCP response, save via `write_file` |
 
 The exact threshold is runtime-dependent (subject to change with Hermes version). **Always check the tool output header first:**
 - If you see `"Full output saved to: /tmp/hermes-results/..."` → it was persisted
