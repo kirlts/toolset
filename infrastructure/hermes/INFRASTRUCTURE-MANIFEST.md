@@ -12,10 +12,11 @@
 |---|---|---|---|
 | `infrastructure/hermes/SOUL.md` | Identidad, tono, algoritmo de ruteo, memoria del orquestador. ~70 lineas. Sin contenido operativo. | deploy.sh (sobrescribe) | 2026-06-28 |
 | `infrastructure/hermes-context.md` | Contexto operativo de Hermes (AGENTS.md): capacidades, arquitectura, banks, reglas, routing detallado | deploy.sh -> ~/.hermes/context.md + /opt/toolset-repo/AGENTS.md | 2026-06-28 |
-| `infrastructure/hermes/config.yaml` | Config estructural: MCP servers, external_skills_dirs, modelo, proveedor | deploy.sh + inject-composio-key.py | 2026-06-26 |
+| `infrastructure/hermes/config.yaml` | Config estructural: MCP servers, external_skills_dirs, modelo, proveedor, credential_pool_strategies | deploy.sh + inject-composio-key.py | 2026-07-19 |
 | `infrastructure/hermes/CRONS.md` | Documentacion de cron jobs activos | Repo (documentacion, no ejecutable) | 2026-06-28 |
 | `infrastructure/hermes/scripts/populate-channel-aliases.sh` | Consulta bridge GET /chat/:id, escribe channel_aliases.json con {name, desc} | deploy.sh (paso 1b) | 2026-06-28 |
 | `infrastructure/hermes/scripts/patch-bridge.sh` | Parchea bridge.js para exponer metadata.desc desde Baileys groupMetadata | deploy.sh (paso 1b) | 2026-06-29 |
+| `infrastructure/hermes/scripts/monitor-credential-rotation.sh` | Monitorea auth.json para rotacion de credenciales y notifica via WhatsApp al grupo Toolset | deploy.sh (paso 1b) + cron (*/1 min) | 2026-07-19 |
 | `infrastructure/hermes/whatsapp-groups.yaml` | Mapeo JID -> {type, name, desc, repo, profile, skills} para ruteo determinista | deploy.sh (paso 1b) -> ~/.hermes/ | 2026-06-28 |
 | `infrastructure/hermes-skills/whatsapp-router/SKILL.md` | Skill de ruteo determinista de mensajes WhatsApp segun tipo de grupo | external_skills_dirs (repo clone) | 2026-06-28 |
 | `infrastructure/hermes-skills/group-onboarding/SKILL.md` | Onboarding 3 fases MECE: crea bank, SOUL.md, YAML, perfil worker | external_skills_dirs (repo clone) | 2026-06-28 |
@@ -57,7 +58,18 @@ Cuando se modifica un archivo de configuracion:
 
 ---
 
-## Current Session Changes (2026-06-30)
+## Current Session Changes (2026-07-19)
+
+### Session 8 — Credential Pool Fallback + WhatsApp Notification
+
+| File | Change |
+|---|---|
+| `infrastructure/hermes/config.yaml` | **UPDATED** — `credential_pool_strategies` set to `opencode-go: fill_first` for rate-limit fallback |
+| `infrastructure/deploy.sh` | **UPDATED** — added `OPENCODE_GO_API_KEY_FALLBACK` to required vars, Hermes .env, and credential pool setup block |
+| `.github/workflows/deploy.yml` | **UPDATED** — added `OPENCODE_GO_API_KEY_FALLBACK` secret to Deploy and Sync secrets steps |
+| `scripts/sync-infisical-secrets.py` | **UPDATED** — added `OPENCODE_GO_API_KEY_FALLBACK` to dev and prod scoped secrets |
+| `infrastructure/hermes/scripts/monitor-credential-rotation.sh` | **CREATED** — monitors auth.json for pool rotation events and notifies via WhatsApp al grupo Toolset |
+| `infrastructure/hermes/INFRASTRUCTURE-MANIFEST.md` | **UPDATED** — current session changes |
 
 ### Session 6 — Kilo CLI System Prompt Architecture
 

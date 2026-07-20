@@ -173,6 +173,7 @@ jobs:
           INFISICAL_ADMIN_EMAIL: ${{ secrets.INFISICAL_ADMIN_EMAIL }}
           INFISICAL_ADMIN_PASSWORD: ${{ secrets.INFISICAL_ADMIN_PASSWORD }}
           OPENCODE_GO_API_KEY: ${{ secrets.OPENCODE_GO_API_KEY }}
+          OPENCODE_GO_API_KEY_FALLBACK: ${{ secrets.OPENCODE_GO_API_KEY_FALLBACK }}
           HERMES_LLM_PROVIDER: ${{ secrets.HERMES_LLM_PROVIDER }}
           HERMES_LLM_MODEL: ${{ secrets.HERMES_LLM_MODEL }}
           HERMES_WEBUI_PASSWORD: ${{ secrets.HERMES_WEBUI_PASSWORD }}
@@ -192,6 +193,7 @@ jobs:
           INFISICAL_PID: ${{ secrets.INFISICAL_PID }}
           INFISICAL_URL: https://${{ secrets.FUNNEL_DOMAIN }}:8443
           OPENCODE_GO_API_KEY: ${{ secrets.OPENCODE_GO_API_KEY }}
+          OPENCODE_GO_API_KEY_FALLBACK: ${{ secrets.OPENCODE_GO_API_KEY_FALLBACK }}
           FUNNEL_DOMAIN: ${{ secrets.FUNNEL_DOMAIN }}
           HERMES_LLM_PROVIDER: ${{ secrets.HERMES_LLM_PROVIDER }}
           HERMES_LLM_MODEL: ${{ secrets.HERMES_LLM_MODEL }}

@@ -35,6 +35,7 @@ INFISICAL_URL = os.environ.get("INFISICAL_URL",
 SCOPED_SECRETS = {
     "dev": [
         "OPENCODE_GO_API_KEY",
+        "OPENCODE_GO_API_KEY_FALLBACK",
         "FUNNEL_DOMAIN",
         "HERMES_LLM_PROVIDER",
         "HERMES_LLM_MODEL",
@@ -46,6 +47,7 @@ SCOPED_SECRETS = {
     ],
     "prod": [
         "OPENCODE_GO_API_KEY",
+        "OPENCODE_GO_API_KEY_FALLBACK",
         "FUNNEL_DOMAIN",
         "HERMES_LLM_PROVIDER",
         "HERMES_LLM_MODEL",

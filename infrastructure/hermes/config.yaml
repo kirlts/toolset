@@ -196,7 +196,8 @@ compression:
 computer_use:
   cua_telemetry: false
 context_file_max_chars: 25000
-credential_pool_strategies: {}
+credential_pool_strategies:
+  opencode-go: fill_first
 cron:
   chronos:
     callback_url: ''

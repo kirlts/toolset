@@ -23,6 +23,7 @@ REQUIRED_VARS=(
   INFISICAL_AUTH_SECRET
   INFISICAL_DB_PASSWORD
   OPENCODE_GO_API_KEY
+  OPENCODE_GO_API_KEY_FALLBACK
   HERMES_LLM_PROVIDER
   HERMES_LLM_MODEL
   HERMES_WEBUI_PASSWORD
@@ -642,6 +643,30 @@ if [ -f "$PATCH_BRIDGE_SRC" ]; then
     "sudo bash /tmp/patch-bridge.sh 2>&1; sudo rm -f /tmp/patch-bridge.sh" | sed 's/^/  [PATCH] /' || true
 fi
 
+# --- Deploy credential rotation monitor ---
+MONITOR_SCRIPT_SRC="$(dirname "${COMPOSE_FILE}")/hermes/scripts/monitor-credential-rotation.sh"
+if [ -f "$MONITOR_SCRIPT_SRC" ]; then
+  echo "[DEPLOY] Deploying credential rotation monitor..."
+  scp -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    "$MONITOR_SCRIPT_SRC" "${SSH_HOST}:/tmp/monitor-credential-rotation.sh"
+  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    "${SSH_HOST}" \
+    "sudo cp /tmp/monitor-credential-rotation.sh /home/opc/.hermes/scripts/monitor-credential-rotation.sh && \
+     sudo chmod +x /home/opc/.hermes/scripts/monitor-credential-rotation.sh && \
+     sudo chown opc:opc /home/opc/.hermes/scripts/monitor-credential-rotation.sh && \
+     sudo rm -f /tmp/monitor-credential-rotation.sh && \
+     echo '  monitor-credential-rotation.sh deployed'"
+  echo "[DEPLOY] Ensuring credential-rotation-monitor cron entry..."
+  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    "${SSH_HOST}" \
+    "if crontab -l 2>/dev/null | grep -q 'monitor-credential-rotation'; then \
+       echo '  cron already set'; \
+     else \
+       (crontab -l 2>/dev/null; echo '* * * * * bash /home/opc/.hermes/scripts/monitor-credential-rotation.sh > /dev/null 2>&1') | crontab -; \
+       echo '  cron added (runs every minute)'; \
+     fi"
+fi
+
 # --- Write Hermes .env on remote (always overwrite — Hermes creates a default template) ---
 # Hermes systemd service runs as user 'opc', so .hermes dir is under /home/opc/
 HERMES_DIR="/home/opc/.hermes"
@@ -651,6 +676,7 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   "sudo mkdir -p ${HERMES_DIR} && sudo chattr -i ${HERMES_DIR}/config.yaml 2>/dev/null; sudo tee ${HERMES_DIR}/.env > /dev/null && sudo chown -R opc:opc ${HERMES_DIR} 2>/dev/null || true; sudo chattr +i ${HERMES_DIR}/config.yaml 2>/dev/null" <<HERMESENV
 # Hermes .env — managed by deploy.sh (CI/CD). DO NOT EDIT MANUALLY.
 OPENCODE_GO_API_KEY=${OPENCODE_GO_API_KEY}
+OPENCODE_GO_API_KEY_FALLBACK=${OPENCODE_GO_API_KEY_FALLBACK}
 OPENCODE_GO_BASE_URL=https://opencode.ai/zen/go/v1
 HERMES_LLM_PROVIDER=${HERMES_LLM_PROVIDER:-opencodego}
 HERMES_LLM_MODEL=${HERMES_LLM_MODEL:-deepseek-v4-flash}
@@ -959,6 +985,23 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     rm -f /tmp/inject-composio-key.py"
 
 echo "[DEPLOY] Hermes runtime configuration complete."
+
+# --- Setup credential pool for OpenCode Go rate-limit fallback ---
+echo "[DEPLOY] Configuring credential pool for OpenCode Go..."
+ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  "${SSH_HOST}" \
+  "export PATH=/usr/local/bin:/home/opc/.local/bin:\$PATH; \
+   export OPENCODE_GO_API_KEY_FALLBACK='${OPENCODE_GO_API_KEY_FALLBACK}'; \
+   sudo chattr -i /home/opc/.hermes/config.yaml 2>/dev/null || true; \
+   hermes config set credential_pool_strategies.opencode-go fill_first 2>/dev/null || true; \
+   if ! grep -q '\"fallback-key\"' /home/opc/.hermes/auth.json 2>/dev/null; then \
+     hermes auth add opencode-go --type api-key --api-key \"\$OPENCODE_GO_API_KEY_FALLBACK\" --label 'fallback-key' 2>/dev/null || true; \
+     echo '  fallback-key added to credential pool'; \
+   else \
+     echo '  fallback-key already in credential pool'; \
+   fi; \
+   sudo chattr +i /home/opc/.hermes/config.yaml 2>/dev/null || true"
+echo "[DEPLOY] Credential pool configured."
 
 # --- Set Hermes home to toolset repo (for context file resolution) ---
 echo "[DEPLOY] Setting Hermes home..."
