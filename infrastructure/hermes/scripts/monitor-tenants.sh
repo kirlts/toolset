@@ -15,9 +15,15 @@ for profile_dir in "$PROFILES_DIR"/*/; do
   [ -f "$profile_dir/.tenant" ] || continue
   [ -f "$profile_dir/config.yaml" ] || continue  # solo perfiles realmente provisionados
 
-  # 1. Systemd gateway service
-  if ! systemctl --user is-active "hermes-gateway-${tenant}" >/dev/null 2>&1 && \
-     ! sudo systemctl is-active "hermes-gateway-${tenant}" >/dev/null 2>&1; then
+  # 1. Gateway service — systemd OR process-based
+  SERVICE_OK=false
+  if systemctl --user is-active "hermes-gateway-${tenant}" >/dev/null 2>&1 || \
+     sudo systemctl is-active "hermes-gateway-${tenant}" >/dev/null 2>&1; then
+    SERVICE_OK=true
+  elif pgrep -f "hermes.*(-p|--profile) ${tenant}.*gateway run" >/dev/null 2>&1; then
+    SERVICE_OK=true
+  fi
+  if [ "$SERVICE_OK" = false ]; then
     ALERTS="${ALERTS}⚠\u{fe0f} *${tenant}*: gateway service NOT ACTIVE\n"
     continue
   fi
