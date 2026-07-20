@@ -72,15 +72,18 @@ kilo run "TASK" --auto --dir /home/opc/personal
 
 Hermes nunca lee ni escribe archivos directamente en repos gobernados, ni siquiera para correcciones menores. Todo pasa por Kilo CLI.
 
-### Paso 4: compile.py post-escritura
+### Paso 4: Gate post-escritura (validate.py + compile.py)
 
-Después de cada integración, ejecutar `compile.py` para verificar integridad del grafo:
+Después de cada integración, ejecutar el gate determinista para verificar integridad estructural y de contenido:
 
 ```
-cd /home/opc/personal && python compile.py
+cd /home/opc/personal && python validate.py && python compile.py
 ```
 
-Si compile.py reporta errores (phantoms, topology fixes), se resuelven antes de dar por terminada la integración.
+- **`validate.py`** es el gate de integridad: schema YAML, dual residency, reachability, plantilla H2, publish-safety, evidencia para estados avanzados. **0 FALLAS es requisito para considerar la integración completa.** Si hay FALLAS, el agente resuelve antes de dar por terminada la integración. El pre-commit hook (`kb/hooks/pre-commit`) bloquea commits que no pasen el gate.
+- **`compile.py`** repara topología (YAML only): fantasmas, simetría jerárquica/lateral, estadísticas de índices. Reporta unsaturated mentions que el agente resuelve manualmente.
+
+El vocabulario de `estado` (YAML frontmatter) está declarado en español por polo en MASTER-SPEC §2.1: Terreno usa `borrador`/`con_vacios`/`fundacional`/`completo`/`verificado`/`resuelto`/`historico`/`obsoleto`; Mito usa `borrador`/`con_vacios`/`fundacional`/`en_planificacion`/`en_ejecucion`/`completo`/`completada`/`validado`/`cancelada`/`obsoleto`. El gate rechaza estados fuera de enum.
 
 ### Paso 5: Final Execution Verification (§R11)
 
