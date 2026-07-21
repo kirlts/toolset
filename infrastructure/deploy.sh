@@ -947,12 +947,16 @@ if [ -d "$BANKS_DIR" ]; then
   done
 fi
 
-# --- Sync profile SOUL.md files to VPS ---
+# --- Sync profile SOUL.md files to VPS (tenant profiles excluded) ---
 echo "[DEPLOY] Syncing profile SOUL.md files to VPS..."
 PROFILES_DIR="$(dirname "${COMPOSE_FILE}")/hermes/profiles"
 if [ -d "$PROFILES_DIR" ]; then
   for profile_dir in "$PROFILES_DIR"/*/; do
     profile_name=$(basename "$profile_dir")
+    if [ -f "${profile_dir}.tenant" ]; then
+      echo "  Skipping profile '$profile_name' (tenant — managed independently)"
+      continue
+    fi
     if [ -f "${profile_dir}SOUL.md" ]; then
       echo "  Syncing profile '$profile_name'..."
       ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
