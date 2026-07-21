@@ -953,12 +953,16 @@ PROFILES_DIR="$(dirname "${COMPOSE_FILE}")/hermes/profiles"
 if [ -d "$PROFILES_DIR" ]; then
   for profile_dir in "$PROFILES_DIR"/*/; do
     profile_name=$(basename "$profile_dir")
-    echo "  Syncing profile '$profile_name'..."
-    ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-      "${SSH_HOST}" "mkdir -p ~/.hermes/profiles/${profile_name}" 2>/dev/null
-    scp -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-      "${profile_dir}SOUL.md" \
-      "${SSH_HOST}:~/.hermes/profiles/${profile_name}/SOUL.md"
+    if [ -f "${profile_dir}SOUL.md" ]; then
+      echo "  Syncing profile '$profile_name'..."
+      ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+        "${SSH_HOST}" "mkdir -p ~/.hermes/profiles/${profile_name}" 2>/dev/null
+      scp -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+        "${profile_dir}SOUL.md" \
+        "${SSH_HOST}:~/.hermes/profiles/${profile_name}/SOUL.md"
+    else
+      echo "  Skipping profile '$profile_name' (no SOUL.md in repo — keeping VPS version)"
+    fi
   done
   echo "[DEPLOY] Profile SOUL.md files synced"
 fi
