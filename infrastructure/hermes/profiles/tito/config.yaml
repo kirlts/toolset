@@ -1,0 +1,72 @@
+_config_version: 30
+name: tito
+agent:
+  api_max_retries: 3
+  disabled_toolsets: []
+  environment_hint: 'Hora local: Chile continental (UTC-4 en invierno, UTC-3 en verano).
+    Fecha y hora actual proporcionadas por el sistema.'
+  environment_probe: true
+  gateway_notify_interval: 180
+  max_turns: 90
+  reasoning_effort: medium
+  tool_use_enforcement: auto
+approvals:
+  cron_mode: approve
+  mode: false
+  timeout: 60
+cron:
+  wrap_response: true
+display:
+  personality: ''
+  streaming: false
+  platforms:
+    whatsapp:
+      tool_progress: false
+file_read_max_chars: 100000
+home: /home/opc/workspace/tenants/tito
+memory:
+  provider: holographic
+model:
+  default: deepseek-v4-flash
+  provider: opencode-go
+fallback_providers:
+- opencode-go/qwen3.7-plus
+tts:
+  edge:
+    voice: es-CL-LorenzoNeural
+  enabled: true
+  provider: edge
+stt:
+  enabled: true
+  groq:
+    model: whisper-large-v3-turbo
+  provider: groq
+security:
+  allow_lazy_installs: true
+  allow_private_urls: false
+  redact_secrets: true
+terminal:
+  backend: local
+  cwd: /home/opc/workspace/tenants/tito/repos
+  timeout: 180
+  auto_source_bashrc: true
+toolsets:
+- terminal
+- file
+- web
+- cronjob
+- skills
+whatsapp:
+  allowed_users:
+  - 56991003292
+  - 56994172921
+  enabled: true
+  mode: bot
+  sandbox_for_code: false
+  extra:
+    bridge_port: 3001
+onboarding:
+  seen:
+    profile_build_offered: true
+credential_pool_strategies:
+  opencode-go: fill_first
