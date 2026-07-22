@@ -65,6 +65,58 @@ Both are configured in `~/.hermes/config.yaml` under `mcp_servers:` and are star
 
 **Never use `retain`/`recall` for user profile facts** — those go via `memory()` to the profile system.
 
+## MCP Response Wire Formats
+
+When working with Hindsight MCP tools programmatically (e.g. from a Python script via direct HTTP), the response parsing is non-obvious:
+
+### list_memories
+```json
+{"items": [...], "total": 1939, "limit": 1000, "offset": 0}
+```
+- The key is **`items`**, not `memories` or `result`.
+- `total` tells you the full count — if `total > limit`, paginate with `offset`.
+- The raw MCP SSE response wraps this as `content[0].text` which is a JSON string; parse it once to get the dict above.
+
+### reflect
+```json
+{"text": "# Synthesis of last 24 hours..."}
+```
+- The `content[0].text` is a JSON object whose key is **`text`**, not `result`.
+- The `structuredContent.result` mirrors this: it's `{"text": "..."}`.
+- **Incorrect:** `result.get("result", "")` returns empty string.
+- **Correct:** `json.loads(content[0].text).get("text", "")`.
+
+### retain
+```json
+{"status": "accepted", "message": "Memory storage initiated", "operation_id": "uuid"}
+```
+- Async operation. Returns immediately with an `operation_id`.
+- Track via `get_operation(operation_id)` if confirmation is needed.
+
+### list_banks
+```json
+{"banks": [{"bank_id": "...", "name": "...", "fact_count": N, ...}]}
+```
+- Simple flat list. No nesting surprises.
+- Filter out `bank_id: "default"` — legacy system bank, no useful content.
+
+### Pagination pattern
+When iterating banks with `list_memories`:
+```python
+offset = 0
+limit = 1000
+all_items = []
+while True:
+    data = mcp_call("list_memories", {"bank_id": bid, "limit": limit, "offset": offset})
+    items = data.get("items", [])
+    if not items:
+        break
+    all_items.extend(items)
+    if len(items) < limit:
+        break
+    offset += limit
+```
+
 ## Session Initialization Protocol
 
 Every new session (WebUI, WhatsApp, CLI, any channel) MUST:

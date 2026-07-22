@@ -3,6 +3,8 @@
 Este archivo documenta el formato usado en proyectos activos.
 Sirve como referencia concreta para futuras entradas.
 
+**Nota:** Este formato aplica tanto para BITACORA.md local como para entradas en Google Docs vía Drive. El contenido es el mismo; solo cambia el destino.
+
 ## Ejemplo: Trazambiental Wiki (creado 2026-07-13)
 
 ```markdown
@@ -16,7 +18,7 @@ Sirve como referencia concreta para futuras entradas.
 ```
 
 Convenciones observadas:
-- Archivo: `BITACORA.md` en raíz del KB del proyecto
+- Archivo: `BITACORA.md` en raíz del KB del proyecto (o Google Doc para proyectos que usan Drive)
 - Cada entrada: `## YYYY-MM-DD — Título`
 - Formato de items: bullets con hechos, no narrativa
 - Fechas en ISO (YYYY-MM-DD)
