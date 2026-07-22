@@ -1,0 +1,71 @@
+{
+  "date": "2026-07-22",
+  "phase": "export",
+  "banks": {
+    "personal-buffer": {
+      "exported": 2838,
+      "file": "/home/opc/workspace/toolset/infrastructure/hermes/banks/personal-buffer/2026-07-22.json"
+    },
+    "hermes": {
+      "exported": 1939,
+      "file": "/home/opc/workspace/toolset/infrastructure/hermes/banks/hermes/2026-07-22.json"
+    },
+    "researchit": {
+      "exported": 254,
+      "file": "/home/opc/workspace/toolset/infrastructure/hermes/banks/researchit/2026-07-22.json"
+    },
+    "yacv": {
+      "exported": 88,
+      "file": "/home/opc/workspace/toolset/infrastructure/hermes/banks/yacv/2026-07-22.json"
+    },
+    "cl-concerts-db": {
+      "exported": 178,
+      "file": "/home/opc/workspace/toolset/infrastructure/hermes/banks/cl-concerts-db/2026-07-22.json"
+    },
+    "personal-profile": {
+      "exported": 327,
+      "file": "/home/opc/workspace/toolset/infrastructure/hermes/banks/personal-profile/2026-07-22.json"
+    },
+    "witral": {
+      "exported": 71,
+      "file": "/home/opc/workspace/toolset/infrastructure/hermes/banks/witral/2026-07-22.json"
+    },
+    "toolset": {
+      "exported": 194,
+      "file": "/home/opc/workspace/toolset/infrastructure/hermes/banks/toolset/2026-07-22.json"
+    },
+    "toolset-profile": {
+      "exported": 353,
+      "file": "/home/opc/workspace/toolset/infrastructure/hermes/banks/toolset-profile/2026-07-22.json"
+    },
+    "entrenador-profile": {
+      "exported": 202,
+      "file": "/home/opc/workspace/toolset/infrastructure/hermes/banks/entrenador-profile/2026-07-22.json"
+    },
+    "desarrollo-trazambiental-profile": {
+      "exported": 111,
+      "file": "/home/opc/workspace/toolset/infrastructure/hermes/banks/desarrollo-trazambiental-profile/2026-07-22.json"
+    },
+    "chat-profile": {
+      "exported": 294,
+      "file": "/home/opc/workspace/toolset/infrastructure/hermes/banks/chat-profile/2026-07-22.json"
+    },
+    "trazambiental-profile": {
+      "exported": 107,
+      "file": "/home/opc/workspace/toolset/infrastructure/hermes/banks/trazambiental-profile/2026-07-22.json"
+    },
+    "kairos": {
+      "exported": 149,
+      "file": "/home/opc/workspace/toolset/infrastructure/hermes/banks/kairos/2026-07-22.json"
+    },
+    "evidencia-zero": {
+      "exported": 95,
+      "file": "/home/opc/workspace/toolset/infrastructure/hermes/banks/evidencia-zero/2026-07-22.json"
+    },
+    "wwe-profile": {
+      "exported": 435,
+      "file": "/home/opc/workspace/toolset/infrastructure/hermes/banks/wwe-profile/2026-07-22.json"
+    }
+  },
+  "timestamp": "2026-07-22T02:25:42.343642+00:00"
+}
