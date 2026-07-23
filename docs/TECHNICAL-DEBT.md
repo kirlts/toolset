@@ -33,7 +33,7 @@
 - *Además:* `docker-compose.yml` sigue declarando `FUNNEL_AUTH_USER` y `FUNNEL_AUTH_PASSWORD` al contenedor de Caddy, variables que **ninguna directiva consume**. Parecen dar una protección que no existe.
 - *Consecuencia:* la gestión de los bancos de memoria de Hindsight es pública para cualquiera con la URL del Funnel.
 
-**Remediation plan:** decisión del usuario, no automatizable — el basicauth se quitó a propósito porque rompía a los harnesses MCP, así que reponerlo global volvería a romperlos. La forma correcta es proteger solo las rutas de gestión (`/dashboard`, `/banks/*`, `/api/banks*`, `/api/profile/*`) dejando MCP y health abiertos, y **verificar el resultado con curl en el mismo deploy** para que no vuelva a divergir en silencio.
+**Remediation plan:** decisión del usuario, no automatizable. El basicauth se quitó a propósito porque rompía a los harnesses MCP, así que reponerlo global volvería a romperlos. La forma correcta es proteger solo las rutas de gestión (`/dashboard`, `/banks/*`, `/api/banks*`, `/api/profile/*`) dejando MCP y health abiertos, y **verificar el resultado con curl en el mismo deploy** para que no vuelva a divergir en silencio.
 
 ---
 
@@ -134,7 +134,7 @@
 El diseño ya contempla la solución: la ruta lleva el nombre del repositorio precisamente para que la autorización se aplique por KB sin mezclarse con el enrutamiento.
 
 **Remediation plan:** capa de tokens por KB sobre `/kb/<slug>` en Caddy (un token por consumidor, revocable), o forward-auth. Mientras no exista, no publicar en este servidor ninguna KB cuyo contenido no se pueda asumir legible por quien tenga la URL.
-**Status:** ☐ Pending — conocido y aceptado a corto plazo; el servicio se levantó con este límite declarado.
+**Status:** ☐ Pending. Conocido y aceptado a corto plazo; el servicio se levantó con este límite declarado.
 
 ---
 
@@ -144,7 +144,7 @@ El diseño ya contempla la solución: la ruta lleva el nombre del repositorio pr
 **Origin:** session 2026-07-23
 **Description:** El servicio `kb-mcp`, sus correcciones del `Caddyfile` y del `deploy.sh`, y las credenciales `gh` para clonar las KB privadas, fueron aplicados directamente en el VPS por SSH mientras los commits correspondientes permanecen **sin pushear** en `toolset` (decisión explícita del usuario para no disparar el CI/CD completo). Esto tensiona [INFRA-03] («production deploys go through CI/CD») y [MANIFEST-03] («no configuration change lives only on the VPS»).
 
-Riesgo concreto: si el VPS se recrea o si otro deploy corre desde `main` antes del push, el estado actual se pierde y el endpoint `/kb/*` deja de existir. El `sync-kb.sh` y su cron tampoco están instalados todavía —viven en el `deploy.sh` no pusheado—, así que **las KB no se actualizan solas**: hoy se sincronizan a mano.
+Riesgo concreto: si el VPS se recrea o si otro deploy corre desde `main` antes del push, el estado actual se pierde y el endpoint `/kb/*` deja de existir. El `sync-kb.sh` y su cron tampoco están instalados todavía (viven en el `deploy.sh` no pusheado), así que **las KB no se actualizan solas**: hoy se sincronizan a mano.
 
 **Remediation plan:** pushear `toolset` cuando el usuario decida. El deploy resultante es idempotente y fue analizado paso a paso: el `Caddyfile` no cambiará (`cmp` da igual → no reinicia Caddy), las KB figuran como «ya clonada», `pull_policy: build` evita el aborto en `compose pull`, y `gh auth setup-git` es idempotente.
-**Status:** ☐ Pending — bloqueado por decisión del usuario (push manual).
+**Status:** ☐ Pending. Bloqueado por decisión del usuario (push manual).

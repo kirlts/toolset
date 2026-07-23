@@ -158,7 +158,7 @@
 
 ---
 
-### 7.2. kb-mcp — Publicacion de Bases de Conocimiento por MCP
+### 7.2. kb-mcp: Publicacion de Bases de Conocimiento por MCP
 
 **Status:** ✅ Implementado y operativo (2026-07-23)
 
@@ -172,16 +172,16 @@ que nadie pegue texto a mano. Aisla al que consulta de la topologia interna de l
               -> /kb/<slug>/mcp   (slug = nombre del repositorio de la KB)
 ```
 
-**Superficie:** tres herramientas — `consultar` (busqueda), `leer` (texto integro de una
+**Superficie:** tres herramientas: `consultar` (busqueda), `leer` (texto integro de una
 entrada), `panorama` (inventario o mapa de un tema). **Ninguna escribe.**
 
 **Multi-KB:** un solo proceso sirve todas las KB bajo `/opt/kb`, con el modelo de
 embeddings cargado una vez. No hay KB por defecto en la raiz: la ruta siempre nombra la
 base. Sirviendo hoy: `traza-ambiental` (175 nodos) y `personal` (129).
 
-**Recuperacion:** fusion reciproca ponderada de cuatro señales —nombre, semantica
+**Recuperacion:** fusion reciproca ponderada de cuatro señales (nombre, semantica
 (model2vec 256d int8), lexica (FTS5/BM25 con stemmer español), difusion por el grafo de
-wikilinks— mas recencia por historial git como multiplicador con decaimiento exponencial.
+wikilinks) mas recencia por historial git como multiplicador con decaimiento exponencial.
 Sin RAG vectorial pesado, sin torch, sin GPU, sin LLM interno. ~850 MB RAM.
 
 **Auto-descripcion:** el servidor declara su dominio en las `instructions` y en la

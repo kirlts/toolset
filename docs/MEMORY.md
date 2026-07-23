@@ -61,3 +61,43 @@ This prevents context saturation and ensures durable knowledge retention.
 **Pattern:** El flag immutable (`chattr +i`) previene writes de cualquier proceso, incluso sudo. Un deploy que intenta cp/chown sobre un archivo inmutable falla.
 **Lesson:** Al inmutar archivos via deploy, hacer `chattr -i` antes de escribir y `chattr +i` después en el mismo SSH call. Esto asegura que el deploy siempre pueda actualizar el archivo.
 **Source:** [Confirmed by user - no external source]
+
+---
+
+## [HEU-006] Un bind mount de ARCHIVO se ata al inode: `mv` lo desconecta en silencio
+
+**Date:** 2026-07-23
+**Origin:** deploy.sh transferia el Caddyfile con `sudo mv -f`. El archivo en disco cambiaba, el contenedor seguia sirviendo la version anterior, y ningun paso fallaba.
+**Pattern:** Docker resuelve un bind mount de archivo individual al inode existente al montar, no a la ruta. Cualquier escritura no in-place (`mv`, `sed -i`, y el guardado atomico de casi todo editor moderno) crea un inode nuevo y deja al contenedor apuntando al viejo. Con directorios no ocurre: el inode del directorio no cambia, solo su contenido.
+**Lesson:** Para actualizar un archivo bind-mounteado desde un script de deploy, escribir in-place (`tee`, `cat >`) y nunca `mv`. El sintoma es cruel porque no hay error: el deploy reporta exito y el servicio corre con configuracion vieja. Corolario: transferir no es aplicar. Hay que verificar por separado si el proceso necesita recarga.
+**Source:** [moby/moby#6011](https://github.com/moby/moby/issues/6011), [Docker Docs: Bind mounts](https://docs.docker.com/engine/storage/bind-mounts/)
+
+---
+
+## [HEU-007] Un catch-all que responde 200 rompe el descubrimiento por `/.well-known/`
+
+**Date:** 2026-07-23
+**Origin:** El conector de claude.ai fallaba con «no se pudo registrar con el servicio de inicio de sesion» contra un servidor MCP que no usa autenticacion.
+**Pattern:** Los protocolos modernos descubren capacidades pidiendo rutas `/.well-known/`, y distinguen «no soportado» de «soportado» por el codigo de estado: 404 significa que no aplica. Un reverse proxy con catch-all tipo `try_files {path} index.html` responde 200 con HTML a CUALQUIER ruta desconocida, incluidas esas. El cliente concluye lo contrario de la realidad y arranca un flujo que no existe.
+**Lesson:** Todo servidor detras de un catch-all debe devolver 404 explicito en las rutas de descubrimiento que no implementa. Vale para OAuth (RFC 8414, RFC 9728), OpenID Connect y cualquier negociacion basada en `/.well-known/`. Sintoma reconocible: un cliente exige autenticacion contra un servicio que no la tiene.
+**Source:** [RFC 9728: OAuth 2.0 Protected Resource Metadata](https://datatracker.ietf.org/doc/html/rfc9728)
+
+---
+
+## [HEU-008] Un proxy que despoja el prefijo produce redirects rotos
+
+**Date:** 2026-07-23
+**Origin:** `/kb/<slug>/mcp/` devolvia un 307 hacia `http://host/<slug>/mcp`: sin el prefijo y degradado a http.
+**Pattern:** Cuando el proxy quita el prefijo de ruta antes de pasar la peticion (`handle_path` en Caddy, `strip_prefix` en otros), la aplicacion ignora que ese prefijo existe. Cualquier URL absoluta que construya (redirects de canonicalizacion, `Location`, enlaces) sale sin el prefijo, y si ademas habla http con el proxy, sin TLS. Es invisible mientras nadie pida una ruta que dispare un redirect: basta un slash final.
+**Lesson:** O la aplicacion conoce su prefijo publico (montarla con el prefijo completo, o propagar `X-Forwarded-Prefix` y honrarlo), o el proxy canonicaliza en su borde antes de enrutar. Al publicar una ruta, probar sus variantes: con slash final, sin el, y siguiendo el redirect.
+**Source:** [MDN: X-Forwarded-Proto](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/X-Forwarded-Proto)
+
+---
+
+## [HEU-009] La descripcion de una herramienta decide si el agente la usa bien
+
+**Date:** 2026-07-23
+**Origin:** Un servidor MCP cuyas herramientas decian «busca en esta base de conocimiento» sin nombrar el dominio. El agente solo podia inferirlo del nombre del conector, que lo elige quien lo instala.
+**Pattern:** Anthropic documenta que la descripcion es «by far the most important factor in tool performance», y que debe cubrir cuatro cosas: que hace, cuando usarla y cuando NO, que significa cada parametro, y que informacion NO devuelve. El criterio rector es escribirla como el onboarding de alguien nuevo, explicitando el contexto que uno da por sabido, incluida la terminologia de nicho.
+**Lesson:** Al exponer un servicio por MCP, la descripcion debe nombrar el dominio concreto y sus limites, no describir el mecanismo. Conviene derivar del propio contenido lo que envejece (los temas que cubre) y declarar a mano solo el encuadre, para que no quede vieja sin que nadie la mantenga.
+**Source:** [Anthropic: Define tools](https://platform.claude.com/docs/en/agents-and-tools/tool-use/implement-tool-use), [Writing tools for agents](https://www.anthropic.com/engineering/writing-tools-for-agents)

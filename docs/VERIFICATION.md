@@ -102,3 +102,35 @@
   - *Verificacion:* ✅ ~4:25 con sandbox build condicional + Tailscale action + SSH mux. (🤖 Verified by pipeline timing; 2026-06-26)
 - ✅ `[DEV.CR.20.LLM]` FUNNEL_DOMAIN parametrizado como GitHub variable.
   - *Verificacion:* ✅ 36 referencias hardcodeadas reemplazadas. (🤖 Verified by grep; 2026-06-26)
+
+### Verificaciones de Publicacion de Knowledge Bases por MCP (EPIC-016)
+
+> Ref: MASTER-SPEC §7.2
+
+- ✅ `[DEV.CR.21.LLM]` kb-mcp sirve todas las KB de `/opt/kb` con la capa semantica activa.
+  - *Resultado esperado:* `GET /kb/salud` lista cada KB con su conteo de entradas y `semantica: true`.
+  - *Verificacion:* ✅ `{"kbs":[{"slug":"personal","entradas":129,"semantica":true},{"slug":"traza-ambiental","entradas":175,"semantica":true}]}`. (🤖 Verified by curl; 2026-07-23)
+
+- ✅ `[DEV.CR.22.LLM]` Handshake MCP completo sin autenticacion y superficie de solo lectura.
+  - *Resultado esperado:* `initialize` responde con `serverInfo`, `tools/list` devuelve exactamente tres herramientas (`consultar`, `leer`, `panorama`) y ninguna de escritura.
+  - *Verificacion:* ✅ Ambas KB. Ademas `tools/call` de `panorama` devuelve inventario real. (🤖 Verified by curl JSON-RPC; 2026-07-23)
+
+- ✅ `[DEV.CR.23.LLM]` Interoperabilidad de protocolo con los clientes MCP vigentes.
+  - *Resultado esperado:* el servidor negocia las cuatro versiones en circulacion y no falla ante los metodos que los clientes sondean.
+  - *Verificacion:* ✅ Devuelve la version solicitada en `2024-11-05`, `2025-03-26`, `2025-06-18` y `2025-11-25`. `ping`, `resources/list`, `prompts/list` y `resources/templates/list` responden sin error. Limite conocido y conforme a especificacion: sin `Accept: text/event-stream` devuelve 406. (🤖 Verified by curl; 2026-07-23)
+
+- ✅ `[DEV.CR.24.LLM]` El descubrimiento OAuth no induce a un cliente a exigir login.
+  - *Resultado esperado:* las rutas `/.well-known/oauth-*` y `/.well-known/openid-configuration*` devuelven 404, no la landing con 200.
+  - *Verificacion:* ✅ Las cinco rutas devuelven 404. Antes respondian 200 con HTML por el catch-all del Caddyfile, lo que hacia fallar el conector de claude.ai con «no se pudo registrar con el servicio de inicio de sesion». (🤖 Verified by curl; 2026-07-23)
+
+- ✅ `[DEV.CR.25.LLM]` La ruta con slash final resuelve a la URL canonica.
+  - *Resultado esperado:* `POST /kb/<slug>/mcp/` redirige con 308 a `/kb/<slug>/mcp` conservando esquema y prefijo, y completa el handshake.
+  - *Verificacion:* ✅ Ambas KB devuelven su `serverInfo` siguiendo el redirect. Antes emitia un 307 hacia `http://host/<slug>/mcp`, sin el prefijo `/kb` y degradado a http, porque `handle_path` despoja el prefijo antes de que el backend construya el redirect. Importa porque hay clientes que documentan la ruta con slash final. (🤖 Verified by curl; 2026-07-23)
+
+- ✅ `[DEV.CR.26.LLM]` El despliegue de kb-mcp no altera ningun servicio preexistente.
+  - *Resultado esperado:* tras cada cambio, `/health`, `/dashboard`, `/hermes/`, `/openapi.json` y la landing responden igual que en el baseline previo.
+  - *Verificacion:* ✅ Medido antes y despues de cada intervencion (200, 200, 302, 200, 200). Contenedores de Hermes, Hindsight e Infisical sin recrear. (🤖 Verified by curl + docker ps; 2026-07-23)
+
+- 🔲 `[DEV.CR.27.MIX]` Un tercero consulta la KB por MCP sin friccion.
+  - *Resultado esperado:* el colega conecta el conector con la URL entregada y obtiene respuestas utiles sin asistencia.
+  - *Verificacion:* 🔲 Pendiente de uso real. Pre-verificado por IA: conector de claude.ai y Claude Code verificados con consulta real (`¿que es un NFU?`, `¿quien financia la recoleccion?`). Falta la confirmacion del usuario final.

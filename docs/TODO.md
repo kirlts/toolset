@@ -330,6 +330,36 @@
 
 |---
 
+## [EPIC-016] Publicación de Knowledge Bases por MCP
+
+> Ref: MASTER-SPEC §7.2
+
+### [TASK-021] Servidor kb-mcp multi-KB en producción
+
+> Ref: MASTER-SPEC §7.2
+
+**Covered checks:** `[DEV.CR.21.LLM]`, `[DEV.CR.22.LLM]`, `[DEV.CR.23.LLM]`, `[DEV.CR.24.LLM]`, `[DEV.CR.25.LLM]`, `[DEV.CR.26.LLM]`, `[DEV.CR.27.MIX]`
+
+- [x] Servicio `kb-mcp` en docker-compose con `pull_policy: build`, `read_only` y `mem_limit` `2026-07-23`
+- [x] Ruta `/kb/<slug>/mcp` en Caddy, una KB por nombre de repositorio, sin KB por defecto `2026-07-23`
+- [x] Búsqueda híbrida: FTS5/BM25 con stemmer español, embeddings estáticos, difusión por el grafo, recencia por historial git `2026-07-23`
+- [x] Auto-descripción del dominio para que baste la URL, según la guía de Anthropic para herramientas de agentes `2026-07-23`
+- [x] Descubrimiento OAuth devuelve 404, y ruta con slash final canonicalizada `2026-07-23`
+- [x] `gh auth setup-git` en deploy.sh: sin eso el clon y el cron de sync fallan en repos privados `2026-07-23`
+- [ ] 🔲 Pushear `toolset` para que el estado del VPS deje de estar adelantado al repositorio (ver [DT-012])
+- [ ] 🔲 Definir la capa de autorización por KB (ver [DT-011])
+- [ ] 🔲 Confirmación de uso real por el colega, que cierra `[DEV.CR.27.MIX]`
+
+### [TASK-022] Purga de em dashes en el eje documental
+
+> Ref: `/document`, sección Slop Detection (tolerancia cero al carácter em dash)
+
+**Covered checks:** `Transversal governance`
+
+- [ ] 🔲 68 instancias preexistentes repartidas en los nueve documentos: TODO (24), TECHNICAL-DEBT (10), CHANGELOG (8), RULES (5), USER-DECISIONS (5), VERIFICATION (4), REPOMAP (2), MEMORY (1). La regla nunca se aplicó de forma retroactiva. La purga exige reescribir frases, no sustituir caracteres, así que se hace documento por documento y con revisión.
+
+|---
+
 ## Overall Coverage Summary
 
 | Epic | Tasks | Status | 🤖 .LLM | 🧑 .HUM | 🤖🧑 .MIX | Total Checks |
@@ -349,4 +379,5 @@
 | EPIC-013 | TASK-018 | Por definir | 0 | 0 | 0 | 0 |
 | EPIC-014 | TASK-019 | Por definir | 0 | 0 | 0 | 0 |
 | EPIC-015 | TASK-020 | Por definir | 0 | 0 | 0 | 0 |
-| **TOTAL** | | | **20** | **3** | **1** | **24** |
+| EPIC-016 | TASK-021 a TASK-022 | In Progress | 6 | 0 | 1 | 7 |
+| **TOTAL** | | | **26** | **3** | **2** | **31** |
