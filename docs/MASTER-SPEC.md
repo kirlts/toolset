@@ -71,6 +71,7 @@
 | Sandbox | Docker nativo de Hermes (`terminal.backend: docker`) | Sandbox aislado con hardening (no-new-privs, cap-drop ALL, pids-limit 256). Daytona/Modal como backends alternativos configurables. |
 | Memory | Hindsight (self-hosted en OCI) | Base de conocimiento centralizada. `ghcr.io/vectorize-io/hindsight:latest` con pg0 embebido + DeepSeek V4 Flash via OpenCode Go. Banks versionados en `infrastructure/hermes/banks/`. |
 | Integration | Composio | Pasarela de autenticacion OAuth para integraciones externas. Activo. |
+| Knowledge Publishing | kb-mcp (servidor propio, Python + FastMCP) | Publica bases de conocimiento de `kb-template` como servidores MCP de solo lectura. Busqueda hibrida (SQLite FTS5/BM25 + embeddings estaticos model2vec + grafo de wikilinks) sin GPU ni LLM interno. Activo. |
 
 ---
 
@@ -154,6 +155,49 @@
 6. Si preflight falla → notificar inmediatamente al canal de deploy.
 
 **Dependencies:** Tailscale, Infisical, Docker (sandbox), Hindsight, Composio, OpenCode Go.
+
+---
+
+### 7.2. kb-mcp — Publicacion de Bases de Conocimiento por MCP
+
+**Status:** ✅ Implementado y operativo (2026-07-23)
+
+**Purpose:** Exponer bases de conocimiento construidas con `kb-template` como servidores
+MCP de solo lectura, para que un agente (claude.ai, Claude Code, Hermes) las consulte sin
+que nadie pegue texto a mano. Aisla al que consulta de la topologia interna de la KB.
+
+**Interface:**
+```
+ Agente MCP -> Tailscale Funnel :443 -> Caddy (handle_path /kb/*) -> kb-mcp:8765
+              -> /kb/<slug>/mcp   (slug = nombre del repositorio de la KB)
+```
+
+**Superficie:** tres herramientas — `consultar` (busqueda), `leer` (texto integro de una
+entrada), `panorama` (inventario o mapa de un tema). **Ninguna escribe.**
+
+**Multi-KB:** un solo proceso sirve todas las KB bajo `/opt/kb`, con el modelo de
+embeddings cargado una vez. No hay KB por defecto en la raiz: la ruta siempre nombra la
+base. Sirviendo hoy: `traza-ambiental` (175 nodos) y `personal` (129).
+
+**Recuperacion:** fusion reciproca ponderada de cuatro señales —nombre, semantica
+(model2vec 256d int8), lexica (FTS5/BM25 con stemmer español), difusion por el grafo de
+wikilinks— mas recencia por historial git como multiplicador con decaimiento exponencial.
+Sin RAG vectorial pesado, sin torch, sin GPU, sin LLM interno. ~850 MB RAM.
+
+**Auto-descripcion:** el servidor declara su dominio en las `instructions` y en la
+cabecera de cada herramienta, combinando lo que la KB declara (`kb/mcp.yaml`) con los
+conceptos centrales deducidos del grafo. Basta la URL: el agente no necesita que se le
+explique de que trata la base.
+
+**Autorizacion:** ⚠️ Hoy **sin autenticacion**. La ruta es publica via Funnel y las KB no
+estan aisladas entre si. El enrutamiento por nombre de repo esta diseñado para admitir
+una capa de tokens por KB, que es trabajo pendiente ([DT-011](TECHNICAL-DEBT.md)).
+
+**Documento canonico:** [`infrastructure/kb-mcp/README.md`](../infrastructure/kb-mcp/README.md).
+Portado a la plantilla en `kb-template/tools/kb-mcp/` para que las KB nuevas lo hereden.
+
+**Dependencies:** Docker, Caddy, Tailscale Funnel, credenciales `gh` en el VPS (las KB
+son repos privados), modelo pre-cuantizado en `/opt/kb-modelo-256`.
 
 ---
 

@@ -95,8 +95,9 @@
   - *Verificacion:* ✅ Implementado — push via script standalone, pull via runner con GH_TOKEN. 18/18 secrets verificados. (🤖 Verified by verify action; 2026-06-26)
 - ✅ `[DEV.CR.17.LLM]` Preflight verifica 15 invariantes MASTER-SPEC post-deploy.
   - *Verificacion:* ✅ Implementado — health, MCP 3-step, SOUL.md, banks, skills, AGENTS.md, cron. (🤖 Verified by pipeline; 2026-06-26)
-- ✅ `[DEV.CR.18.LLM]` Caddy basicauth protege management URLs, MCP público.
-  - *Verificacion:* ✅ /dashboard → 401, /health → 200, /hindsight/mcp/ → 200. (🤖 Verified by curl; 2026-06-26)
+- 🔲 `[DEV.CR.18.LLM]` ~~Caddy basicauth protege management URLs, MCP público.~~ **Falsificada.**
+  - *Verificacion original:* ✅ /dashboard → 401, /health → 200, /hindsight/mcp/ → 200. (🤖 Verified by curl; 2026-06-26)
+  - *Re-verificación 2026-07-23:* ❌ **Ya no se cumple.** El `basicauth` fue removido del Caddyfile en `1de879b` («remove Hindsight basicauth, add URL verification») y `db17f50`, sin actualizar esta verificación ni [DT-002]. Medición actual: `/dashboard` → **200**, `/api/banks` → **200**, `/banks/` → 308. Las URLs de gestión de Hindsight (bancos de memoria) están **públicas en internet** vía Funnel. Ver [DT-002] para la decisión pendiente.
 - ✅ `[DEV.CR.19.LLM]` Deploy incremental <5min sin cambios de infra.
   - *Verificacion:* ✅ ~4:25 con sandbox build condicional + Tailscale action + SSH mux. (🤖 Verified by pipeline timing; 2026-06-26)
 - ✅ `[DEV.CR.20.LLM]` FUNNEL_DOMAIN parametrizado como GitHub variable.

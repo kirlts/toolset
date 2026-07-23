@@ -112,9 +112,14 @@ if [ -f "$CADDYFILE" ]; then
       if ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
            "${SSH_HOST}" "docker exec caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile" \
            > /dev/null 2>&1; then
-        ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-          "${SSH_HOST}" "docker restart caddy" > /dev/null
-        echo "[DEPLOY] Caddy reiniciado con la config nueva."
+        # || true por [DT-010]: si el restart falla, Caddy sigue con la config anterior
+        # —degradado, no caido— y no vale abortar el deploy completo de Hermes por eso.
+        if ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+             "${SSH_HOST}" "docker restart caddy" > /dev/null 2>&1; then
+          echo "[DEPLOY] Caddy reiniciado con la config nueva."
+        else
+          echo "[DEPLOY] ⚠️  No se pudo reiniciar Caddy; sigue con la config anterior."
+        fi
       else
         echo "[DEPLOY] ⚠️  Caddyfile INVALIDO — Caddy NO se reinicia, sigue con la config anterior."
       fi

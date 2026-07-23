@@ -64,6 +64,46 @@ Cuando se modifica un archivo de configuracion:
 
 ## Current Session Changes (2026-07-23)
 
+**El conector de claude.ai no podia registrarse (Caddyfile).** El catch-all
+(`try_files {path} index.html`) respondia la landing con HTTP 200 en las rutas de
+descubrimiento OAuth; un cliente MCP lo lee como "este recurso exige OAuth", arranca el
+flujo de login y falla —aunque el endpoint MCP responda 200 sin token. Se agregaron dos
+bloques `handle` que devuelven 404 en `/.well-known/oauth-*` y
+`/.well-known/openid-configuration*`, que es la respuesta correcta para un servidor sin
+auth. Verificado: handshake completo sin token, `tools/list` con las tres herramientas,
+consulta real por el conector. Baseline intacto (/health, /dashboard, /hermes/,
+/openapi.json, /kb/salud, landing).
+
+**deploy.sh: el Caddyfile se transferia y no se aplicaba, en silencio.** Dos defectos
+encadenados: (a) `mv -f` rompe el inode del bind mount de archivo, asi que el contenedor
+seguia viendo el archivo viejo; (b) nada recargaba Caddy, que corre con `admin off` y no
+admite reload en caliente. Ahora se escribe con `tee`, se compara con `cmp` para saber si
+cambio, se valida `caddy validate` DENTRO del contenedor y solo entonces se reinicia. Si
+la config no adapta no se toca nada y el deploy avisa; si el restart falla, `|| true` por
+[DT-010]. **Cualquier cambio futuro de rutas dependia de esto.**
+
+**deploy.sh: credenciales git para las KB privadas.** Las KB son repos privados y git no
+trae credenciales solo: el clon inicial y el cron `sync-kb.sh` fallaban con "could not
+read Username" —el fetch aborta y la KB queda congelada en la version del dia del clon,
+sin error visible. Se agrego `gh auth setup-git` (idempotente) antes de clonar.
+
+**kb-mcp: la KB se describe sola al agente.** `server.py` publica el dominio de cada KB en
+las `instructions` del servidor y en la cabecera de las tres herramientas, con la forma
+que indica la guia de Anthropic para escribir herramientas de agentes (que hace, cuando
+usarla, cuando NO, que NO devuelve). El texto combina lo que la KB declara en su
+`kb/mcp.yaml` —campo `descripcion`, que existia y no se usaba— con los conceptos
+centrales deducidos de los nodos mas referenciados del grafo, que no envejecen. Basta la
+URL: el agente ya no depende del nombre que le ponga al conector quien lo instala.
+Corregido de paso el listado de ambitos, que omitia todo polo cuyo alias coincidiera con
+el nombre de su carpeta (en traza solo aparecia 'producto', nunca 'contexto').
+
+**Divergencia documental detectada (no introducida en esta sesion).** [DEV.CR.18]
+afirmaba `/dashboard → 401` por `basicauth`; el basicauth fue removido en `1de879b` y
+`db17f50` sin actualizar la verificacion ni [DT-002]. Medicion real: `/dashboard` → 200,
+`/api/banks` → 200 desde internet. Ademas `docker-compose.yml` sigue pasando
+`FUNNEL_AUTH_USER`/`FUNNEL_AUTH_PASSWORD` a Caddy, variables que ninguna directiva
+consume. [DT-002] reabierto; decision del usuario.
+
 #
 **Ajuste de ranking (revalidacion con jueces).** Tras revalidar con casos duros se
 subio la calidad de recuperacion con mejoras del buscador: embeddings a 256 dims,

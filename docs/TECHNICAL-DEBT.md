@@ -26,7 +26,14 @@
 - Opciones: Caddy `basicauth` (simple, global por path), forward auth con Infisical (más integrado), o `HINDSIGHT_CP_ACCESS_KEY` (específico de Hindsight).
 
 **Remediation plan:** Definir e implementar post-TASK-006 (Hermes operativo).
-**Status:** ✅ Parcialmente resuelto. Caddyfile actualizado con `basicauth` para rutas de gestión de Hindsight CP (`/dashboard`, `/banks/*`, `/api/banks/*`, etc.) usando `{$FUNNEL_AUTH_USER}` y `{$FUNNEL_AUTH_PASSWORD}` desde env vars. Infisical y Hermes WebUI tienen auth propio. Pendiente: verificar que MCP harnesses (Kilo, Claude Code) sigan funcionando sin auth (solo /hindsight/mcp/ no tiene auth). 2026-06-26
+**Status:** 🚨 **Reabierto (2026-07-23).** La resolución que registraba este ítem ya no existe.
+
+- *Lo que decía (2026-06-26):* "✅ Parcialmente resuelto. Caddyfile actualizado con `basicauth` para rutas de gestión de Hindsight CP (`/dashboard`, `/banks/*`, `/api/banks/*`) usando `{$FUNNEL_AUTH_USER}` y `{$FUNNEL_AUTH_PASSWORD}`".
+- *Realidad medida:* el `basicauth` fue removido del Caddyfile en `1de879b` («remove Hindsight basicauth, add URL verification como paso obligatorio de deploy») y `db17f50` («Caddyfile sin basicauth»), **sin actualizar este ítem ni [DEV.CR.18]**. Hoy el Caddyfile no contiene ninguna directiva `basicauth`; el bloque de Hindsight CP está anotado explícitamente como «no auth». `/dashboard` → 200 y `/api/banks` → 200 desde internet.
+- *Además:* `docker-compose.yml` sigue declarando `FUNNEL_AUTH_USER` y `FUNNEL_AUTH_PASSWORD` al contenedor de Caddy, variables que **ninguna directiva consume**. Parecen dar una protección que no existe.
+- *Consecuencia:* la gestión de los bancos de memoria de Hindsight es pública para cualquiera con la URL del Funnel.
+
+**Remediation plan:** decisión del usuario, no automatizable — el basicauth se quitó a propósito porque rompía a los harnesses MCP, así que reponerlo global volvería a romperlos. La forma correcta es proteger solo las rutas de gestión (`/dashboard`, `/banks/*`, `/api/banks*`, `/api/profile/*`) dejando MCP y health abiertos, y **verificar el resultado con curl en el mismo deploy** para que no vuelva a divergir en silencio.
 
 ---
 
@@ -112,3 +119,32 @@
 **Origin:** session 2026-07-09 (pipeline failure)
 **Description:** deploy.sh arranca con `set -euo pipefail`, por lo que cualquier comando con salida no-cero rompe el pipeline. Comandos que pueden fallar por razones no críticas (permisos, immutable flags, registry auth) no siempre tienen `|| true`. Ejemplos: `sudo chattr -i` en perfiles tenant, `sudo docker compose pull`, `sudo chown -R` sobre directorios con immutable. Cada nuevo comando frágil añadido al deploy.sh es un riesgo de pipeline break.
 **Status:** ☐ Pending — revisión manual de cada comando en deploy.sh para evaluar tolerancia a fallos.
+
+---
+
+## [DT-011] kb-mcp expuesto sin autenticación y sin aislamiento entre KB
+
+**Severity:** Medium
+**Origin:** session 2026-07-23 (publicación de KBs por MCP, MASTER-SPEC §7.2)
+**Description:** `kb-mcp` sirve las bases de conocimiento en `https://<funnel>/kb/<slug>/mcp` sin ninguna capa de autorización. Consecuencias:
+
+- Cualquiera con la URL puede leer **cualquier** KB publicada. Hoy conviven `traza-ambiental` (compartida con un colega externo) y `personal` (contenido privado del autor) en el mismo endpoint, **sin aislamiento entre ellas**: quien conoce una ruta puede probar la otra, y los slugs son predecibles por diseño.
+- Tensiona MASTER-SPEC §4.2 («los puertos no deben exponerse públicamente»), aunque el tráfico curse por Funnel como el resto de los servicios.
+
+El diseño ya contempla la solución: la ruta lleva el nombre del repositorio precisamente para que la autorización se aplique por KB sin mezclarse con el enrutamiento.
+
+**Remediation plan:** capa de tokens por KB sobre `/kb/<slug>` en Caddy (un token por consumidor, revocable), o forward-auth. Mientras no exista, no publicar en este servidor ninguna KB cuyo contenido no se pueda asumir legible por quien tenga la URL.
+**Status:** ☐ Pending — conocido y aceptado a corto plazo; el servicio se levantó con este límite declarado.
+
+---
+
+## [DT-012] Estado del VPS adelantado al repositorio (kb-mcp desplegado a mano)
+
+**Severity:** Medium
+**Origin:** session 2026-07-23
+**Description:** El servicio `kb-mcp`, sus correcciones del `Caddyfile` y del `deploy.sh`, y las credenciales `gh` para clonar las KB privadas, fueron aplicados directamente en el VPS por SSH mientras los commits correspondientes permanecen **sin pushear** en `toolset` (decisión explícita del usuario para no disparar el CI/CD completo). Esto tensiona [INFRA-03] («production deploys go through CI/CD») y [MANIFEST-03] («no configuration change lives only on the VPS»).
+
+Riesgo concreto: si el VPS se recrea o si otro deploy corre desde `main` antes del push, el estado actual se pierde y el endpoint `/kb/*` deja de existir. El `sync-kb.sh` y su cron tampoco están instalados todavía —viven en el `deploy.sh` no pusheado—, así que **las KB no se actualizan solas**: hoy se sincronizan a mano.
+
+**Remediation plan:** pushear `toolset` cuando el usuario decida. El deploy resultante es idempotente y fue analizado paso a paso: el `Caddyfile` no cambiará (`cmp` da igual → no reinicia Caddy), las KB figuran como «ya clonada», `pull_policy: build` evita el aborto en `compose pull`, y `gh auth setup-git` es idempotente.
+**Status:** ☐ Pending — bloqueado por decisión del usuario (push manual).

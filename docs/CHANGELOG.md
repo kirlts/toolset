@@ -7,7 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-*Nothing pending.*
+> Desplegado en el VPS, **pendiente de push** (ver [DT-012]).
+
+### Added
+- **kb-mcp**: servidor MCP de solo lectura que publica bases de conocimiento de `kb-template` en `/kb/<slug>/mcp`. Multi-KB en un proceso, búsqueda híbrida (FTS5/BM25 + embeddings estáticos + grafo de wikilinks + recencia por historial git), tres herramientas sin escritura. Sirviendo `traza-ambiental` y `personal`. Ver MASTER-SPEC §7.2 y `infrastructure/kb-mcp/README.md`.
+- Auto-descripción de cada KB: el servidor declara su dominio en las `instructions` y en la cabecera de las tres herramientas, combinando `kb/mcp.yaml` de la KB con los conceptos centrales deducidos del grafo. Basta la URL para que un agente sepa cuándo usarla.
+- `sync-kb.sh` + cron (*/15 min) para actualizar las KB y reindexar solo si cambió el HEAD.
+
+### Fixed
+- **El conector de claude.ai fallaba con «no se pudo registrar con el servicio de inicio de sesión»**: el catch-all del `Caddyfile` respondía la landing con HTTP 200 en las rutas de descubrimiento OAuth, y un cliente MCP lo lee como «este recurso exige OAuth». Ahora devuelven 404, que es lo correcto para un servidor sin auth.
+- `deploy.sh` transfería el `Caddyfile` con `mv`, rompiendo el inode del bind mount (el contenedor seguía viendo el archivo viejo), y nada recargaba Caddy —que corre con `admin off` y no admite reload en caliente. Un cambio de rutas se transfería sin surtir efecto, en silencio. Ahora: `tee`, detección de cambio, validación dentro del contenedor y reinicio solo si corresponde.
+- Las KB son repos privados y git no traía credenciales: el clon inicial y el cron de sync fallaban con «could not read Username». `deploy.sh` corre `gh auth setup-git` (idempotente).
+
+### Documentation
+- **[DEV.CR.18] falsificada**: el `basicauth` que protegía las URLs de gestión de Hindsight fue removido en `1de879b`/`db17f50` sin actualizar la verificación ni [DT-002]. `/dashboard` y `/api/banks` responden 200 desde internet. [DT-002] reabierto.
+- Nuevos: [DT-011] kb-mcp sin autenticación ni aislamiento entre KB; [DT-012] estado del VPS adelantado al repositorio.
 
 ## [0.6.0] - 2026-07-06
 
