@@ -375,13 +375,9 @@ class Indice:
     def extracto(self, nombre: str, consulta_fts: str) -> str:
         """Pasaje alrededor de la coincidencia; si el acierto vino de la capa
         semantica no hay coincidencia literal, asi que se muestra la apertura."""
-        nodo = self.nodos[nombre]
-        # Para un indice, lo util es lo que ENUMERA el area: su Inventario si lo tiene,
-        # o el cuerpo (que en estos indices ya lista a los hijos en secciones tematicas).
-        if nodo.es_indice:
-            inv = nodo.seccion("Inventario") or " ".join(nodo.cuerpo.split())
-            if inv:
-                return (inv[:700] + " …") if len(inv) > 700 else inv
+        # (El extracto de un indice NO se fuerza al Inventario: empeoraba las preguntas
+        #  definicionales —"¿qué es Kairós?" devolvia la tabla de hijos en vez de la
+        #  definicion. El Inventario se ofrece en panorama(), que es la via explicita.)
         try:
             fila = self.db.execute(
                 "SELECT snippet(docs, 1, '', '', ' … ', 34) FROM docs "
