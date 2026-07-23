@@ -683,21 +683,27 @@ if [ -f "$KB_SYNC_SRC" ]; then
      sudo chown opc:opc /home/opc/.hermes/scripts/sync-kb.sh && \
      sudo rm -f /tmp/sync-kb.sh && \
      echo '  sync-kb.sh deployed'" 2>/dev/null || true
-  # Clon inicial de la KB (privada: usa las credenciales de gh del usuario opc).
-  # Clon superficial a un temporal y movimiento atomico: un clon interrumpido
-  # borra su directorio destino al fallar, y eso no debe tocar el clon vivo.
-  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    "${SSH_HOST}" \
-    "export PATH=/usr/local/bin:/home/opc/.local/bin:\$PATH GIT_TERMINAL_PROMPT=0; \
-     sudo mkdir -p /opt/kb && sudo chown opc:opc /opt/kb; \
-     if [ ! -d /opt/kb/traza-ambiental/.git ]; then \
-       S=/opt/kb/.stage.\$\$; rm -rf \"\$S\"; \
-       git clone --depth 1 --branch planning --single-branch \
-         https://github.com/kirlts/traza-ambiental.git \"\$S\" -q && \
-       [ \"\$(find \"\$S/knowledge-base\" -name '*.md' | wc -l)\" -ge 100 ] && \
-       sudo rm -rf /opt/kb/traza-ambiental && mv \"\$S\" /opt/kb/traza-ambiental && \
-       echo '  KB clonada' || { rm -rf \"\$S\"; echo '  KB clone fallo (no bloqueante)'; }; \
-     else echo '  KB ya clonada'; fi" 2>/dev/null || true
+  # Manifiesto de KB a servir: "slug rama repo". Agregar una KB nueva es una linea.
+  # Clon partial (--filter=blob:none): historial completo de commits para la
+  # temporalidad (fechas por nodo), sin descargar los binarios pesados del historial
+  # (8 MB en vez de 154). Privadas: usa las credenciales de gh del usuario opc.
+  KB_MANIFIESTO="traza-ambiental planning https://github.com/kirlts/traza-ambiental.git
+personal main https://github.com/kirlts/personal.git"
+  echo "$KB_MANIFIESTO" | while read -r slug rama repo; do
+    [ -n "$slug" ] || continue
+    ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+      "${SSH_HOST}" \
+      "export PATH=/usr/local/bin:/home/opc/.local/bin:\$PATH GIT_TERMINAL_PROMPT=0; \
+       sudo mkdir -p /opt/kb && sudo chown opc:opc /opt/kb; \
+       if [ ! -d /opt/kb/${slug}/.git ]; then \
+         S=/opt/kb/.stage.\$\$; rm -rf \"\$S\"; \
+         git clone --filter=blob:none --branch ${rama} --single-branch \
+           ${repo} \"\$S\" -q && \
+         [ \"\$(find \"\$S/knowledge-base\" -name '*.md' | wc -l)\" -ge 5 ] && \
+         sudo rm -rf /opt/kb/${slug} && mv \"\$S\" /opt/kb/${slug} && \
+         echo '  ${slug} clonada' || { rm -rf \"\$S\"; echo '  ${slug} clone fallo (no bloqueante)'; }; \
+       else echo '  ${slug} ya clonada'; fi" 2>/dev/null || true
+  done
   echo "[DEPLOY] Ensuring kb-sync cron entry..."
   ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     "${SSH_HOST}" \

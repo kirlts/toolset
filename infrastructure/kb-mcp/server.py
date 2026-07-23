@@ -1,21 +1,28 @@
 #!/usr/bin/env python3
 """
-Servidor MCP de solo lectura para una KB construida con kb-template.
+Servidor MCP de solo lectura para KBs construidas con kb-template.
 
-La superficie es la de un bibliotecario: se le pregunta, se le pide leer algo, o se
-le pide el panorama. La topologia interna (polos, wikilinks, frontmatter) se usa para
-responder mejor, pero no se le pide al que consulta que la conozca.
+Sirve VARIAS KB desde un solo proceso: el modelo de embeddings se carga una vez y
+cada KB tiene su propio indice. Nada del dominio esta escrito aqui — los polos, sus
+etiquetas y el nombre salen de cada repo (kb/mcp.yaml, o se derivan del arbol).
 
-    python server.py --kb ~/traza-ambiental                    # stdio (Claude Code)
-    python server.py --kb ~/traza-ambiental --transport http   # para el VPS
+La superficie es la de un bibliotecario: consultar, leer, panorama. La topologia
+interna (polos, wikilinks, frontmatter) se usa para responder mejor, pero no se le
+pide al que consulta que la conozca.
+
+    python server.py --kb ~/traza-ambiental                      # stdio, una KB
+    python server.py --kbs /opt/kb --transport streamable-http   # http, todas
 """
 
 from __future__ import annotations
 
 import argparse
+import contextlib
+import datetime
 import os
 import re
 import sqlite3
+import subprocess
 import unicodedata
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -37,8 +44,6 @@ except ImportError:  # sin capa semantica queda solo la lexica, no se cae
     np = None
     StaticModel = None
 
-# Embeddings estaticos: tabla de consulta token->vector, sin torch ni GPU.
-# int8 + 128 dims deja la tabla en ~64 MB y no degrada el ranking a esta escala.
 MODELO = os.environ.get("KB_MODELO", "minishlab/potion-multilingual-128M")
 
 # --- parseo ------------------------------------------------------------------
@@ -49,22 +54,15 @@ PALABRA = re.compile(r"[0-9A-Za-zÁÉÍÓÚÜÑáéíóúüñ]{2,}")
 OPERADORES = re.compile(r'["*:()]|\b(AND|OR|NOT|NEAR)\b')
 
 CAMPOS_GRAFO = ("depende_de", "se_descompone_en", "se_relaciona_con")
-
-# Vocabulario interno -> palabras del mundo real.
-AMBITOS = {
-    "contexto": "Contexto",
-    "producto": "Trazambiental",
-}
+NO_POLO = {"assets", ".obsidian", ".trash"}
 
 
 def normalizar(palabra: str) -> str:
-    """Minuscula y sin diacriticos, igual que el tokenizer del indice."""
     desc = unicodedata.normalize("NFD", palabra.lower())
     return "".join(c for c in desc if unicodedata.category(c) != "Mn")
 
 
 def raiz(palabra: str) -> str:
-    """Raiz Snowball espanola sobre la forma normalizada."""
     base = normalizar(palabra)
     return _STEM(base) if _STEM else base
 
@@ -82,6 +80,49 @@ def _wikilinks(valor) -> list[str]:
     return salida
 
 
+# --- configuracion por KB ----------------------------------------------------
+
+@dataclass
+class ConfigKB:
+    """Todo lo especifico del dominio vive aca, y se lee del repo de la KB."""
+    slug: str
+    nombre: str
+    descripcion: str
+    polos: dict[str, str]          # directorio -> etiqueta legible
+    alias: dict[str, str]          # alias en minusculas -> directorio
+
+    @classmethod
+    def desde(cls, ruta: Path) -> "ConfigKB":
+        base = ruta / "knowledge-base"
+        dirs = sorted(d.name for d in base.iterdir() if d.is_dir() and d.name not in NO_POLO)
+
+        cfg = {}
+        archivo = ruta / "kb" / "mcp.yaml"
+        if archivo.is_file():
+            try:
+                cfg = yaml.safe_load(archivo.read_text(encoding="utf-8")) or {}
+            except yaml.YAMLError:
+                cfg = {}
+
+        polos_cfg = cfg.get("polos") or {}
+        polos, alias = {}, {}
+        for d in dirs:
+            entrada = polos_cfg.get(d) or {}
+            if isinstance(entrada, str):
+                entrada = {"etiqueta": entrada}
+            polos[d] = entrada.get("etiqueta") or d
+            alias[normalizar(entrada.get("alias") or d)] = d
+            alias[normalizar(d)] = d
+
+        return cls(
+            slug=cfg.get("slug") or ruta.name,
+            nombre=cfg.get("nombre") or ruta.name,
+            descripcion=cfg.get("descripcion") or "",
+            polos=polos,
+            alias=alias,
+        )
+
+
 @dataclass
 class Nodo:
     nombre: str
@@ -91,26 +132,64 @@ class Nodo:
     meta: dict
     enlaces: dict[str, list[str]] = field(default_factory=dict)
     menciona: list[str] = field(default_factory=list)
+    modificado: int = 0   # timestamp del ultimo commit que toco el archivo (git)
+    creado: int = 0       # timestamp del primer commit
+
+
+def fechas_git(raiz: Path, base: Path) -> dict[str, tuple[int, int]]:
+    """Por cada .md, (primer commit, ultimo commit) segun git. La temporalidad de
+    un grafo que crece vive en su historial, no en el frontmatter. Un solo `git log`
+    recorre todo: O(commits), no O(archivos*commits). Devuelve {} si no hay historial
+    (p.ej. clon shallow) para degradar a orden alfabetico sin fallar."""
+    try:
+        salida = subprocess.run(
+            ["git", "-C", str(raiz), "log", "--format=%at", "--name-only",
+             "--no-renames", "--", "knowledge-base"],
+            capture_output=True, text=True, timeout=30, check=True,
+        ).stdout
+    except (subprocess.SubprocessError, OSError):
+        return {}
+
+    fechas: dict[str, tuple[int, int]] = {}
+    ts = 0
+    for linea in salida.splitlines():
+        linea = linea.strip()
+        if linea.isdigit():
+            ts = int(linea)
+        elif linea.endswith(".md") and ts:
+            try:
+                rel = str(Path(linea).relative_to("knowledge-base"))
+            except ValueError:
+                continue
+            prev = fechas.get(rel)
+            # Se recorre de mas nuevo a mas viejo: primer avistamiento = ultimo commit.
+            if prev is None:
+                fechas[rel] = (ts, ts)
+            else:
+                fechas[rel] = (ts, prev[1])
+    return fechas
 
 
 class Indice:
-    def __init__(self, raiz_repo: Path):
-        self.raiz = raiz_repo.expanduser().resolve()
+    def __init__(self, ruta: Path, modelo=None):
+        self.raiz = ruta.expanduser().resolve()
         self.base = self.raiz / "knowledge-base"
         if not self.base.is_dir():
             raise SystemExit(f"No existe {self.base} — ¿es una KB de kb-template?")
+        self.cfg = ConfigKB.desde(self.raiz)
+        self.modelo = modelo
         self.nodos: dict[str, Nodo] = {}
         self.backlinks: dict[str, set[str]] = {}
         self.vocabulario: dict[str, set[str]] = {}
         self.formas: set[str] = set()
+        self.frecuencia: dict[str, float] = {}
         self.db = sqlite3.connect(":memory:", check_same_thread=False)
         self.construir()
 
     def construir(self) -> None:
-        self.nodos.clear()
-        self.backlinks.clear()
-        self.vocabulario.clear()
-        self.formas.clear()
+        self.nodos.clear(); self.backlinks.clear()
+        self.vocabulario.clear(); self.formas.clear()
+        fechas = fechas_git(self.raiz, self.base)
 
         for ruta in sorted(self.base.rglob("*.md")):
             texto = ruta.read_text(encoding="utf-8", errors="replace")
@@ -123,8 +202,8 @@ class Indice:
                 cuerpo = texto[m.end():]
             else:
                 cuerpo = texto
-
             rel = ruta.relative_to(self.base)
+            creado, modificado = fechas.get(str(rel), (0, 0))
             nodo = Nodo(
                 nombre=ruta.stem,
                 ruta=str(rel),
@@ -133,6 +212,8 @@ class Indice:
                 meta=meta if isinstance(meta, dict) else {},
                 enlaces={c: _wikilinks(meta.get(c)) for c in CAMPOS_GRAFO},
                 menciona=sorted({n.strip() for n in WIKILINK.findall(cuerpo)}),
+                creado=creado,
+                modificado=modificado,
             )
             self.nodos[nodo.nombre] = nodo
 
@@ -146,54 +227,13 @@ class Indice:
         self._fts()
         self._semantica()
 
-    def _semantica(self) -> None:
-        """Vectoriza cada entrada completa. Es lo que permite encontrar por sentido:
-        'castigos por no cumplir' llega a Sanciones y Multas sin compartir palabras.
-
-        Se embebe el documento entero y no fragmentos: con embeddings estaticos los
-        trozos cortos resultan mas ruidosos que el promedio del documento completo
-        (verificado sobre este corpus).
-        """
-        self.modelo = None
-        self.vectores = None
-        self.orden: list[str] = []
-        if StaticModel is None:
-            return
-        try:
-            if Path(MODELO).is_dir():
-                # Modelo ya horneado en int8/128 por el Dockerfile: cargarlo tal cual.
-                # Re-cuantizarlo lo expandiria a float32 primero (~500 MB de pico).
-                self.modelo = StaticModel.from_pretrained(MODELO)
-            else:
-                self.modelo = StaticModel.from_pretrained(
-                    MODELO, quantize_to="int8", dimensionality=128
-                )
-        except Exception:
-            self.modelo = None
-            return
-        self.orden = list(self.nodos)
-        # Solo el cuerpo: anteponer el titulo desplazaba el vector hacia el nombre
-        # y empeoraba el ranking (verificado sobre este corpus).
-        textos = [self.nodos[n].cuerpo[:2000] for n in self.orden]
-        V = self.modelo.encode(textos).astype("float32")
-        normas = np.linalg.norm(V, axis=1, keepdims=True)
-        self.vectores = V / np.clip(normas, 1e-9, None)
-
-    def semejantes(self, consulta: str, tope: int = 25) -> list[str]:
-        """Entradas mas cercanas por significado, de mayor a menor."""
-        if self.modelo is None or self.vectores is None:
-            return []
-        v = self.modelo.encode([consulta]).astype("float32")[0]
-        v = v / max(float(np.linalg.norm(v)), 1e-9)
-        puntajes = self.vectores @ v
-        return [self.orden[i] for i in np.argsort(-puntajes)[:tope]]
-
-    # -- morfologia espanola ---------------------------------------------------
+    # -- morfologia y estadistica del corpus -----------------------------------
 
     def _vocabulario(self) -> None:
-        """Agrupa cada palabra del corpus por su raiz, y mide en cuantas entradas
-        aparece cada raiz. Esa frecuencia documental es la que decide que terminos
-        no discriminan — sin listas de palabras vacias escritas a mano."""
+        """Agrupa palabras por raiz y mide en cuantas entradas aparece cada una.
+        Esa frecuencia decide que terminos no discriminan — sin listas escritas a
+        mano, y recalculada por KB: «Estado» es palabra vacia en un corpus
+        regulatorio chileno y puede no serlo en otro."""
         docs_por_raiz: dict[str, set[str]] = {}
         for nombre, nodo in self.nodos.items():
             for palabra in PALABRA.findall(nodo.nombre + " " + nodo.cuerpo):
@@ -208,23 +248,10 @@ class Indice:
         self.frecuencia = {r: len(d) / total for r, d in docs_por_raiz.items()}
 
     def expandir(self, consulta: str) -> str:
-        """Consulta natural -> consulta FTS5 morfologicamente laxa.
-
-        Cada termino se reemplaza por todas las formas del corpus que comparten su
-        raiz: "residuo" -> ("residuo" OR "residuos" OR "residuales"). El indice sigue
-        siendo el texto original, asi que los extractos se leen tal como estan escritos.
-        Si el usuario usa sintaxis FTS5 explicita, la consulta se respeta sin tocar.
-        """
         if OPERADORES.search(consulta):
             return consulta
-
         terminos = PALABRA.findall(consulta)
-        # Un termino presente en mas de la mitad de las entradas no separa nada.
-        # Se descarta salvo que sea lo unico que se pregunto.
-        utiles = [t for t in terminos if self.frecuencia.get(raiz(t), 0.0) <= 0.5]
-        if not utiles:
-            utiles = terminos
-
+        utiles = [t for t in terminos if self.frecuencia.get(raiz(t), 0.0) <= 0.5] or terminos
         grupos = []
         for termino in utiles:
             base = normalizar(termino)
@@ -233,24 +260,19 @@ class Indice:
                 grupos.append(f'"{base}"*')
                 continue
             grupos.append("(" + " OR ".join(f'"{f}"' for f in sorted(formas)) + ")")
-
-        # Se unen con OR y se deja que BM25 pondere: los terminos raros pesan mas que
-        # los comunes por su IDF. Con AND, una pregunta larga solo sobrevivia en los
-        # textos legales extensos, que contienen todas las palabras y no responden nada.
+        # OR + BM25: los terminos raros pesan por su IDF. Con AND, una pregunta larga
+        # solo sobrevivia en los textos legales extensos, que no responden nada.
         return " OR ".join(grupos) if grupos else consulta
-
-    # -- indice ----------------------------------------------------------------
 
     def _fts(self) -> None:
         db = self.db
         db.executescript("DROP TABLE IF EXISTS docs;")
-        # Sin 'porter': ese stemmer es solo ingles. La morfologia espanola se
-        # resuelve expandiendo la consulta (ver expandir), no ensuciando el indice.
+        # Sin 'porter': ese stemmer es solo ingles. La morfologia espanola se resuelve
+        # expandiendo la consulta, no ensuciando el indice.
         db.execute(
             "CREATE VIRTUAL TABLE docs USING fts5("
             "  nombre, cuerpo, polo UNINDEXED,"
-            "  tokenize='unicode61 remove_diacritics 2'"
-            ")"
+            "  tokenize='unicode61 remove_diacritics 2')"
         )
         db.executemany(
             "INSERT INTO docs (nombre, cuerpo, polo) VALUES (?,?,?)",
@@ -258,238 +280,365 @@ class Indice:
         )
         db.commit()
 
-    # -- ayudas ----------------------------------------------------------------
+    def _semantica(self) -> None:
+        """Vectoriza cada entrada completa (no fragmentos: con embeddings estaticos
+        los trozos cortos son mas ruidosos que el promedio del documento)."""
+        self.vectores = None
+        self.orden: list[str] = []
+        if self.modelo is None:
+            return
+        self.orden = list(self.nodos)
+        textos = [self.nodos[n].cuerpo[:2000] for n in self.orden]
+        V = self.modelo.encode(textos).astype("float32")
+        self.vectores = V / np.clip(np.linalg.norm(V, axis=1, keepdims=True), 1e-9, None)
 
-    def resolver(self, tema: str) -> list[str]:
-        """Nombres de entrada que mejor coinciden con lo pedido, de exacto a laxo."""
+    def semejantes(self, consulta: str, tope: int = 12) -> list[str]:
+        if self.modelo is None or self.vectores is None:
+            return []
+        v = self.modelo.encode([consulta]).astype("float32")[0]
+        v = v / max(float(np.linalg.norm(v)), 1e-9)
+        return [self.orden[i] for i in np.argsort(-(self.vectores @ v))[:tope]]
+
+    # -- ayudas ---------------------------------------------------------------
+
+    def resolver(self, tema: str) -> tuple[list[str], str]:
+        """Devuelve (candidatos, confianza). confianza: 'fuerte' si el nombre coincide
+        exacto o por subcadena; 'debil' si solo comparten raices. La distincion importa
+        para seguridad: pedir "responsabilidad extendida" NO debe entregar el contenido
+        de "Trazabilidad Extendida Post-Valorización" como si fuera lo pedido —comparten
+        la raiz "extendid" pero son cosas distintas."""
         if tema in self.nodos:
-            return [tema]
+            return [tema], "fuerte"
         objetivo = normalizar(tema)
-        exactos = [n for n in self.nodos if normalizar(n) == objetivo]
-        if exactos:
-            return exactos
-        contiene = [n for n in self.nodos if objetivo in normalizar(n)]
-        if contiene:
-            return sorted(contiene, key=len)
-        # Ultimo recurso: coincidencia por raices compartidas.
+        if exactos := [n for n in self.nodos if normalizar(n) == objetivo]:
+            return exactos, "fuerte"
+        if contiene := [n for n in self.nodos if objetivo in normalizar(n)]:
+            return sorted(contiene, key=len), "fuerte"
         pedido = {raiz(p) for p in PALABRA.findall(tema)}
         if not pedido:
-            return []
+            return [], "debil"
         puntuados = []
         for n in self.nodos:
-            comunes = pedido & {raiz(p) for p in PALABRA.findall(n)}
-            if comunes:
+            if comunes := pedido & {raiz(p) for p in PALABRA.findall(n)}:
                 puntuados.append((len(comunes), -len(n), n))
-        return [n for _, _, n in sorted(puntuados, reverse=True)]
+        return [n for _, _, n in sorted(puntuados, reverse=True)], "debil"
 
     def relacionados(self, nombre: str) -> list[str]:
-        """Vecindario inmediato en el grafo, sin distinguir la clase de enlace."""
         nodo = self.nodos.get(nombre)
         if not nodo:
             return []
         vecinos = {d for ds in nodo.enlaces.values() for d in ds}
-        vecinos |= self.backlinks.get(nombre, set())
-        vecinos |= set(nodo.menciona)
+        vecinos |= self.backlinks.get(nombre, set()) | set(nodo.menciona)
         return sorted(v for v in vecinos if v in self.nodos and v != nombre)
 
+    def fuente(self, n: Nodo) -> str:
+        etiqueta = self.cfg.polos.get(n.polo, n.polo)
+        if n.modificado:
+            fecha = datetime.date.fromtimestamp(n.modificado).isoformat()
+            return f"{n.nombre} · {etiqueta} · actualizada {fecha}"
+        return f"{n.nombre} · {etiqueta}"
 
-# --- servidor ----------------------------------------------------------------
+    def recientes(self, polo: str | None = None, tope: int = 12) -> list[str]:
+        """Entradas ordenadas por ultima modificacion (git), de nueva a vieja."""
+        candidatos = [n for n in self.nodos.values()
+                      if (not polo or n.polo == polo) and n.modificado]
+        candidatos.sort(key=lambda n: -n.modificado)
+        return [n.nombre for n in candidatos[:tope]]
 
-mcp = FastMCP("kb")
-IDX: Indice
-
-
-def _fuente(n: Nodo) -> str:
-    mundo = "el contexto" if n.polo == "Contexto" else "lo que construimos"
-    return f"{n.nombre} · {mundo}"
-
-
-def _extracto(nombre: str, consulta_fts: str) -> str:
-    """Pasaje alrededor de la coincidencia; si el acierto vino de la capa semantica
-    no hay coincidencia literal que resaltar, asi que se muestra la apertura."""
-    try:
-        fila = IDX.db.execute(
-            "SELECT snippet(docs, 1, '', '', ' … ', 34) FROM docs "
-            "WHERE docs MATCH ? AND nombre = ? LIMIT 1",
-            (consulta_fts, nombre),
-        ).fetchone()
-        if fila and fila[0]:
-            return fila[0].strip()
-    except sqlite3.OperationalError:
-        pass
-    cuerpo = " ".join(IDX.nodos[nombre].cuerpo.split())
-    return (cuerpo[:280] + " …") if len(cuerpo) > 280 else cuerpo
-
-
-@mcp.tool()
-def consultar(pregunta: str, ambito: str | None = None, limite: int = 6) -> str:
-    """Pregunta cualquier cosa a la base de conocimiento de Trazambiental.
-
-    Devuelve los pasajes relevantes con su fuente, y las entradas conectadas a cada
-    uno, para que puedas profundizar sin buscar de nuevo. Escribe en lenguaje natural:
-    singular, plural, genero y tildes dan igual ("residuo" encuentra "residuos",
-    "gestion" encuentra "Gestión"). Para una frase literal, usa comillas.
-
-    ambito (opcional): 'contexto' para la ley, el mercado y los actores;
-                       'producto' para lo que estamos construyendo.
-    """
-    polo = None
-    if ambito:
-        polo = AMBITOS.get(normalizar(ambito))
-        if not polo:
-            return "El ámbito debe ser 'contexto' o 'producto'. Omítelo para buscar en todo."
-
-    n = max(1, min(limite, 20))
-
-    # Capa lexica: BM25 sobre el texto original, con la consulta expandida por raiz.
-    filtros, args = [], [IDX.expandir(pregunta)]
-    if polo:
-        filtros.append("AND polo = ?")
-        args.append(polo)
-    try:
-        lexico = [
-            f[0] for f in IDX.db.execute(
-                "SELECT nombre FROM docs WHERE docs MATCH ? "
-                f"{' '.join(filtros)} ORDER BY rank LIMIT 12",
-                args,
-            ).fetchall()
-        ]
-    except sqlite3.OperationalError as e:
-        return f"No pude interpretar esa consulta ({e}). Prueba con palabras sueltas."
-
-    # Capa semantica: cercania por significado, aunque no compartan vocabulario.
-    semantico = [
-        s for s in IDX.semejantes(pregunta, tope=12)
-        if not polo or IDX.nodos[s].polo == polo
-    ]
-
-    # Tercera senal: el nombre de la entrada. Si preguntan por «Ley 20.920», esa
-    # entrada debe salir aunque su texto no sea el que mas se parece a la consulta.
-    objetivo = normalizar(pregunta)
-    por_nombre = [
-        nombre for nombre in IDX.nodos
-        if (not polo or IDX.nodos[nombre].polo == polo)
-        and (objetivo in normalizar(nombre) or normalizar(nombre) in objetivo)
-    ]
-    por_nombre.sort(key=len)
-
-    # Fusion reciproca ponderada. El nombre manda, la semantica entiende la intencion
-    # de una pregunta, y la lexica corrige cuando importa la palabra exacta. Con pesos
-    # iguales las leyes largas ahogaban al resto.
-    puntaje: dict[str, float] = {}
-    for ranking, peso in ((por_nombre[:5], 1.6), (semantico, 1.0), (lexico, 0.6)):
-        for pos, nombre in enumerate(ranking):
-            puntaje[nombre] = puntaje.get(nombre, 0.0) + peso / (10 + pos)
-    ganadores = sorted(puntaje, key=lambda x: -puntaje[x])[:n]
-
-    if not ganadores:
-        return (
-            f"Nada sobre «{pregunta}»"
-            + (f" en el ámbito '{ambito}'." if ambito else ".")
-            + "\nBusqué por palabras y por significado. Prueba con otras palabras,"
-              " o usa panorama() para ver qué cubre la base."
-        )
-
-    partes = [f"{len(ganadores)} entrada(s) sobre «{pregunta}»\n"]
-    for nombre in ganadores:
-        nodo = IDX.nodos[nombre]
-        extracto = _extracto(nombre, args[0])
-        partes.append(f"### {_fuente(nodo)}\n{extracto}")
-        if vecinos := IDX.relacionados(nombre)[:6]:
-            partes.append(f"*Conecta con:* {', '.join(vecinos)}")
-        partes.append("")
-    partes.append("Usa leer(tema) para el texto completo de cualquiera de estas entradas.")
-    return "\n".join(partes)
+    def extracto(self, nombre: str, consulta_fts: str) -> str:
+        """Pasaje alrededor de la coincidencia; si el acierto vino de la capa
+        semantica no hay coincidencia literal, asi que se muestra la apertura."""
+        try:
+            fila = self.db.execute(
+                "SELECT snippet(docs, 1, '', '', ' … ', 34) FROM docs "
+                "WHERE docs MATCH ? AND nombre = ? LIMIT 1",
+                (consulta_fts, nombre),
+            ).fetchone()
+            if fila and fila[0]:
+                return fila[0].strip()
+        except sqlite3.OperationalError:
+            pass
+        cuerpo = " ".join(self.nodos[nombre].cuerpo.split())
+        return (cuerpo[:280] + " …") if len(cuerpo) > 280 else cuerpo
 
 
-@mcp.tool()
-def leer(tema: str) -> str:
-    """Trae el texto completo de una entrada, tal como está escrito.
+# --- herramientas ------------------------------------------------------------
 
-    Acepta el nombre aproximado: si hay varias candidatas, las lista. Al final
-    incluye las entradas conectadas, para seguir tirando del hilo.
-    """
-    candidatos = IDX.resolver(tema)
-    if not candidatos:
-        return (
-            f"No encontré una entrada llamada «{tema}».\n"
-            "Prueba con consultar() para buscarlo por contenido."
-        )
-    if len(candidatos) > 1 and normalizar(candidatos[0]) != normalizar(tema):
-        listado = "\n".join(f"  - {c}" for c in candidatos[:10])
-        return f"Hay varias entradas que podrían ser «{tema}»:\n{listado}\n\nPide una por su nombre."
+def crear_servidor(idx: Indice) -> FastMCP:
+    """Un servidor MCP por KB. Las tres herramientas se cierran sobre su indice."""
+    cfg = idx.cfg
+    mcp = FastMCP(cfg.slug)
+    ambitos = " · ".join(f"'{a}' = {cfg.polos[d]}" for a, d in sorted(cfg.alias.items())
+                         if a != normalizar(d)) or "sin ámbitos"
 
-    nodo = IDX.nodos[candidatos[0]]
-    salida = [f"# {nodo.nombre}", f"*{_fuente(nodo)}*", "", nodo.cuerpo.strip()]
-    if vecinos := IDX.relacionados(nodo.nombre):
-        salida += ["", "---", "**Conecta con:** " + ", ".join(vecinos)]
-    return "\n".join(salida)
+    @mcp.tool()
+    def consultar(pregunta: str, ambito: str | None = None,
+                  orden: str = "relevancia", limite: int = 6) -> str:
+        """Busca en esta base de conocimiento y devuelve los pasajes más relevantes.
 
+        Esta es la herramienta de entrada: úsala siempre que tengas una pregunta y no
+        sepas de antemano en qué entrada está la respuesta. Si ya conoces el nombre de
+        la entrada que quieres, usa `leer` en su lugar; si quieres un mapa del terreno
+        antes de preguntar, usa `panorama`.
 
-@mcp.tool()
-def panorama(tema: str | None = None) -> str:
-    """Muestra qué contiene la base, o el mapa alrededor de un tema.
+        Escribe la pregunta en lenguaje natural, como se la harías a una persona.
+        Singular y plural, género y tildes son indiferentes ("residuo" halla
+        "residuos", "gestion" halla "Gestión"), y encuentra por significado aunque tu
+        pregunta no comparta ninguna palabra con el texto. Para exigir una frase
+        textual, enciérrala en comillas dobles.
 
-    Sin argumentos: el inventario general. Con un tema: las entradas conectadas a él,
-    que es la forma rápida de entender un área sin leerla entera.
-    """
-    if tema:
-        candidatos = IDX.resolver(tema)
+        Devuelve una lista de entradas; por cada una: su título, su ámbito, su fecha de
+        última actualización, un extracto del pasaje pertinente, y los títulos de las
+        entradas conectadas a ella (para seguir el hilo con `leer` sin volver a
+        buscar). El contenido es una obra en curso con entradas de madurez desigual:
+        cada una cita sus fuentes y conviene contrastar lo importante contra ellas.
+
+        Parámetros:
+          pregunta: la consulta en lenguaje natural (obligatoria).
+          ambito: acota a un área de la base (los valores dependen de cada base; si
+                  te equivocas, la herramienta te devuelve los disponibles). Omítelo
+                  para buscar en toda la base.
+          orden: 'relevancia' (por defecto) o 'reciente'. Usa 'reciente' cuando la
+                 intención es temporal —«¿qué bitácoras hay?», «lo último sobre X»—:
+                 la pregunta acota el tema y la fecha de git decide el orden.
+          limite: número de entradas a devolver (1–20, por defecto 6).
+        """
+        polo = None
+        if ambito:
+            polo = cfg.alias.get(normalizar(ambito))
+            if not polo:
+                return f"Ámbito desconocido. Disponibles: {ambitos}. Omítelo para buscar en todo."
+
+        n = max(1, min(limite, 20))
+        filtros, args = [], [idx.expandir(pregunta)]
+        if polo:
+            filtros.append("AND polo = ?")
+            args.append(polo)
+        try:
+            lexico = [f[0] for f in idx.db.execute(
+                f"SELECT nombre FROM docs WHERE docs MATCH ? {' '.join(filtros)} "
+                "ORDER BY rank LIMIT 12", args).fetchall()]
+        except sqlite3.OperationalError as e:
+            return f"No pude interpretar esa consulta ({e}). Prueba con palabras sueltas."
+
+        semantico = [s for s in idx.semejantes(pregunta)
+                     if not polo or idx.nodos[s].polo == polo]
+
+        objetivo = normalizar(pregunta)
+        por_nombre = sorted(
+            (nom for nom in idx.nodos
+             if (not polo or idx.nodos[nom].polo == polo)
+             and (objetivo in normalizar(nom) or normalizar(nom) in objetivo)),
+            key=len)
+
+        # Fusion reciproca ponderada: el nombre manda, la semantica entiende la
+        # intencion, la lexica corrige cuando importa la palabra exacta.
+        puntaje: dict[str, float] = {}
+        for ranking, peso in ((por_nombre[:5], 1.6), (semantico, 1.0), (lexico, 0.6)):
+            for pos, nom in enumerate(ranking):
+                puntaje[nom] = puntaje.get(nom, 0.0) + peso / (10 + pos)
+
+        if normalizar(orden).startswith("recien"):
+            # Se toma un pozo amplio de lo tematicamente pertinente y se ordena por
+            # fecha. Asi «bitácoras recientes» trae bitacoras de verdad, no lo que
+            # mas menciona la palabra. La fecha manda; la relevancia solo filtra.
+            pozo = sorted(puntaje, key=lambda x: -puntaje[x])[:max(n * 3, 15)]
+            ganadores = sorted(pozo, key=lambda x: -idx.nodos[x].modificado)[:n]
+        else:
+            ganadores = sorted(puntaje, key=lambda x: -puntaje[x])[:n]
+
+        if not ganadores:
+            return (f"Nada sobre «{pregunta}». Busqué por palabras y por significado. "
+                    "Prueba otras palabras, o usa panorama() para ver qué cubre.")
+
+        partes = [f"{len(ganadores)} entrada(s) sobre «{pregunta}»\n"]
+        for nom in ganadores:
+            partes.append(f"### {idx.fuente(idx.nodos[nom])}\n{idx.extracto(nom, args[0])}")
+            if vecinos := idx.relacionados(nom)[:6]:
+                partes.append(f"*Conecta con:* {', '.join(vecinos)}")
+            partes.append("")
+        partes.append("Usa leer(tema) para el texto completo de cualquiera de estas.")
+        return "\n".join(partes)
+
+    @mcp.tool()
+    def leer(tema: str) -> str:
+        """Devuelve el texto íntegro y verbatim de una entrada, por su nombre.
+
+        Úsala cuando ya sabes qué entrada quieres —normalmente porque `consultar` te
+        la mostró, o el usuario la nombró— y necesitas su contenido completo, no un
+        extracto. Si no sabes el nombre exacto, usa `consultar` primero.
+
+        Acepta el nombre aproximado: resuelve tildes, mayúsculas y coincidencias
+        parciales, y prefiere la entrada base sobre sus variantes. Devuelve el título,
+        el ámbito, la fecha de última actualización, el cuerpo Markdown completo tal
+        como está escrito, y al final las entradas conectadas más las variantes de
+        nombre que existan, si las hay.
+
+        Parámetros:
+          tema: el nombre (o una aproximación) de la entrada a leer.
+        """
+        candidatos, confianza = idx.resolver(tema)
         if not candidatos:
-            return f"No encontré «{tema}». Prueba con consultar() para buscarlo por contenido."
-        nodo = IDX.nodos[candidatos[0]]
-        vecinos = IDX.relacionados(nodo.nombre)
-        if not vecinos:
-            return f"«{nodo.nombre}» no está conectada a otras entradas todavía."
-        lineas = [f"Mapa alrededor de **{nodo.nombre}** ({len(vecinos)} entradas conectadas)\n"]
-        for v in vecinos:
-            resumen = " ".join(IDX.nodos[v].cuerpo.split())[:110]
-            lineas.append(f"- **{v}** — {resumen}…")
+            return f"No encontré una entrada llamada «{tema}». Prueba con consultar()."
+        # Match debil (solo raices compartidas): NO se entrega contenido, porque puede
+        # ser un homonimo. Se ofrecen los candidatos y se sugiere consultar por sentido.
+        if confianza == "debil":
+            lista = "\n".join(f"  - {c}" for c in candidatos[:8])
+            return (f"No hay una entrada que se llame exactamente «{tema}». Puede que "
+                    f"busques una de estas:\n{lista}\n\nO usa consultar(«{tema}») para "
+                    "buscar por significado en vez de por nombre.")
+        # Antes se pedia desambiguar apenas habia dos candidatas, lo que fricciona
+        # cuando una es la principal y la otra una variante ("— Texto oficial"). Se
+        # devuelve la mejor (la mas corta gana empates: el nombre base) y se avisa
+        # de las otras al final, en vez de frenar al usuario con una pregunta.
+        elegido = candidatos[0]
+        nodo = idx.nodos[elegido]
+        otras = [c for c in candidatos[1:6] if c != elegido]
+        salida = [f"# {nodo.nombre}", f"*{idx.fuente(nodo)}*", "", nodo.cuerpo.strip()]
+        if vecinos := idx.relacionados(nodo.nombre):
+            salida += ["", "---", "**Conecta con:** " + ", ".join(vecinos)]
+        if otras:
+            salida += ["", f"*También existen variantes: {', '.join(otras)} "
+                       "— pídelas por su nombre si quieres alguna.*"]
+        return "\n".join(salida)
+
+    @mcp.tool()
+    def panorama(tema: str | None = None) -> str:
+        """Da una vista de conjunto: el inventario de la base, o el mapa de un tema.
+
+        Úsala para orientarte antes de preguntar, o cuando la intención del usuario es
+        panorámica y no puntual: «¿qué hay acá?», «¿de qué trata esto?», «¿qué se
+        conecta con X?». Para responder una pregunta concreta, usa `consultar`.
+
+        Sin argumentos: devuelve cuántas entradas hay, cómo se reparten por área, y las
+        entradas más conectadas de cada una (los nodos centrales de la base). Con un
+        tema: devuelve las entradas vecinas a ese tema en el grafo, cada una con una
+        línea de resumen — la forma rápida de entender un área sin leerla completa.
+
+        Parámetros:
+          tema: opcional. El nombre de una entrada para ver su vecindario; si se omite,
+                se devuelve el inventario general de la base.
+        """
+        if tema:
+            candidatos, _ = idx.resolver(tema)
+            if not candidatos:
+                return f"No encontré «{tema}». Prueba con consultar()."
+            nodo = idx.nodos[candidatos[0]]
+            vecinos = idx.relacionados(nodo.nombre)
+            if not vecinos:
+                return f"«{nodo.nombre}» no está conectada a otras entradas todavía."
+            lineas = [f"Mapa alrededor de **{nodo.nombre}** ({len(vecinos)} conectadas)\n"]
+            for v in vecinos:
+                lineas.append(f"- **{v}** — {' '.join(idx.nodos[v].cuerpo.split())[:110]}…")
+            return "\n".join(lineas)
+
+        # Inventario con las entradas mas conectadas por polo: un panorama util
+        # nombra los nodos centrales, no solo cuenta. Los hubs del grafo son la
+        # mejor aproximacion barata a "lo importante de cada area".
+        por_polo: dict[str, list[str]] = {}
+        for nombre, nodo in idx.nodos.items():
+            por_polo.setdefault(nodo.polo, []).append(nombre)
+        lineas = [f"**{cfg.nombre}** — {len(idx.nodos)} entradas"
+                  + (f" sobre {cfg.descripcion}" if cfg.descripcion else "") + ".\n"]
+        for d, etiqueta in cfg.polos.items():
+            nombres = por_polo.get(d)
+            if not nombres:
+                continue
+            centrales = sorted(nombres, key=lambda n: -len(idx.relacionados(n)))[:8]
+            lineas.append(f"**{etiqueta}** ({len(nombres)}) — más conectadas: "
+                          + ", ".join(centrales))
+        lineas.append("\nEs una obra en curso: contrasta lo importante contra la fuente "
+                      "citada en cada entrada.")
+        lineas.append("Pregunta con consultar(), o usa panorama('tema') para el mapa de un área.")
         return "\n".join(lineas)
 
-    por_polo: dict[str, int] = {}
-    for n in IDX.nodos.values():
-        por_polo[n.polo] = por_polo.get(n.polo, 0) + 1
-    return (
-        f"La base tiene **{len(IDX.nodos)} entradas** sobre trazabilidad de residuos en Chile.\n\n"
-        f"- **El contexto** ({por_polo.get('Contexto', 0)}): la Ley REP y sus decretos, los "
-        "actores del mercado, el ecosistema de neumáticos fuera de uso. Lo que *es*.\n"
-        f"- **Lo que construimos** ({por_polo.get('Trazambiental', 0)}): decisiones de producto, "
-        "reglas de negocio, requisitos del MVP. Lo que *estamos haciendo*.\n\n"
-        "Es una obra en curso: hay entradas más maduras que otras, así que conviene "
-        "contrastar lo importante contra la fuente citada en cada una.\n\n"
-        "Pregunta con consultar(), y usa panorama('tema') para ver un área concreta."
-    )
+    return mcp
+
+
+# --- arranque ----------------------------------------------------------------
+
+def cargar_modelo():
+    if StaticModel is None:
+        return None
+    try:
+        if Path(MODELO).is_dir():
+            # Ya viene cuantizado (int8/128). Re-cuantizarlo lo expandiria a float32.
+            return StaticModel.from_pretrained(MODELO)
+        return StaticModel.from_pretrained(MODELO, quantize_to="int8", dimensionality=128)
+    except Exception:
+        return None
+
+
+def descubrir(raiz: Path) -> list[Path]:
+    """Cada subdirectorio con knowledge-base/ es una KB."""
+    return sorted(d for d in raiz.iterdir() if (d / "knowledge-base").is_dir())
 
 
 def main() -> None:
-    global IDX
-    p = argparse.ArgumentParser(description="Servidor MCP de solo lectura para una KB")
-    p.add_argument("--kb", required=True, help="Raiz del repo de la KB")
+    p = argparse.ArgumentParser(description="Servidor MCP de solo lectura para KBs de kb-template")
+    p.add_argument("--kb", action="append", default=[], help="Raiz de una KB (repetible)")
+    p.add_argument("--kbs", help="Directorio que contiene varias KB")
     p.add_argument("--transport", default="stdio", choices=["stdio", "streamable-http"])
     p.add_argument("--host", default="127.0.0.1")
     p.add_argument("--port", type=int, default=8765)
     a = p.parse_args()
 
-    IDX = Indice(Path(a.kb))
+    rutas = [Path(k) for k in a.kb]
+    if a.kbs:
+        rutas += descubrir(Path(a.kbs))
+    if not rutas:
+        p.error("indica --kb RUTA o --kbs DIRECTORIO")
 
-    if a.transport == "streamable-http":
-        mcp.settings.host, mcp.settings.port = a.host, a.port
+    modelo = cargar_modelo()  # una sola vez, compartido por todas las KB
+    indices = [Indice(r, modelo) for r in rutas]
+    for i in indices:
+        print(f"[kb-mcp] {i.cfg.slug}: {len(i.nodos)} entradas, "
+              f"polos={list(i.cfg.polos)}, semantica={'sí' if i.vectores is not None else 'no'}",
+              flush=True)
+
+    if a.transport == "stdio":
+        if len(indices) > 1:
+            p.error("stdio sirve una sola KB; usa --kb una vez")
+        crear_servidor(indices[0]).run(transport="stdio")
+        return
+
+    import uvicorn
+    from starlette.applications import Starlette
+    from starlette.responses import JSONResponse
+    from starlette.routing import Mount, Route
+
+    hosts = [h.strip() for h in os.environ.get("KB_ALLOWED_HOSTS", "").split(",") if h.strip()]
+    seguridad = TransportSecuritySettings(
+        allowed_hosts=hosts,
+        allowed_origins=[f"https://{h}" for h in hosts] + [f"http://{h}" for h in hosts],
+    ) if hosts else None
+
+    # Cada KB SOLO bajo su slug: /<slug>/mcp. No hay KB por defecto en la raiz —
+    # siempre hay que nombrar la KB. Esto deja lista una futura autorizacion por-KB:
+    # cada ruta es un recurso distinto que un token podra habilitar o no.
+    servidores, rutas_http = [], []
+    for idx in indices:
+        mcp = crear_servidor(idx)
         mcp.settings.stateless_http = True  # el RC 2026-07-28 elimina las sesiones
+        if seguridad:
+            mcp.settings.transport_security = seguridad
+        app = mcp.streamable_http_app()      # crea el session_manager
+        servidores.append(mcp)
+        rutas_http.append(Mount(f"/{idx.cfg.slug}", app=app))
 
-        # El SDK trae proteccion anti-DNS-rebinding activa con lista vacia, asi que
-        # rechaza (421) cualquier Host que no sea localhost. Detras de un proxy hay
-        # que declarar los Host legitimos. Se mantiene la proteccion, no se desactiva.
-        hosts = [h.strip() for h in os.environ.get("KB_ALLOWED_HOSTS", "").split(",") if h.strip()]
-        if hosts:
-            mcp.settings.transport_security = TransportSecuritySettings(
-                allowed_hosts=hosts,
-                allowed_origins=[f"https://{h}" for h in hosts] + [f"http://{h}" for h in hosts],
-            )
+    async def salud(_):
+        return JSONResponse({"kbs": [{"slug": i.cfg.slug, "entradas": len(i.nodos),
+                                      "semantica": i.vectores is not None} for i in indices]})
 
-        mcp.run(transport="streamable-http")
-    else:
-        mcp.run(transport="stdio")
+    @contextlib.asynccontextmanager
+    async def lifespan(_app):
+        async with contextlib.AsyncExitStack() as pila:
+            for s in servidores:
+                await pila.enter_async_context(s.session_manager.run())
+            yield
+
+    app = Starlette(routes=[Route("/salud", salud)] + rutas_http, lifespan=lifespan)
+    uvicorn.run(app, host=a.host, port=a.port, log_level="warning")
 
 
 if __name__ == "__main__":

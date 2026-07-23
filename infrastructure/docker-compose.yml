@@ -170,12 +170,14 @@ services:
     security_opt:
       - no-new-privileges:true
     environment:
-      KB_PATH: /kb
+      # Directorio con TODAS las KB (cada subdir con knowledge-base/ es una).
+      KB_ROOT: /kb
       # Host interno + dominio publico del Funnel. La proteccion anti-DNS-rebinding
       # del SDK sigue activa; solo se declaran los Host legitimos.
       KB_ALLOWED_HOSTS: "kb-mcp:8765,localhost:8765,127.0.0.1:8765,${FUNNEL_DOMAIN:-toolset-oci-1-1.tail2d4c18.ts.net}"
     volumes:
-      - /opt/kb/traza-ambiental:/kb:ro
+      # Se monta el directorio raiz de KB, no una sola: el servidor sirve todas.
+      - /opt/kb:/kb:ro
       # Modelo de embeddings validado (int8/128, ~79 MB). Ver Dockerfile: no se
       # hornea en el build porque en ARM64 sale distinto al validado.
       - /opt/kb-modelo:/modelo:ro

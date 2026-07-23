@@ -63,6 +63,46 @@ Cuando se modifica un archivo de configuracion:
 
 ## Current Session Changes (2026-07-23)
 
+### Session 10 — kb-mcp evoluciona a multi-KB con busqueda hibrida
+
+Sobre la base de la Session 9. Sin tocar Hermes en ningun momento (verificado tras cada
+paso: /health, /dashboard, /hermes/, el MCP de Hindsight y `hermes -z` responden).
+
+**Cambios funcionales:**
+- **Multi-KB en un proceso.** Un solo modelo de embeddings cargado, N indices. Cada KB
+  se sirve en `/kb/<slug>/mcp` (slug = nombre del repo); NO hay KB por defecto en la
+  raiz. Sirviendo hoy: `traza-ambiental` (173) y `personal` (128). Segunda KB cuesta ~45 MB.
+- **Rutas por nombre de repo**, predecibles. La autorizacion por-KB es una capa de tokens
+  futura sobre `/kb/<slug>`; no se mezcla con el enrutamiento.
+- **Busqueda hibrida:** lexica (FTS5/BM25 + raiz Snowball espanola: `residuo`->`residuos`;
+  palabras vacias por frecuencia documental del corpus, no lista fija) + semantica
+  (model2vec, embeddings estaticos sin torch: encuentra por sentido) + senal por nombre,
+  fusionadas con RRF. Revalidado con jueces: 2.09/3 (traza) y 2.5/3 (personal) en casos duros.
+- **Temporalidad desde git.** Cada nodo lleva su fecha de ultima modificacion; `consultar(
+  orden="reciente")` ordena por ella. Requiere historial -> el clon paso de `--depth 1` a
+  `--filter=blob:none` (historial completo de commits, 8 MB en vez de 154, sin binarios).
+- **Descripciones de herramientas** al estandar Anthropic (writing-tools-for-agents).
+- **Seguridad:** `leer` ya no entrega un homonimo por match debil de raiz; ofrece candidatos.
+
+| File | Change |
+|---|---|
+| `infrastructure/kb-mcp/server.py` | **REESCRITO** — multi-KB, config por `kb/mcp.yaml`, busqueda hibrida, temporalidad git, tres herramientas (consultar/leer/panorama) |
+| `infrastructure/kb-mcp/Dockerfile` | **UPDATED** — uvicorn+starlette (montaje multi-KB), CMD `--kbs $KB_ROOT`, versiones de tokenizers/numpy/model2vec fijas |
+| `infrastructure/kb-mcp/sync-kb.sh` | **REESCRITO** — recorre todas las KB en /opt/kb, fetch sin --depth (preserva historial) |
+| `infrastructure/docker-compose.yml` | **UPDATED** — monta /opt/kb completo (no una KB), KB_ROOT, mem_limit 1g |
+| `infrastructure/Caddyfile` | **UPDATED** — `handle_path /kb/*` -> kb-mcp:8765 (rutas /kb/<repo>/mcp) |
+| `infrastructure/deploy.sh` | **UPDATED** — manifiesto KB (clon blob:none por repo+rama), agregar KB = una linea |
+
+**Estado:** ~815 MB RAM (mem_limit 1g), host con ~4 GB libres. Respaldos
+`/opt/toolset/{Caddyfile,docker-compose.yml}.bak.20260723-133952`.
+
+**Portado a kb-template** (para instanciar KB nuevas sin friccion): `tools/kb-mcp/`
+(server + Dockerfile), `kb/mcp.yaml` (config declarativa de ejemplo), `docs/PUBLISH-AS-MCP.md`.
+
+---
+
+## Previous Session Changes (2026-07-23)
+
 ### Session 9 — kb-mcp: la KB de Trazambiental expuesta por MCP
 
 Servicio nuevo y aislado. **No toca Hermes**: sin `depends_on`, sin puertos publicados al

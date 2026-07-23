@@ -76,11 +76,13 @@
         reverse_proxy hindsight:8888
     }
 
-    # kb-mcp — MCP de solo lectura sobre la KB de Trazambiental.
-    # Ruta con sufijo no adivinable: la exposicion es publica via Funnel y el
-    # connector de claude.ai no soporta headers de auth fuera de su beta cerrada.
+    # kb-mcp — MCP de solo lectura sobre las KB de kb-template.
+    # Cada KB se referencia por el nombre de su repositorio: /kb/<repo>/mcp
+    # (p.ej. /kb/traza-ambiental/mcp, /kb/personal/mcp). Rutas predecibles a
+    # proposito. La autorizacion —quien puede consultar cada KB— es una capa de
+    # tokens que se agrega despues; no se mezcla con el enrutamiento.
     # El servidor no expone ninguna herramienta de escritura.
-    handle_path /kb-6d0fb0f1ea270616/* {
+    handle_path /kb/* {
         reverse_proxy kb-mcp:8765 {
             flush_interval -1
         }
