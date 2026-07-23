@@ -63,6 +63,30 @@ Cuando se modifica un archivo de configuracion:
 
 ## Current Session Changes (2026-07-23)
 
+#
+**Ajuste de ranking (revalidacion con jueces).** Tras revalidar con casos duros se
+subio la calidad de recuperacion con mejoras del buscador: embeddings a 256 dims,
+difusion por el grafo de wikilinks (vecinos de los top-resultados, excluyendo hubs),
+senal de nombre por palabras compartidas, recencia como multiplicador con decaimiento
+exponencial (practica 2026, no hard-sort), ambito invalido que degrada a busqueda
+global, y leer() que no entrega homonimos por match debil. Modelo 256d en
+/opt/kb-modelo-256 (mem_limit 1200m). Evaluador con gold: traza 9/9, personal 7/9 top-3.
+
+**Techo identificado (NO es del buscador):** los casos que no suben requieren cambios
+de CONTENIDO en las KB —faltan nodos-indice/glosario (definicion de NFU, indice de
+proyectos), un changelog para "que es lo ultimo", y un mapa de siglas de dominio
+(REP=Responsabilidad Extendida del Productor)— no mas ranking. Palanca futura barata:
+un campo `sinonimos` en kb/mcp.yaml que expanda la consulta, declarativo por KB.
+
+**pull_policy: build en kb-mcp (CRITICO).** kb-mcp es el unico servicio con build: y
+sin imagen en registry; sin pull_policy el paso `docker compose pull` del pipeline
+devuelve exit 1 y —por set -euo pipefail— aborta el deploy COMPLETO de Hermes.
+Verificado. El dry-run de `up -d --remove-orphans` no recrea otros servicios.
+
+---
+
+## Session 10 (continuacion)
+
 ### Session 10 — kb-mcp evoluciona a multi-KB con busqueda hibrida
 
 Sobre la base de la Session 9. Sin tocar Hermes en ningun momento (verificado tras cada
