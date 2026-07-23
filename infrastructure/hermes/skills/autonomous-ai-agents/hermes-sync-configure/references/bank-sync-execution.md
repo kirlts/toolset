@@ -248,27 +248,27 @@ git log --oneline -3
 | `default` bank exists and has facts | Skip it — it's an internal Hindsight bank, not a project bank. |
 | Banks file grows with each daily dump | This is intentional — dumps are versioned by date for audit trail. |
 
-## Appendix: Bank Inventory (as of 2026-07-17)
+## Appendix: Bank Inventory (as of 2026-07-23)
 
 | Bank | Facts | Notes |
 |---|---|---|
-| personal-buffer | 1871 | Staging for KB candidates (largest bank, needs 2 pages) |
-| hermes | 1354 | Orchestrator identity & state (needs 2 pages) |
-| wwe-profile | 403 | WWE preferences |
-| chat-profile | 274 | General chat ideas & patterns |
-| personal-profile | 249 | Curated KB (Terreno/Mito) |
-| toolset-profile | 254 | Toolset infra decisions |
-| researchit | 226 | Research engine |
-| entrenador-profile | 168 | Personal trainer profile |
-| cl-concerts-db | 146 | Concert DB project |
-| toolset | 152 | Infra multi-tenant |
-| kairos | 135 | Governance framework |
-| evidencia-zero | 89 | Data sanitization tool |
-| desarrollo-trazambiental-profile | 85 | Dev sub-group Trazambiental |
-| trazambiental-profile | 87 | Equipo Trazambiental |
-| yacv | 73 | Resume builder |
-| witral | 58 | Plugin-based data router |
+| personal-buffer | ~3,000 | Staging for KB candidates (largest bank, needs 3 pages). Individual entries are large — `limit=500` may still overflow sandbox; use `limit=300` if truncation occurs. |
+| hermes | ~2,101 | Orchestrator identity & state (needs 3 pages) |
+| wwe-profile | ~473 | WWE preferences |
+| chat-profile | ~302 | General chat ideas & patterns |
+| personal-profile | ~339 | Curated KB (Terreno/Mito) |
+| toolset-profile | ~360 | Toolset infra decisions |
+| researchit | ~260 | Research engine |
+| entrenador-profile | ~225 | Personal trainer profile |
+| cl-concerts-db | ~181 | Concert DB project |
+| toolset | ~202 | Infra multi-tenant |
+| kairos | ~161 | Governance framework |
+| evidencia-zero | ~99 | Data sanitization tool |
+| desarrollo-trazambiental-profile | ~122 | Dev sub-group Trazambiental |
+| trazambiental-profile | ~116 | Equipo Trazambiental |
+| yacv | ~89 | Resume builder |
+| witral | ~73 | Plugin-based data router |
 
-**Threshold guide**: Banks with >200 facts (hermes, personal-buffer, wwe-profile, personal-profile, researchit, toolset-profile) are the most expensive to export. Banks in the 200-280 range (personal-profile, researchit, toolset-profile, wwe-profile) need `limit=500` to avoid sandbox overflow. Banks below 200 facts work fine with `limit=1000`.
+**Threshold guide**: Banks with >1,000 facts (personal-buffer, hermes) need pagination (3 pages at limit=1000). For personal-buffer specifically, `limit=1000` for page 2 (offset=1000) may timeout under load — retry once, or fall back to `limit=750`. If `limit=500` responses are truncated ("could not be saved to sandbox") for personal-buffer, drop to `limit=300`. All other banks fit in a single `limit=1000` call.
 
 This table is for orientation only — always use live `list_banks()` for the actual counts.
