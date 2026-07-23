@@ -105,6 +105,20 @@
         reverse_proxy hindsight:9999
     }
 
+    # Descubrimiento OAuth (RFC 8414 / RFC 9728) — 404 explicito.
+    # Sin esto, el catch-all de abajo responde la landing HTML con HTTP 200 a
+    # estas rutas, y un cliente MCP lo lee como "este recurso exige OAuth":
+    # arranca el flujo de login, intenta registrarse y falla. El 404 es la
+    # respuesta correcta —aqui no hay authorization server— y es lo que hace
+    # que el cliente conecte sin autenticacion. Cuando se agregue la capa de
+    # tokens por KB, este bloque se reemplaza por la metadata real.
+    handle /.well-known/oauth-* {
+        respond 404
+    }
+    handle /.well-known/openid-configuration* {
+        respond 404
+    }
+
     # Root → landing page
     handle {
         root * /usr/share/caddy/landing

@@ -84,6 +84,25 @@ salen mal **en silencio**. El artefacto validado se genera en x86_64
 de `tokenizers`, `numpy` y `model2vec` van **fijas** en el Dockerfile por la misma razón.
 Sin el modelo, el servidor arranca igual y degrada a solo búsqueda léxica.
 
+## ⚠ El catch-all del proxy rompe el descubrimiento OAuth
+
+Un servidor MCP sin autenticación debe responder **404** en las rutas de descubrimiento
+(`/.well-known/oauth-protected-resource…`, `…/oauth-authorization-server`,
+`…/openid-configuration`): así el cliente concluye «no hay auth» y conecta directo.
+
+El catch-all del `Caddyfile` (`try_files {path} index.html`) servía la landing con **HTTP
+200** a esas rutas. claude.ai lo leía como «este recurso exige OAuth», arrancaba el flujo
+de login y fallaba con *«no se pudo registrar con el servicio de inicio de sesión»* —
+aunque el endpoint MCP respondiera 200 sin token. Resuelto con dos bloques `handle` que
+responden 404 antes del catch-all. Al agregar la capa de tokens, se reemplazan por la
+metadata real (RFC 9728) en vez de eliminarlos.
+
+Nota operativa: el sitio corre con `admin off`, así que `caddy reload` no funciona; los
+cambios de `Caddyfile` requieren `docker restart caddy` (validar antes con
+`docker exec caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile`).
+El bind mount es de archivo: escribir con `tee` preserva el inode, `mv` lo rompe y el
+contenedor seguiría viendo el archivo viejo.
+
 ## Autorización (pendiente, por diseño)
 
 Hoy sin auth: la ruta es pública vía Tailscale Funnel. El diseño la deja lista para una
