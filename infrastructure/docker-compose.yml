@@ -160,6 +160,11 @@ services:
     image: kb-mcp:1
     build:
       context: ./kb-mcp
+    # Se construye en el VPS; no vive en ningun registry. Sin esto, el paso
+    # "docker compose pull" del pipeline intenta pullearla, falla con exit 1 y
+    # —por set -euo pipefail— aborta el deploy COMPLETO de Hermes. pull_policy:build
+    # le dice a compose que esta imagen se construye y no se debe pullear.
+    pull_policy: build
     container_name: kb-mcp
     restart: unless-stopped
     # ~850 MB en regimen. La tabla int8 son 64 MB; el grueso es el tokenizador
