@@ -56,6 +56,34 @@ Sin `mcp.yaml` la descripción igual se genera, solo que sin el encuadre. Esto *
 depende del nombre que le ponga al conector quien lo instala, que es una señal débil y
 distinta en cada cliente.
 
+## Compatibilidad con clientes MCP (verificado 2026-07-23)
+
+Transporte **Streamable HTTP**, sin sesión ni estado. Negocia las cuatro versiones del
+protocolo que hay en circulación: `2024-11-05`, `2025-03-26`, `2025-06-18` y `2025-11-25`
+(devuelve la que pide el cliente). Responde `initialize`, `ping`, `tools/list`,
+`tools/call`, `resources/list`, `prompts/list` y `resources/templates/list` — los tres
+últimos vacíos, pero **sin error**, que es lo que rompe a los clientes que los sondean.
+
+| Cliente | Estado |
+|---|---|
+| claude.ai (conector personalizado) | ✅ Verificado con consulta real |
+| Claude Code / Claude Desktop | ✅ Verificado con consulta real |
+| ChatGPT — modo Chat con Developer Mode | ✅ Compatible: acepta herramientas arbitrarias y no exige autenticación |
+| ChatGPT — Deep Research | ❌ **No**: exige que el servidor exponga dos herramientas llamadas exactamente `search` y `fetch`, y solo usa esas dos |
+| Antigravity, Cursor, VS Code, Zed y demás clientes de escritorio | ✅ Streamable HTTP estándar sin auth |
+| Clientes que corren **dentro del navegador** | ❌ No hay CORS: `OPTIONS` → 403. Se agrega si aparece un caso real |
+
+Dos detalles que rompían clientes y ya están resueltos: el **descubrimiento OAuth**
+(sección más abajo) y el **slash final** —`/kb/<slug>/mcp/` generaba un 307 a una URL sin
+el prefijo `/kb` y en `http`, porque `handle_path` despoja el prefijo antes de que el
+backend construya el redirect. Hoy Caddy canonicaliza con un 308 y ambas formas funcionan;
+la ruta canónica es **sin** slash final.
+
+Límite conocido por especificación: el cliente **debe** enviar
+`Accept: application/json, text/event-stream`. Si manda solo `application/json` recibe
+`406`. Es el comportamiento correcto del SDK y todos los clientes vigentes lo cumplen; se
+deja así en vez de adivinar el formato de respuesta.
+
 ## Cómo busca (híbrido, sin RAG vectorial pesado ni LLM interno)
 
 Cuatro señales fusionadas con Reciprocal Rank Fusion ponderado:

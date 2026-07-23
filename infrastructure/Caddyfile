@@ -82,6 +82,16 @@
     # proposito. La autorizacion —quien puede consultar cada KB— es una capa de
     # tokens que se agrega despues; no se mezcla con el enrutamiento.
     # El servidor no expone ninguna herramienta de escritura.
+    # Canonicalizacion del slash final. `handle_path` despoja el prefijo /kb antes de
+    # pasar la peticion, asi que el backend ignora que existe: cualquier redirect que
+    # genere sale sin /kb y en http (p.ej. /kb/<slug>/mcp/ -> http://host/<slug>/mcp),
+    # una URL rota. Importa porque hay clientes MCP que documentan la ruta CON slash
+    # final —ChatGPT entre ellos—. Se resuelve antes de entrar al handler: `redir` se
+    # evalua antes que `handle` en el orden de directivas de Caddy, y el destino
+    # relativo conserva el esquema https del cliente.
+    @kb_slash path_regexp kbslash ^/kb/(.+)/$
+    redir @kb_slash /kb/{re.kbslash.1} 308
+
     handle_path /kb/* {
         reverse_proxy kb-mcp:8765 {
             flush_interval -1
