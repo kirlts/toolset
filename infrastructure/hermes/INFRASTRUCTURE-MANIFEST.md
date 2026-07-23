@@ -29,7 +29,8 @@
 | `infrastructure/preflight.sh` | Verificacion post-deploy de invariantes MASTER-SPEC (15+ checks) | deploy.sh (copia) | 2026-06-30 |
 | `docs/MASTER-SPEC.md` | Especificacion fundacional del proyecto | No aplica (documentacion) | 2026-06-28 |
 | `docs/Hermes-integration.md` | Plan de integracion Hermes. Puede estar desactualizado tras iteraciones | No aplica (documentacion) | 2026-06-23 |
-| `infrastructure/kb-mcp/server.py` | Servidor MCP de solo lectura sobre KBs de kb-template: FTS5/BM25 + grafo de wikilinks. Sin escritura, sin estado | Imagen construida en VPS (docker compose build kb-mcp) | 2026-07-23 |
+| `infrastructure/kb-mcp/README.md` | **Documento canónico del estado del servicio kb-mcp** (qué es, búsqueda híbrida, herramientas, despliegue, trampa del modelo ARM, sinergia con la estructura de la KB, auth pendiente). Leer este primero. | Repo (documentación) | 2026-07-23 |
+| `infrastructure/kb-mcp/server.py` | Servidor MCP de solo lectura sobre KBs de kb-template: híbrido léxico+semántico+grafo+índices, recencia git. Sin escritura, sin estado | Imagen construida en VPS (docker compose build kb-mcp) | 2026-07-23 |
 | `infrastructure/kb-mcp/Dockerfile` | Imagen de kb-mcp: python:3.12-slim, usuario no-root, ARM64 | docker compose build (en VPS) | 2026-07-23 |
 | `infrastructure/kb-mcp/sync-kb.sh` | git pull de la KB + reindexado. Reinicia SOLO kb-mcp y solo si cambio el HEAD | deploy.sh (paso kb-mcp) + cron (*/15 min) | 2026-07-23 |
 
