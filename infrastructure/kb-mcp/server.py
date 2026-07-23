@@ -19,6 +19,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import datetime
+import math
 import os
 import re
 import sqlite3
@@ -339,9 +340,12 @@ class Indice:
         return f"{n.nombre} · {etiqueta}"
 
     def recientes(self, polo: str | None = None, tope: int = 12) -> list[str]:
-        """Entradas ordenadas por ultima modificacion (git), de nueva a vieja."""
+        """Entradas ordenadas por ultima modificacion (git), de nueva a vieja. Se
+        excluyen los indices/hubs (muchos backlinks): se tocan en casi todos los
+        commits, asi que su fecha no informa sobre novedad de contenido."""
         candidatos = [n for n in self.nodos.values()
-                      if (not polo or n.polo == polo) and n.modificado]
+                      if (not polo or n.polo == polo) and n.modificado
+                      and len(self.relacionados(n.nombre)) <= 25]
         candidatos.sort(key=lambda n: -n.modificado)
         return [n.nombre for n in candidatos[:tope]]
 
@@ -403,13 +407,21 @@ def crear_servidor(idx: Indice) -> FastMCP:
                  la pregunta acota el tema y la fecha de git decide el orden.
           limite: número de entradas a devolver (1–20, por defecto 6).
         """
-        polo = None
+        polo, aviso = None, ""
         if ambito:
             polo = cfg.alias.get(normalizar(ambito))
             if not polo:
-                return f"Ámbito desconocido. Disponibles: {ambitos}. Omítelo para buscar en todo."
+                # Degradar a busqueda global en vez de fallar: si el agente pasa un
+                # ambito que esta KB no tiene, es mejor responder algo util y avisar
+                # que devolver un error y dejarlo sin nada.
+                aviso = f"(No reconocí el ámbito «{ambito}»; busqué en toda la base.)\n\n"
 
         n = max(1, min(limite, 20))
+        reciente = normalizar(orden).startswith("recien")
+        # Con orden reciente el pozo debe ser generoso: se trae mucho match lexico y
+        # luego la fecha decide. Asi "bitácoras recientes" incluye las bitacoras aunque
+        # no sean lo mas relevante por tema (comparten el termino, no el ranking top).
+        tope_lex = 60 if reciente else 12
         filtros, args = [], [idx.expandir(pregunta)]
         if polo:
             filtros.append("AND polo = ?")
@@ -417,19 +429,34 @@ def crear_servidor(idx: Indice) -> FastMCP:
         try:
             lexico = [f[0] for f in idx.db.execute(
                 f"SELECT nombre FROM docs WHERE docs MATCH ? {' '.join(filtros)} "
-                "ORDER BY rank LIMIT 12", args).fetchall()]
+                f"ORDER BY rank LIMIT {tope_lex}", args).fetchall()]
         except sqlite3.OperationalError as e:
             return f"No pude interpretar esa consulta ({e}). Prueba con palabras sueltas."
 
         semantico = [s for s in idx.semejantes(pregunta)
                      if not polo or idx.nodos[s].polo == polo]
 
+        # Senal por nombre. Dos formas, de mas a menos fuerte:
+        #  (a) el nombre es subcadena de la pregunta o viceversa (match casi exacto);
+        #  (b) el nombre comparte >=2 raices de contenido con la pregunta —asi
+        #      "Certificado de Valorización" gana para "documento que certifica la
+        #      valorización" aunque el titulo no aparezca literal en la consulta.
         objetivo = normalizar(pregunta)
-        por_nombre = sorted(
-            (nom for nom in idx.nodos
-             if (not polo or idx.nodos[nom].polo == polo)
-             and (objetivo in normalizar(nom) or normalizar(nom) in objetivo)),
-            key=len)
+        raices_preg = {raiz(p) for p in PALABRA.findall(pregunta)
+                       if idx.frecuencia.get(raiz(p), 0.0) <= 0.5}
+        subcadena, por_palabras = [], []
+        for nom in idx.nodos:
+            if polo and idx.nodos[nom].polo != polo:
+                continue
+            nn = normalizar(nom)
+            if objetivo in nn or nn in objetivo:
+                subcadena.append(nom)
+            elif len(raices_preg & {raiz(p) for p in PALABRA.findall(nom)}) >= 2:
+                por_palabras.append(nom)
+        subcadena.sort(key=len)
+        por_palabras.sort(
+            key=lambda nom: -len(raices_preg & {raiz(p) for p in PALABRA.findall(nom)}))
+        por_nombre = subcadena + por_palabras
 
         # Fusion reciproca ponderada: el nombre manda, la semantica entiende la
         # intencion, la lexica corrige cuando importa la palabra exacta.
@@ -438,20 +465,43 @@ def crear_servidor(idx: Indice) -> FastMCP:
             for pos, nom in enumerate(ranking):
                 puntaje[nom] = puntaje.get(nom, 0.0) + peso / (10 + pos)
 
-        if normalizar(orden).startswith("recien"):
-            # Se toma un pozo amplio de lo tematicamente pertinente y se ordena por
-            # fecha. Asi «bitácoras recientes» trae bitacoras de verdad, no lo que
-            # mas menciona la palabra. La fecha manda; la relevancia solo filtra.
-            pozo = sorted(puntaje, key=lambda x: -puntaje[x])[:max(n * 3, 15)]
-            ganadores = sorted(pozo, key=lambda x: -idx.nodos[x].modificado)[:n]
-        else:
-            ganadores = sorted(puntaje, key=lambda x: -puntaje[x])[:n]
+        # Difusion por el grafo curado: los vecinos de los mejores resultados reciben un
+        # aporte. Es la ventaja de esta KB —wikilinks puestos a mano— aplicada al ranking:
+        # preguntar "empresa del fundador" trae SAUCO porque es vecina de "Mercado del NFU",
+        # aunque su texto no diga "fundador". Se excluyen los hubs (muchos vecinos) para no
+        # arrastrar nodos-indice genericos, y el aporte es pequeño: reordena, no manda.
+        cabeza = sorted(puntaje, key=lambda x: -puntaje[x])[:8]
+        for nom in cabeza:
+            vecinos = idx.relacionados(nom)
+            if len(vecinos) > 25:  # hub: conecta con casi todo, su vecindad no informa
+                continue
+            for v in vecinos:
+                if not polo or idx.nodos[v].polo == polo:
+                    puntaje[v] = puntaje.get(v, 0.0) + 0.12 * puntaje[nom]
+
+        if reciente:
+            # Dos partes. (a) Sembrar el pozo con lo MAS NUEVO del corpus aunque no sea
+            # tematicamente top: "¿qué es lo último?" debe poder traer el commit mas
+            # reciente aunque no matchee la consulta. (b) Recencia como MULTIPLICADOR de
+            # la relevancia, no como orden que la reemplaza (el hard-sort por fecha es el
+            # error que la practica de 2026 desaconseja: un nodo irrelevante pero nuevo
+            # no debe dominar). "Ahora" es el commit mas nuevo, sin depender del reloj.
+            recientes = idx.recientes(polo, tope=n * 2)
+            for pos, nom in enumerate(recientes):
+                puntaje[nom] = puntaje.get(nom, 0.0) + 0.5 / (5 + pos)
+            ahora = max((nd.modificado for nd in idx.nodos.values()), default=0)
+            HALF_LIFE = 45 * 86400  # media vida de 45 dias
+            for nom in list(puntaje):
+                mod = idx.nodos[nom].modificado
+                if mod:
+                    puntaje[nom] *= 1 + 5.0 * math.exp(-(ahora - mod) / HALF_LIFE)
+        ganadores = sorted(puntaje, key=lambda x: -puntaje[x])[:n]
 
         if not ganadores:
             return (f"Nada sobre «{pregunta}». Busqué por palabras y por significado. "
                     "Prueba otras palabras, o usa panorama() para ver qué cubre.")
 
-        partes = [f"{len(ganadores)} entrada(s) sobre «{pregunta}»\n"]
+        partes = [aviso + f"{len(ganadores)} entrada(s) sobre «{pregunta}»\n"]
         for nom in ganadores:
             partes.append(f"### {idx.fuente(idx.nodos[nom])}\n{idx.extracto(nom, args[0])}")
             if vecinos := idx.relacionados(nom)[:6]:
@@ -481,9 +531,12 @@ def crear_servidor(idx: Indice) -> FastMCP:
         if not candidatos:
             return f"No encontré una entrada llamada «{tema}». Prueba con consultar()."
         # Match debil (solo raices compartidas): NO se entrega contenido, porque puede
-        # ser un homonimo. Se ofrecen los candidatos y se sugiere consultar por sentido.
+        # ser un homonimo. Se ofrecen candidatos —por raiz Y por significado, para
+        # captar sinonimos y siglas: "responsabilidad extendida" sugiere "Ley 20.920
+        # (Ley REP)" via semantica aunque el titulo no comparta las palabras.
         if confianza == "debil":
-            lista = "\n".join(f"  - {c}" for c in candidatos[:8])
+            sugeridos = list(dict.fromkeys(candidatos[:4] + idx.semejantes(tema, tope=5)))[:8]
+            lista = "\n".join(f"  - {c}" for c in sugeridos)
             return (f"No hay una entrada que se llame exactamente «{tema}». Puede que "
                     f"busques una de estas:\n{lista}\n\nO usa consultar(«{tema}») para "
                     "buscar por significado en vez de por nombre.")

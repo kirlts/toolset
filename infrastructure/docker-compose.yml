@@ -167,10 +167,10 @@ services:
     pull_policy: build
     container_name: kb-mcp
     restart: unless-stopped
-    # ~850 MB en regimen. La tabla int8 son 64 MB; el grueso es el tokenizador
-    # multilingue (500.353 tokens). Si hiciera falta recuperar RAM en el VPS, quitar
-    # model2vec del Dockerfile deja el servidor en ~60 MB con solo la capa lexica.
-    mem_limit: 1g
+    # ~900 MB en regimen. La tabla int8 (256 dims) son 128 MB; el grueso es el
+    # tokenizador multilingue (500.353 tokens). Si hiciera falta recuperar RAM,
+    # quitar model2vec del Dockerfile deja el servidor en ~60 MB con solo la capa lexica.
+    mem_limit: 1200m
     read_only: true
     security_opt:
       - no-new-privileges:true
@@ -183,9 +183,9 @@ services:
     volumes:
       # Se monta el directorio raiz de KB, no una sola: el servidor sirve todas.
       - /opt/kb:/kb:ro
-      # Modelo de embeddings validado (int8/128, ~79 MB). Ver Dockerfile: no se
+      # Modelo de embeddings validado (int8, 256 dims, ~140 MB). Ver Dockerfile: no se
       # hornea en el build porque en ARM64 sale distinto al validado.
-      - /opt/kb-modelo:/modelo:ro
+      - /opt/kb-modelo-256:/modelo:ro
     healthcheck:
       test: ["CMD", "python", "-c", "import socket,sys; s=socket.create_connection(('127.0.0.1',8765),3); s.close()"]
       interval: 30s
