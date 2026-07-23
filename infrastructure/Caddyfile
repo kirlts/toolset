@@ -76,6 +76,16 @@
         reverse_proxy hindsight:8888
     }
 
+    # kb-mcp — MCP de solo lectura sobre la KB de Trazambiental.
+    # Ruta con sufijo no adivinable: la exposicion es publica via Funnel y el
+    # connector de claude.ai no soporta headers de auth fuera de su beta cerrada.
+    # El servidor no expone ninguna herramienta de escritura.
+    handle_path /kb-6d0fb0f1ea270616/* {
+        reverse_proxy kb-mcp:8765 {
+            flush_interval -1
+        }
+    }
+
     # Hermes WebUI — has its own auth
     handle_path /hermes/* {
         reverse_proxy host.docker.internal:8877

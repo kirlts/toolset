@@ -153,6 +153,35 @@ services:
     networks:
       - toolset-net
 
+  # kb-mcp — servidor MCP de solo lectura sobre las KBs de kb-template.
+  # Aislado a proposito: sin depends_on, sin puertos publicados al host, sin
+  # acceso de escritura al repo de la KB. Caddy lo alcanza por la red interna.
+  kb-mcp:
+    image: kb-mcp:1
+    build:
+      context: ./kb-mcp
+    container_name: kb-mcp
+    restart: unless-stopped
+    mem_limit: 512m
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      KB_PATH: /kb
+      # Host interno + dominio publico del Funnel. La proteccion anti-DNS-rebinding
+      # del SDK sigue activa; solo se declaran los Host legitimos.
+      KB_ALLOWED_HOSTS: "kb-mcp:8765,localhost:8765,127.0.0.1:8765,${FUNNEL_DOMAIN:-toolset-oci-1-1.tail2d4c18.ts.net}"
+    volumes:
+      - /opt/kb/traza-ambiental:/kb:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket,sys; s=socket.create_connection(('127.0.0.1',8765),3); s.close()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    networks:
+      - toolset-net
+
 networks:
   toolset-net:
     driver: bridge

@@ -29,6 +29,9 @@
 | `infrastructure/preflight.sh` | Verificacion post-deploy de invariantes MASTER-SPEC (15+ checks) | deploy.sh (copia) | 2026-06-30 |
 | `docs/MASTER-SPEC.md` | Especificacion fundacional del proyecto | No aplica (documentacion) | 2026-06-28 |
 | `docs/Hermes-integration.md` | Plan de integracion Hermes. Puede estar desactualizado tras iteraciones | No aplica (documentacion) | 2026-06-23 |
+| `infrastructure/kb-mcp/server.py` | Servidor MCP de solo lectura sobre KBs de kb-template: FTS5/BM25 + grafo de wikilinks. Sin escritura, sin estado | Imagen construida en VPS (docker compose build kb-mcp) | 2026-07-23 |
+| `infrastructure/kb-mcp/Dockerfile` | Imagen de kb-mcp: python:3.12-slim, usuario no-root, ARM64 | docker compose build (en VPS) | 2026-07-23 |
+| `infrastructure/kb-mcp/sync-kb.sh` | git pull de la KB + reindexado. Reinicia SOLO kb-mcp y solo si cambio el HEAD | deploy.sh (paso kb-mcp) + cron (*/15 min) | 2026-07-23 |
 
 ---
 
@@ -58,7 +61,37 @@ Cuando se modifica un archivo de configuracion:
 
 ---
 
-## Current Session Changes (2026-07-19)
+## Current Session Changes (2026-07-23)
+
+### Session 9 — kb-mcp: la KB de Trazambiental expuesta por MCP
+
+Servicio nuevo y aislado. **No toca Hermes**: sin `depends_on`, sin puertos publicados al
+host, sin escritura sobre la KB, y el bloque de `deploy.sh` es no-fatal de punta a punta
+(`|| true`) para que un fallo suyo jamas aborte un deploy.
+
+| File | Change |
+|---|---|
+| `infrastructure/kb-mcp/server.py` | **CREATED** — MCP de solo lectura. FTS5/BM25 con tokenizer `unicode61 remove_diacritics 2` (sin `porter`, que es solo ingles y degrada el espanol) + navegacion del grafo de wikilinks. Sin RAG vectorial |
+| `infrastructure/kb-mcp/Dockerfile` | **CREATED** — `python:3.12-slim`, usuario no-root (uid 10001), construido en el VPS para ARM64 |
+| `infrastructure/kb-mcp/sync-kb.sh` | **CREATED** — clon superficial + reindexado; reinicia solo `kb-mcp` y solo si el HEAD cambio |
+| `infrastructure/docker-compose.yml` | **UPDATED** — servicio `kb-mcp` (`read_only`, `no-new-privileges`, `mem_limit: 512m`, bind `:ro`, sin `depends_on`) |
+| `infrastructure/Caddyfile` | **UPDATED** — ruta `handle_path /kb-<sufijo>/*` → `kb-mcp:8765` con `flush_interval -1`. Sufijo no adivinable: la exposicion es publica via Funnel y el connector de claude.ai no soporta headers de auth fuera de su beta cerrada |
+| `infrastructure/deploy.sh` | **UPDATED** — bloque `kb-mcp KB sync` (clon atomico + script + cron), todo no-fatal |
+| `infrastructure/hermes/INFRASTRUCTURE-MANIFEST.md` | **UPDATED** — current session changes |
+
+**Estado en el VPS:** `/opt/kb/traza-ambiental`, rama `planning` (**`master` no contiene
+la KB**: 0 archivos), 173 nodos, ~56 MB de RAM. Aplicado quirurgicamente con
+`docker compose up -d --no-deps kb-mcp` + `restart caddy`; nunca `up -d` global ni
+`--remove-orphans` (borraria el stack `traza`, que vive en otro proyecto compose).
+Respaldos: `/opt/toolset/{Caddyfile,docker-compose.yml}.bak.20260723-114217`.
+
+**Deliberadamente NO hecho:** la ruta no se publica en la landing page, porque `deploy.sh`
+la genera y es publica. Si se quiere auth real, el servidor ya lee `KB_ALLOWED_HOSTS` y
+Caddy puede validar un Bearer desde Infisical.
+
+---
+
+## Previous Session Changes (2026-07-19)
 
 ### Session 8 — Credential Pool Fallback + WhatsApp Notification
 

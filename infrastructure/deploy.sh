@@ -667,6 +667,48 @@ if [ -f "$MONITOR_SCRIPT_SRC" ]; then
      fi"
 fi
 
+# --- Deploy kb-mcp KB sync (clon de la KB + script + cron) ---
+# Bloque deliberadamente no-fatal: todo termina en `|| true` para que un fallo
+# aqui NUNCA aborte un deploy de Hermes (deploy.sh corre con set -euo pipefail).
+KB_SYNC_SRC="$(dirname "${COMPOSE_FILE}")/kb-mcp/sync-kb.sh"
+if [ -f "$KB_SYNC_SRC" ]; then
+  echo "[DEPLOY] Deploying kb-mcp KB sync..."
+  scp -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    "$KB_SYNC_SRC" "${SSH_HOST}:/tmp/sync-kb.sh" 2>/dev/null || true
+  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    "${SSH_HOST}" \
+    "sudo mkdir -p /home/opc/.hermes/scripts && \
+     sudo cp /tmp/sync-kb.sh /home/opc/.hermes/scripts/sync-kb.sh && \
+     sudo chmod +x /home/opc/.hermes/scripts/sync-kb.sh && \
+     sudo chown opc:opc /home/opc/.hermes/scripts/sync-kb.sh && \
+     sudo rm -f /tmp/sync-kb.sh && \
+     echo '  sync-kb.sh deployed'" 2>/dev/null || true
+  # Clon inicial de la KB (privada: usa las credenciales de gh del usuario opc).
+  # Clon superficial a un temporal y movimiento atomico: un clon interrumpido
+  # borra su directorio destino al fallar, y eso no debe tocar el clon vivo.
+  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    "${SSH_HOST}" \
+    "export PATH=/usr/local/bin:/home/opc/.local/bin:\$PATH GIT_TERMINAL_PROMPT=0; \
+     sudo mkdir -p /opt/kb && sudo chown opc:opc /opt/kb; \
+     if [ ! -d /opt/kb/traza-ambiental/.git ]; then \
+       S=/opt/kb/.stage.\$\$; rm -rf \"\$S\"; \
+       git clone --depth 1 --branch planning --single-branch \
+         https://github.com/kirlts/traza-ambiental.git \"\$S\" -q && \
+       [ \"\$(find \"\$S/knowledge-base\" -name '*.md' | wc -l)\" -ge 100 ] && \
+       sudo rm -rf /opt/kb/traza-ambiental && mv \"\$S\" /opt/kb/traza-ambiental && \
+       echo '  KB clonada' || { rm -rf \"\$S\"; echo '  KB clone fallo (no bloqueante)'; }; \
+     else echo '  KB ya clonada'; fi" 2>/dev/null || true
+  echo "[DEPLOY] Ensuring kb-sync cron entry..."
+  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    "${SSH_HOST}" \
+    "if crontab -l 2>/dev/null | grep -q 'sync-kb.sh'; then \
+       echo '  cron already set'; \
+     else \
+       (crontab -l 2>/dev/null; echo '*/15 * * * * bash /home/opc/.hermes/scripts/sync-kb.sh > /dev/null 2>&1') | crontab -; \
+       echo '  cron added (every 15 min)'; \
+     fi" 2>/dev/null || true
+fi
+
 # --- Write Hermes .env on remote (always overwrite — Hermes creates a default template) ---
 # Hermes systemd service runs as user 'opc', so .hermes dir is under /home/opc/
 HERMES_DIR="/home/opc/.hermes"
