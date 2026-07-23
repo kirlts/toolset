@@ -90,9 +90,38 @@ if [ -f "$CADDYFILE" ]; then
   echo "[DEPLOY] Transferring Caddyfile..."
   scp -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     "$CADDYFILE" "${SSH_HOST}:/tmp/Caddyfile"
+
+  # Se escribe con `tee`, no con `mv`: el Caddyfile es un bind mount de ARCHIVO y mv
+  # crea un inode nuevo — el contenedor seguiria viendo el archivo viejo. Y se detecta
+  # si cambio, porque transferirlo no lo aplica: el sitio corre con `admin off`, asi
+  # que no hay reload en caliente y recargar significa reiniciar el contenedor. Sin
+  # esto un cambio de rutas se transfiere y no surte efecto, en silencio.
+  CADDY_CHANGED=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    "${SSH_HOST}" "sudo cmp -s /tmp/Caddyfile ${REMOTE_DIR}/Caddyfile && echo no || echo yes" \
+    2>/dev/null || echo yes)
   ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    "${SSH_HOST}" "sudo mv -f /tmp/Caddyfile ${REMOTE_DIR}/Caddyfile"
-  echo "[DEPLOY] Caddyfile transferred (domain: ${CADDY_DOMAIN})"
+    "${SSH_HOST}" "sudo tee ${REMOTE_DIR}/Caddyfile < /tmp/Caddyfile > /dev/null && rm -f /tmp/Caddyfile"
+  echo "[DEPLOY] Caddyfile transferred (domain: ${CADDY_DOMAIN}, changed: ${CADDY_CHANGED})"
+
+  if [ "$CADDY_CHANGED" = "yes" ]; then
+    if ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+         "${SSH_HOST}" "docker ps --format '{{.Names}}' | grep -qx caddy" > /dev/null 2>&1; then
+      # Validar ANTES de reiniciar: con una config que no adapta, Caddy no arranca y se
+      # lleva por delante todo lo publicado. Si es invalida no se toca nada —el
+      # contenedor sigue sirviendo la anterior— y el deploy avisa y continua.
+      if ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+           "${SSH_HOST}" "docker exec caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile" \
+           > /dev/null 2>&1; then
+        ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+          "${SSH_HOST}" "docker restart caddy" > /dev/null
+        echo "[DEPLOY] Caddy reiniciado con la config nueva."
+      else
+        echo "[DEPLOY] ⚠️  Caddyfile INVALIDO — Caddy NO se reinicia, sigue con la config anterior."
+      fi
+    else
+      echo "[DEPLOY] Caddy aun no existe; lo creara 'compose up' con la config nueva."
+    fi
+  fi
 
 # --- Ensure docker-compose.yml is in sync (needed for extra_hosts, volumes, etc.) ---
 COMPOSE_SRC="$(dirname "${COMPOSE_FILE}")/docker-compose.yml"
@@ -687,6 +716,15 @@ if [ -f "$KB_SYNC_SRC" ]; then
   # Clon partial (--filter=blob:none): historial completo de commits para la
   # temporalidad (fechas por nodo), sin descargar los binarios pesados del historial
   # (8 MB en vez de 154). Privadas: usa las credenciales de gh del usuario opc.
+  # Las KB son repos privados y git no trae credenciales por si solo: sin esto el
+  # clon inicial y el cron de sync fallan con "could not read Username" —el fetch
+  # aborta y la KB se queda congelada en la version del dia del clon, en silencio.
+  # `gh auth setup-git` registra gh como credential helper; es idempotente.
+  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    "${SSH_HOST}" "gh auth setup-git" > /dev/null 2>&1 \
+    && echo "[DEPLOY]   credenciales git (gh) configuradas" \
+    || echo "[DEPLOY]   ⚠️  gh no autenticado: las KB privadas no podran sincronizarse"
+
   KB_MANIFIESTO="traza-ambiental planning https://github.com/kirlts/traza-ambiental.git
 personal main https://github.com/kirlts/personal.git"
   echo "$KB_MANIFIESTO" | while read -r slug rama repo; do

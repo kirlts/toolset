@@ -17,9 +17,11 @@ pide al que consulta que la conozca.
 from __future__ import annotations
 
 import argparse
+import collections
 import contextlib
 import datetime
 import math
+import textwrap
 import os
 import re
 import sqlite3
@@ -394,14 +396,96 @@ class Indice:
 
 # --- herramientas ------------------------------------------------------------
 
+def temas_centrales(idx: Indice, tope: int = 10) -> list[str]:
+    """Los conceptos de los que trata esta KB, derivados del grafo.
+
+    Un cliente MCP decide si llamar a una herramienta leyendo su descripcion. Si esta
+    dice solo "busca en la base de conocimiento", el agente no tiene como saber que
+    ESTA base habla de neumaticos y no de reposteria: acaba decidiendo por el nombre
+    del conector, que es una señal debil. La descripcion tiene que nombrar el dominio.
+
+    No se declara a mano —seria una cosa mas que mantener por KB, y quedaria vieja—:
+    se deduce de los nodos mas referenciados, que por construccion del grafo bipolar
+    son los conceptos centrales. Se excluyen indices y tableros, que son navegacion.
+    """
+    grado: collections.Counter[str] = collections.Counter()
+    for nodo in idx.nodos.values():
+        for vecino in idx.relacionados(nodo.nombre):
+            grado[vecino] += 1
+    return [nom for nom, _ in grado.most_common(60)
+            if nom in idx.nodos and not idx.nodos[nom].es_indice
+            and not nom.startswith("00-")][:tope]
+
+
+def con_dominio(cabecera: str):
+    """Antepone la cabecera de dominio al docstring, antes de que FastMCP lo lea.
+
+    Se aplica por dentro de @mcp.tool() —el decorador de mas abajo corre primero—,
+    asi que el registro ya ve la descripcion completa. Evita duplicar el texto o
+    tocar la API privada del gestor de herramientas.
+    """
+    def decorar(fn):
+        fn.__doc__ = f"{cabecera}\n\n{textwrap.dedent(fn.__doc__ or '').strip()}"
+        return fn
+    return decorar
+
+
 def crear_servidor(idx: Indice) -> FastMCP:
     """Un servidor MCP por KB. Las tres herramientas se cierran sobre su indice."""
     cfg = idx.cfg
-    mcp = FastMCP(cfg.slug)
-    ambitos = " · ".join(f"'{a}' = {cfg.polos[d]}" for a, d in sorted(cfg.alias.items())
-                         if a != normalizar(d)) or "sin ámbitos"
+    def alias_visible(directorio: str) -> str:
+        """El alias con que se nombra un polo al agente: el declarado en mcp.yaml si
+        lo hay, si no el nombre de la carpeta. (Un polo tiene siempre al menos dos
+        entradas en `alias` —la declarada y la del directorio—; mostrarlas todas, o
+        filtrar por 'difiere del directorio', dejaba polos fuera de la lista.)"""
+        declarados = sorted(a for a, d in cfg.alias.items()
+                            if d == directorio and a != normalizar(directorio))
+        return declarados[0] if declarados else normalizar(directorio)
+
+    ambitos = " · ".join(f"'{alias_visible(d)}' = {cfg.polos[d]}"
+                         for d in sorted(cfg.polos)) or "sin ámbitos"
+
+    # Que trata esta KB, en una linea. Va en las instrucciones del servidor y como
+    # cabecera de cada herramienta: es lo que permite al agente decidir si esta
+    # pregunta es para esta base o no.
+    # Dos fuentes que se suman: lo que la KB declara de si misma (kb/mcp.yaml, opcional
+    # y estable) y lo que se deduce de su grafo (siempre al dia, sin mantencion). Ni una
+    # ni otra es obligatoria; con las dos la descripcion es precisa Y no envejece.
+    # Forma segun la guia de Anthropic para descripciones de herramientas ("Define
+    # tools" / "Writing tools for agents"): la descripcion es el factor que mas pesa
+    # en que el agente elija bien, y debe decir QUE hace, CUANDO usarla, cuando NO, y
+    # que NO devuelve —haciendo explicito el contexto que uno da por sabido, incluida
+    # la terminologia de nicho. Por eso el dominio se nombra aqui y no se espera que
+    # el agente lo infiera del nombre del conector, que lo elige quien lo instala.
+    centrales = temas_centrales(idx)
+    dominio = (
+        f"Base de conocimiento «{cfg.nombre}» ({len(idx.nodos)} entradas)"
+        + (f" sobre {cfg.descripcion}" if cfg.descripcion else "")
+        + ". "
+        + (f"Cubre, entre otros: {', '.join(centrales)}. " if centrales else "")
+        + "Es la fuente propia del equipo sobre ese dominio, con su vocabulario y sus "
+          "fuentes: consúltala siempre que la pregunta caiga ahí, incluso si crees "
+          "saber la respuesta, porque aquí está la versión vigente y contrastable. "
+          "No la uses para preguntas ajenas a ese dominio: no contiene conocimiento "
+          "general ni el contenido de otras bases, y no devuelve nada que no esté "
+          f"escrito en ella. Ámbitos para acotar la búsqueda: {ambitos}. "
+          "Es de solo lectura: ninguna de sus herramientas modifica la base."
+    )
+
+    mcp = FastMCP(cfg.slug, instructions=(
+        f"{dominio}\n\n"
+        "Tres herramientas, en orden de uso habitual: `consultar` para preguntar sin "
+        "saber dónde está la respuesta; `leer` para el texto íntegro de una entrada "
+        "que ya sabes cómo se llama; `panorama` para ver qué cubre la base o el mapa "
+        "de un tema. Cada resultado trae su fecha de última actualización y las "
+        "entradas conectadas, para seguir el hilo sin volver a buscar. Es de solo "
+        "lectura: no hay forma de modificar la base desde aquí. El contenido es una "
+        "obra en curso de madurez desigual; cita las fuentes que cada entrada declara "
+        "cuando la respuesta vaya a sostener una decisión."
+    ))
 
     @mcp.tool()
+    @con_dominio(dominio)
     def consultar(pregunta: str, ambito: str | None = None,
                   orden: str = "relevancia", limite: int = 6) -> str:
         """Busca en esta base de conocimiento y devuelve los pasajes más relevantes.
@@ -422,6 +506,12 @@ def crear_servidor(idx: Indice) -> FastMCP:
         entradas conectadas a ella (para seguir el hilo con `leer` sin volver a
         buscar). El contenido es una obra en curso con entradas de madurez desigual:
         cada una cita sus fuentes y conviene contrastar lo importante contra ellas.
+
+        No devuelve el texto completo de las entradas, solo el extracto pertinente de
+        cada una: para el contenido íntegro, llama después a `leer` con el título que
+        esta herramienta te devolvió. Tampoco completa con conocimiento externo — si la
+        base no dice nada del tema, responde que no encontró nada, y esa respuesta es
+        informativa: significa que la base no lo cubre.
 
         Parámetros:
           pregunta: la consulta en lenguaje natural (obligatoria).
@@ -550,6 +640,7 @@ def crear_servidor(idx: Indice) -> FastMCP:
         return "\n".join(partes)
 
     @mcp.tool()
+    @con_dominio(dominio)
     def leer(tema: str) -> str:
         """Devuelve el texto íntegro y verbatim de una entrada, por su nombre.
 
@@ -562,6 +653,10 @@ def crear_servidor(idx: Indice) -> FastMCP:
         el ámbito, la fecha de última actualización, el cuerpo Markdown completo tal
         como está escrito, y al final las entradas conectadas más las variantes de
         nombre que existan, si las hay.
+
+        No busca por tema ni por significado: solo resuelve nombres. Si el nombre que
+        pasas no identifica con claridad a una entrada, no devuelve contenido —nunca
+        adivina entre homónimos— sino la lista de candidatas para que elijas.
 
         Parámetros:
           tema: el nombre (o una aproximación) de la entrada a leer.
@@ -595,6 +690,7 @@ def crear_servidor(idx: Indice) -> FastMCP:
         return "\n".join(salida)
 
     @mcp.tool()
+    @con_dominio(dominio)
     def panorama(tema: str | None = None) -> str:
         """Da una vista de conjunto: el inventario de la base, o el mapa de un tema.
 
@@ -606,6 +702,10 @@ def crear_servidor(idx: Indice) -> FastMCP:
         entradas más conectadas de cada una (los nodos centrales de la base). Con un
         tema: devuelve las entradas vecinas a ese tema en el grafo, cada una con una
         línea de resumen — la forma rápida de entender un área sin leerla completa.
+
+        No responde preguntas de contenido ni devuelve el texto de las entradas: sirve
+        para saber qué existe y cómo se relaciona, no qué dice. Para lo segundo, usa
+        `consultar` o `leer`.
 
         Parámetros:
           tema: opcional. El nombre de una entrada para ver su vecindario; si se omite,
