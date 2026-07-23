@@ -345,3 +345,54 @@
 **Discarded alternatives:** Usar API de WhatsApp Business para obtener descripciones (descartado: no hay API pública para grupos de comunidad).
 **Consequences:** Cualquier herramienta que consulte el bridge obtiene descripciones. Sin LLM involvement.
 **Reversion conditions:** Si Hermes actualiza el bridge.js y el parche ya no aplica (patch-bridge.sh detecta y falla grácilmente).
+
+---
+
+## [UD-022] Toda consulta a una KB debe nombrarla en la ruta, sin base por defecto
+
+**Date:** 2026-07-23
+**Context:** El servidor kb-mcp pasó de servir una sola KB a servir varias en un mismo proceso. Cabía exponer una KB por defecto en la raíz del endpoint para abreviar la URL de la que se usa más.
+**Decision:** No hay KB por defecto. Cada base se sirve únicamente bajo `/kb/<slug>/mcp` y quien consulta siempre nombra cuál quiere. El usuario lo pidió explícitamente pensando en el futuro: "siempre haya que especificar cuál es la Knowledge Base a consultar Y esto es muy bueno porque así a futuro nosotros podemos agregarle una lógica de autenticación".
+**Discarded alternatives:**
+- KB por defecto en la raíz (descartado: convierte una ruta en un recurso ambiguo y deja sin anclaje la futura autorización).
+- Selección de KB por parámetro de la herramienta (descartado: la autorización quedaría dentro del protocolo en vez de en la capa HTTP, donde un proxy puede aplicarla).
+**Consequences:** Cada KB es un recurso HTTP distinto, así que un token podrá habilitarla o negarla sin tocar el servidor. La URL es más larga y agregar una KB obliga a comunicar su slug.
+**Reversion conditions:** Si alguna vez el servidor sirviera una sola KB de forma permanente y la autorización se resolviera en otra capa.
+
+---
+
+## [UD-023] Las KB se referencian por el nombre de su repositorio, no por rutas secretas
+
+**Date:** 2026-07-23
+**Context:** Para evitar que la KB personal quedara expuesta junto a la compartida con un tercero, se propuso anteponer un prefijo secreto a cada ruta mientras no existiera autenticación real.
+**Decision:** Rechazado por el usuario: "Me parece una forma súper estúpida de abordar esto. Que es una mala práctica de ingeniería, tomaste un atajo. Lo importante es que cada knowledge base se referencie por el nombre del repositorio". Las rutas son predecibles a propósito, y si la KB pertenece a un repositorio público o privado no cambia nada, porque eso corresponde a la lógica de autorización por token que se agregará después.
+**Discarded alternatives:**
+- Prefijo secreto por KB, tipo seguridad por oscuridad (descartado: no es autenticación, ensucia la URL y estorba a la capa real cuando llegue).
+**Consequences:** El enrutamiento queda limpio y estable, y no se mezcla con la autorización. A cambio, hasta que exista la capa de tokens cualquiera con la URL puede leer cualquier KB publicada, límite registrado en [DT-011].
+**Reversion conditions:** Ninguna prevista. Si hiciera falta ocultar la existencia de una KB, se resuelve con autorización, no con la ruta.
+
+---
+
+## [UD-024] No afectar a Hermes es la restricción máxima de toda intervención en el VPS
+
+**Date:** 2026-07-23
+**Context:** El servidor kb-mcp se desplegó en el mismo VPS que ya opera Hermes, Hindsight e Infisical, compartiendo Caddy, Docker y el pipeline de deploy.
+**Decision:** El usuario fijó la prioridad por encima de cualquier otra: "SIN AFECTAR A HERMES O LO QUE YA ESTE AHI, ESA ES TU DIRECTIVA MAXIMA". En la práctica: medir el baseline antes de tocar, verificarlo después de cada cambio, aislar el servicio nuevo y preferir no hacer un cambio antes que arriesgar el existente.
+**Discarded alternatives:**
+- Desplegar en una instancia separada (descartado: el nivel gratuito de OCI ya está ocupado y duplicaría la operación).
+- Confiar en que el aislamiento de Docker basta (descartado: comparten Caddy y el pipeline, que es justo donde aparecieron los riesgos reales).
+**Consequences:** Cada intervención cuesta más y exige verificación explícita. Gracias a eso se detectaron a tiempo dos fallas que habrían roto el deploy de Hermes: la imagen sin `pull_policy: build` y el restart de Caddy sin tolerancia a fallo.
+**Reversion conditions:** Si Hermes migrara a otra instancia y dejaran de compartir infraestructura.
+
+---
+
+## [UD-025] La forma de las descripciones MCP sale de investigación publicada, no de criterio propio
+
+**Date:** 2026-07-23
+**Context:** Las herramientas del servidor describían su mecanismo pero no su dominio, así que un agente con la URL no podía saber de qué trataba cada base. Al corregirlo, la redacción se estaba definiendo por criterio propio.
+**Decision:** El usuario lo detuvo: "Antropic publicó informaciones muy valiosas sobre cómo hacer MSPs para los agentes y cómo hacer este tipo de herramientas. De ahí debes sacar la forma que debe tener la descripción de cada Knowledge Base. No debe ser algo que tú adivines, sino que se base en investigación ya existente". La descripción se reescribió siguiendo la guía de Anthropic: qué hace, cuándo usarla, cuándo no, y qué información no devuelve.
+**Discarded alternatives:**
+- Redacción por criterio propio (descartado: es el factor que más pesa en que el agente elija bien, demasiado importante para improvisarlo).
+- Instrucciones de proyecto en el cliente (descartado: obliga al usuario a explicar el servidor cada vez; debe bastar la URL).
+**Consequences:** Las descripciones son largas y explícitas por norma, y cuestan contexto en cada llamada. Toda herramienta nueva del servidor debe seguir la misma forma.
+**Reversion conditions:** Si Anthropic publicara una guía que contradiga la actual, se adopta la nueva.
