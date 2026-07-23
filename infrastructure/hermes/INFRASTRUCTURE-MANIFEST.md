@@ -79,8 +79,22 @@ host, sin escritura sobre la KB, y el bloque de `deploy.sh` es no-fatal de punta
 | `infrastructure/deploy.sh` | **UPDATED** — bloque `kb-mcp KB sync` (clon atomico + script + cron), todo no-fatal |
 | `infrastructure/hermes/INFRASTRUCTURE-MANIFEST.md` | **UPDATED** — current session changes |
 
+**Búsqueda:** híbrida. Capa léxica (FTS5/BM25 + expansión por raíz Snowball española:
+`residuo` encuentra `residuos`) fusionada con capa semántica (embeddings estáticos
+model2vec, sin torch: `castigos por no cumplir` llega a Sanciones y Multas). Tercera señal
+por nombre de entrada. Herramientas: `consultar`, `leer`, `panorama` — sin jerga interna.
+
+**⚠ El modelo NO se hornea en el build.** Cuantizarlo durante `docker build` en ARM64
+produce pesos distintos a los validados (mismo código y origen, otro `model.safetensors`,
+md5 `228fe3f1…` vs `28357215…`). No falla: devuelve resultados semánticos incorrectos en
+silencio. El artefacto validado vive en `/opt/kb-modelo` (int8/128, 79 MB) y se monta `:ro`.
+Para regenerarlo: `StaticModel.from_pretrained('minishlab/potion-multilingual-128M',
+quantize_to='int8', dimensionality=128).save_pretrained(dir)` en x86_64, y copiarlo. Las
+versiones de `tokenizers`, `numpy` y `model2vec` van fijas en el Dockerfile por la misma
+razón: sin fijar, cambian los vectores.
+
 **Estado en el VPS:** `/opt/kb/traza-ambiental`, rama `planning` (**`master` no contiene
-la KB**: 0 archivos), 173 nodos, ~56 MB de RAM. Aplicado quirurgicamente con
+la KB**: 0 archivos), 173 nodos, ~815 MB de RAM (mem_limit 1g; el grueso es el tokenizador multilingüe de 500.353 tokens). Sin la capa semántica serían ~60 MB. Aplicado quirurgicamente con
 `docker compose up -d --no-deps kb-mcp` + `restart caddy`; nunca `up -d` global ni
 `--remove-orphans` (borraria el stack `traza`, que vive en otro proyecto compose).
 Respaldos: `/opt/toolset/{Caddyfile,docker-compose.yml}.bak.20260723-114217`.

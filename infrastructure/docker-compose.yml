@@ -162,7 +162,10 @@ services:
       context: ./kb-mcp
     container_name: kb-mcp
     restart: unless-stopped
-    mem_limit: 512m
+    # ~850 MB en regimen. La tabla int8 son 64 MB; el grueso es el tokenizador
+    # multilingue (500.353 tokens). Si hiciera falta recuperar RAM en el VPS, quitar
+    # model2vec del Dockerfile deja el servidor en ~60 MB con solo la capa lexica.
+    mem_limit: 1g
     read_only: true
     security_opt:
       - no-new-privileges:true
@@ -173,6 +176,9 @@ services:
       KB_ALLOWED_HOSTS: "kb-mcp:8765,localhost:8765,127.0.0.1:8765,${FUNNEL_DOMAIN:-toolset-oci-1-1.tail2d4c18.ts.net}"
     volumes:
       - /opt/kb/traza-ambiental:/kb:ro
+      # Modelo de embeddings validado (int8/128, ~79 MB). Ver Dockerfile: no se
+      # hornea en el build porque en ARM64 sale distinto al validado.
+      - /opt/kb-modelo:/modelo:ro
     healthcheck:
       test: ["CMD", "python", "-c", "import socket,sys; s=socket.create_connection(('127.0.0.1',8765),3); s.close()"]
       interval: 30s
