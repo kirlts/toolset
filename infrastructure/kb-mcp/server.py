@@ -53,6 +53,9 @@ FRONTMATTER = re.compile(r"^---\n(.*?)\n---\n?", re.S)
 WIKILINK = re.compile(r"\[\[([^\[\]|#]+?)(?:#[^\[\]|]*)?(?:\|[^\[\]]*)?\]\]")
 PALABRA = re.compile(r"[0-9A-Za-zÁÉÍÓÚÜÑáéíóúüñ]{2,}")
 OPERADORES = re.compile(r'["*:()]|\b(AND|OR|NOT|NEAR)\b')
+# Marcadores de intencion enumerativa: la respuesta es un indice, no un nodo suelto.
+LISTADO = re.compile(r"\b(lista|listar|listado|cuales|cuáles|todos|todas|enumera|"
+                     r"que proyectos|qué proyectos|que hay|qué hay|inventario)\b")
 
 CAMPOS_GRAFO = ("depende_de", "se_descompone_en", "se_relaciona_con")
 NO_POLO = {"assets", ".obsidian", ".trash"}
@@ -124,6 +127,9 @@ class ConfigKB:
         )
 
 
+SECCION = re.compile(r"^##\s+(.+?)\s*$", re.M)
+
+
 @dataclass
 class Nodo:
     nombre: str
@@ -135,6 +141,16 @@ class Nodo:
     menciona: list[str] = field(default_factory=list)
     modificado: int = 0   # timestamp del ultimo commit que toco el archivo (git)
     creado: int = 0       # timestamp del primer commit
+    es_indice: bool = False  # Directory Index Node (§R3): stem == nombre del directorio
+
+    def seccion(self, titulo: str) -> str:
+        """Devuelve el cuerpo de una seccion H2 (p.ej. 'Inventario'), o cadena vacia."""
+        m = re.search(rf"^##\s+{re.escape(titulo)}\s*$", self.cuerpo, re.M | re.I)
+        if not m:
+            return ""
+        resto = self.cuerpo[m.end():]
+        sig = SECCION.search(resto)
+        return (resto[:sig.start()] if sig else resto).strip()
 
 
 def fechas_git(raiz: Path, base: Path) -> dict[str, tuple[int, int]]:
@@ -205,6 +221,12 @@ class Indice:
                 cuerpo = texto
             rel = ruta.relative_to(self.base)
             creado, modificado = fechas.get(str(rel), (0, 0))
+            # Directory Index Node: el nodo que representa una carpeta y enumera a sus
+            # hijos. Dos convenciones validas, ambas presentes en KB reales:
+            #  (a) dentro de la carpeta —motor/Motor.md (§R3 estricto);
+            #  (b) hermano de la carpeta —Contexto.md junto a Contexto/ (folder-note).
+            es_indice = (len(rel.parts) >= 2 and ruta.stem.lower() == ruta.parent.name.lower()) \
+                or (ruta.parent / ruta.stem).is_dir()
             nodo = Nodo(
                 nombre=ruta.stem,
                 ruta=str(rel),
@@ -215,6 +237,7 @@ class Indice:
                 menciona=sorted({n.strip() for n in WIKILINK.findall(cuerpo)}),
                 creado=creado,
                 modificado=modificado,
+                es_indice=es_indice,
             )
             self.nodos[nodo.nombre] = nodo
 
@@ -352,6 +375,13 @@ class Indice:
     def extracto(self, nombre: str, consulta_fts: str) -> str:
         """Pasaje alrededor de la coincidencia; si el acierto vino de la capa
         semantica no hay coincidencia literal, asi que se muestra la apertura."""
+        nodo = self.nodos[nombre]
+        # Para un indice, lo util es lo que ENUMERA el area: su Inventario si lo tiene,
+        # o el cuerpo (que en estos indices ya lista a los hijos en secciones tematicas).
+        if nodo.es_indice:
+            inv = nodo.seccion("Inventario") or " ".join(nodo.cuerpo.split())
+            if inv:
+                return (inv[:700] + " …") if len(inv) > 700 else inv
         try:
             fila = self.db.execute(
                 "SELECT snippet(docs, 1, '', '', ' … ', 34) FROM docs "
@@ -479,6 +509,19 @@ def crear_servidor(idx: Indice) -> FastMCP:
                 if not polo or idx.nodos[v].polo == polo:
                     puntaje[v] = puntaje.get(v, 0.0) + 0.12 * puntaje[nom]
 
+        # Boost a los indices de directorio (§R3). Un indice YA enumera a sus hijos en
+        # su seccion Inventario, asi que es la respuesta canonica a preguntas de listado
+        # ("¿qué proyectos hay?", "lista de X"). Boost fuerte si la pregunta pide enumerar,
+        # suave en general —para que un indice relevante suba pero no ahogue a un nodo
+        # concreto cuando se pregunta por una cosa puntual.
+        # SOLO cuando la pregunta pide enumerar. Un boost general contaminaba las
+        # preguntas puntuales: los indices genericos (Inicio, Contexto) subian y
+        # desplazaban al nodo concreto que respondia.
+        if LISTADO.search(normalizar(pregunta)):
+            for nom, sc in list(puntaje.items()):
+                if idx.nodos[nom].es_indice:
+                    puntaje[nom] = sc * 1.9
+
         if reciente:
             # Dos partes. (a) Sembrar el pozo con lo MAS NUEVO del corpus aunque no sea
             # tematicamente top: "¿qué es lo último?" debe poder traer el commit mas
@@ -578,6 +621,10 @@ def crear_servidor(idx: Indice) -> FastMCP:
                 return f"No encontré «{tema}». Prueba con consultar()."
             nodo = idx.nodos[candidatos[0]]
             vecinos = idx.relacionados(nodo.nombre)
+            # Si el tema es un indice de directorio, su Inventario ya enumera y describe
+            # a los hijos: es mejor respuesta que reconstruir el vecindario del grafo.
+            if nodo.es_indice and (inv := nodo.seccion("Inventario")):
+                return f"**{nodo.nombre}** — índice del área. Contiene:\n\n{inv[:1200]}"
             if not vecinos:
                 return f"«{nodo.nombre}» no está conectada a otras entradas todavía."
             lineas = [f"Mapa alrededor de **{nodo.nombre}** ({len(vecinos)} conectadas)\n"]
@@ -597,9 +644,14 @@ def crear_servidor(idx: Indice) -> FastMCP:
             nombres = por_polo.get(d)
             if not nombres:
                 continue
-            centrales = sorted(nombres, key=lambda n: -len(idx.relacionados(n)))[:8]
-            lineas.append(f"**{etiqueta}** ({len(nombres)}) — más conectadas: "
-                          + ", ".join(centrales))
+            # Los indices de directorio son la espina navegable del area; se muestran
+            # primero. Se completan con los nodos mas conectados que no sean indices.
+            indices = [n for n in nombres if idx.nodos[n].es_indice]
+            otros = sorted((n for n in nombres if not idx.nodos[n].es_indice),
+                           key=lambda n: -len(idx.relacionados(n)))
+            destacados = (indices + otros)[:8]
+            etiq = "índices y más conectadas" if indices else "más conectadas"
+            lineas.append(f"**{etiqueta}** ({len(nombres)}) — {etiq}: " + ", ".join(destacados))
         lineas.append("\nEs una obra en curso: contrasta lo importante contra la fuente "
                       "citada en cada entrada.")
         lineas.append("Pregunta con consultar(), o usa panorama('tema') para el mapa de un área.")
