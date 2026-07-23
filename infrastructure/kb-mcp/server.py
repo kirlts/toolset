@@ -380,7 +380,7 @@ class Indice:
         #  definicion. El Inventario se ofrece en panorama(), que es la via explicita.)
         try:
             fila = self.db.execute(
-                "SELECT snippet(docs, 1, '', '', ' … ', 34) FROM docs "
+                "SELECT snippet(docs, 1, '', '', ' … ', 52) FROM docs "
                 "WHERE docs MATCH ? AND nombre = ? LIMIT 1",
                 (consulta_fts, nombre),
             ).fetchone()
@@ -389,7 +389,7 @@ class Indice:
         except sqlite3.OperationalError:
             pass
         cuerpo = " ".join(self.nodos[nombre].cuerpo.split())
-        return (cuerpo[:280] + " …") if len(cuerpo) > 280 else cuerpo
+        return (cuerpo[:440] + " …") if len(cuerpo) > 440 else cuerpo
 
 
 # --- herramientas ------------------------------------------------------------
