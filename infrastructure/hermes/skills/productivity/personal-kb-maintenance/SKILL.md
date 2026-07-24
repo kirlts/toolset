@@ -135,6 +135,60 @@ Señales de cambio de era:
 - Un recurso material ausente aparece
 - Una adaptación deja de tener sentido porque su justificación desapareció
 
+## Daily KB Review (Morning Standby)
+
+Workflow para revisiones diarias de la KB cuando el usuario solicita "empezar la jornada laboral anotando comentarios en el libro" o similares. NO es una sesión de modificación — es una revisión de estado + anotación al buffer.
+
+### Disparadores
+
+- **Cron programado** (ej: 9:30 CLT) con recordatorio tipo "comenzar jornada laboral anotando comentarios en el libro que redactó Claude"
+- Usuario menciona "el libro" o "la Narrativa Mitológica" sin solicitar modificación explícita
+
+### Mapeo de referencias del usuario
+
+El usuario se refiere a la KB con distintas metáforas. Mapeo comprobado:
+
+| Frase del usuario | Significado |
+|---|---|
+| "el libro que redactó Claude" | Narrativa Mitológica completa (KB en `/home/opc/personal/knowledge-base/`) |
+| "anotar comentarios en el libro" | Revisar estado de la KB y añadir observaciones al personal-buffer (NO editar nodos directamente) |
+
+### Secuencia de revisión
+
+1. **Recall dual**:
+   ```
+   recall(bank_id="personal-profile", max_tokens=2048, budget="mid", query="contexto operativo reciente, decisiones")
+   recall(bank_id="personal-buffer", tags=["pending"], max_tokens=1024, budget="low")
+   ```
+
+2. **Verificar estado del filesystem** (no confiar en memoria):
+   - `git log --oneline -5` en `/home/opc/personal` — últimos cambios
+   - `python compile.py` — integridad estructural
+   - `find knowledge-base/ -name "Bitácora*" \| sort` — bitácoras existentes
+
+3. **Leer hubs y nodos relevantes al contexto actual**:
+   - `Inicio.md`, `Terreno.md`, `Mito.md` — hubs principales
+   - Sub-hubs del polo relevante a la situación actual
+   - Nodos modificados en el último commit (verificar en git diff)
+
+4. **Identificar gaps y observaciones**:
+   - ¿Hay bitácora de la semana actual? Si no, anotar que falta.
+   - ¿Los estados de los nodos reflejan la realidad actual?
+   - ¿El buffer tiene entradas sin clasificar?
+
+5. **Anotar al buffer** (NO modificar KB directamente):
+   ```
+   retain(bank_id="personal-buffer", tags=["pending","anotacion-diaria","YYYY-MM-DD"])
+   ```
+   Con un resumen estructurado: estado de nodos clave, observaciones de integridad, items pendientes.
+
+### Reglas de anotación
+
+- La KB está bajo gobernanza Kairós (`.agents/` presente). NO usar write_file/patch en `knowledge-base/`.
+- Las anotaciones van al buffer para la próxima sesión curatorial. El buffer es el staging area.
+- No inventar información de primera mano. Si Martín no ha reportado novedades sobre su semana, no crear bitácoras ficticias.
+- Si se detecta un ciclo de detección duplicada de repos (ej: traza-ambiental-mvp clonado múltiples veces), anotarlo en el buffer con tag ["pending","optimizacion"] para revisión.
+
 ## Preferencias del usuario
 
 - **Análisis fundado en KB**: leer los nodos reales antes de opinar. No responder desde memoria o contexto de conversación.
