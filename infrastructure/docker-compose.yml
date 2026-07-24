@@ -191,11 +191,6 @@ services:
       # Modelo de embeddings validado (int8, 256 dims, ~140 MB). Ver Dockerfile: no se
       # hornea en el build porque en ARM64 sale distinto al validado.
       - /opt/kb-modelo-256:/modelo:ro
-      # Perfiles de decision (un .md por destino), servidos como el recurso /encuadre.
-      # Solo lectura: la herramienta no escribe perfiles, los edita una persona. Por eso
-      # NO es /opt/kb-datos, que queda reservado para cuando haya algo que escribir.
-      # Si el directorio no existe, el servidor arranca igual y no monta ese recurso.
-      - /opt/kb-perfiles:/perfiles:ro
     healthcheck:
       test: ["CMD", "python", "-c", "import socket,sys; s=socket.create_connection(('127.0.0.1',8765),3); s.close()"]
       interval: 30s

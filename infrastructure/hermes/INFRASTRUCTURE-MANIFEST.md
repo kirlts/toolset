@@ -64,6 +64,16 @@ Cuando se modifica un archivo de configuracion:
 
 ## Current Session Changes (2026-07-23)
 
+**RETIRADO el 2026-07-24 por decision del usuario.** El recurso `encuadre` y todo el
+codigo de perfiles se quitaron de `server.py`, el compose y el Dockerfile; el volumen
+`/opt/kb-perfiles` se desmonto y borro del VPS. El servidor kb-mcp vuelve a servir solo
+las dos KB (`personal`, `traza-ambiental`), como antes de esta sesion. Motivo: el perfil
+pierde precision a medida que el usuario acumula datos propios sobre las personas que
+modela, y sin un ciclo de re-verificacion no tiene forma de saber que envejecio. Se
+conservan de esta sesion los arreglos de infraestructura que NO son de encuadre:
+`mem_limit` 2000m (OOM en cada consulta), el invariante de skills del preflight, y el
+rename del contenedor hindsight. El resto de esta entrada queda como registro historico.
+
 **kb-mcp: recurso nuevo `encuadre`, perfiles de decision servidos por MCP.** Un perfil
 dice como decide una persona del entorno de trabajo, que necesita ver para aceptar algo y
 que hunde un mensaje, en dos direcciones: entrante (interpretar lo que dijo o hizo) y
