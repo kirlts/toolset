@@ -374,7 +374,7 @@ class Indice:
         candidatos.sort(key=lambda n: -n.modificado)
         return [n.nombre for n in candidatos[:tope]]
 
-    def extracto(self, nombre: str, consulta_fts: str) -> str:
+    def extracto(self, nombre: str, consulta_fts: str, extendido: bool = False) -> str:
         """Pasaje alrededor de la coincidencia; si el acierto vino de la capa
         semantica no hay coincidencia literal, asi que se muestra la apertura."""
         # (El extracto de un indice NO se fuerza al Inventario: empeoraba las preguntas
@@ -387,11 +387,32 @@ class Indice:
                 (consulta_fts, nombre),
             ).fetchone()
             if fila and fila[0]:
-                return fila[0].strip()
+                pasaje = fila[0].strip()
+                if not extendido:
+                    return pasaje
+                # Modo extendido: FTS5 acota snippet() a 64 tokens, insuficiente
+                # para la ventana pedida. El snippet actua como localizador y la
+                # ventana (~1400 caracteres) se recorta del cuerpo alrededor de la
+                # coincidencia. Si el fragmento no se reencuentra verbatim (caso
+                # raro: separador multi-fragmento), se degrada al snippet normal.
+                cuerpo = self.nodos[nombre].cuerpo
+                fragmento = pasaje.split(" … ")[0]
+                # snippet() antepone/pospone la elipsis cuando recorta bordes;
+                # esos marcadores no existen en el cuerpo y romperian el find.
+                fragmento = fragmento.removeprefix("… ").removesuffix(" …")
+                pos = cuerpo.find(fragmento)
+                if pos < 0:
+                    return pasaje
+                ini = max(0, pos + len(fragmento) // 2 - 700)
+                ventana = " ".join(cuerpo[ini:ini + 1400].split())
+                pre = "… " if ini > 0 else ""
+                post = " …" if ini + 1400 < len(cuerpo) else ""
+                return f"{pre}{ventana}{post}"
         except sqlite3.OperationalError:
             pass
         cuerpo = " ".join(self.nodos[nombre].cuerpo.split())
-        return (cuerpo[:440] + " …") if len(cuerpo) > 440 else cuerpo
+        tope = 1400 if extendido else 440
+        return (cuerpo[:tope] + " …") if len(cuerpo) > tope else cuerpo
 
 
 # --- herramientas ------------------------------------------------------------
@@ -487,7 +508,8 @@ def crear_servidor(idx: Indice) -> FastMCP:
     @mcp.tool()
     @con_dominio(dominio)
     def consultar(pregunta: str, ambito: str | None = None,
-                  orden: str = "relevancia", limite: int = 6) -> str:
+                  orden: str = "relevancia", limite: int = 6,
+                  detalle: str = "normal") -> str:
         """Busca en esta base de conocimiento y devuelve los pasajes más relevantes.
 
         Esta es la herramienta de entrada: úsala siempre que tengas una pregunta y no
@@ -522,7 +544,13 @@ def crear_servidor(idx: Indice) -> FastMCP:
                  intención es temporal —«¿qué bitácoras hay?», «lo último sobre X»—:
                  la pregunta acota el tema y la fecha de git decide el orden.
           limite: número de entradas a devolver (1–20, por defecto 6).
+          detalle: 'normal' (por defecto) o 'extendido'. Con 'extendido' cada
+                 entrada trae un pasaje ~3× más largo alrededor de la coincidencia
+                 y el doble de entradas conectadas. Úsalo cuando necesites que una
+                 sola llamada rinda el máximo contexto; los extractos siguen siendo
+                 parciales — para el texto íntegro la vía sigue siendo `leer`.
         """
+        extendido = normalizar(detalle).startswith("extend")
         polo, aviso = None, ""
         if ambito:
             polo = cfg.alias.get(normalizar(ambito))
@@ -632,8 +660,9 @@ def crear_servidor(idx: Indice) -> FastMCP:
 
         partes = [aviso + f"{len(ganadores)} entrada(s) sobre «{pregunta}»\n"]
         for nom in ganadores:
-            partes.append(f"### {idx.fuente(idx.nodos[nom])}\n{idx.extracto(nom, args[0])}")
-            if vecinos := idx.relacionados(nom)[:6]:
+            partes.append(
+                f"### {idx.fuente(idx.nodos[nom])}\n{idx.extracto(nom, args[0], extendido)}")
+            if vecinos := idx.relacionados(nom)[:12 if extendido else 6]:
                 partes.append(f"*Conecta con:* {', '.join(vecinos)}")
             partes.append("")
         partes.append("Usa leer(tema) para el texto completo de cualquiera de estas.")
