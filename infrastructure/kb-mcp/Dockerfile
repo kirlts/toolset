@@ -31,6 +31,10 @@ COPY server.py /app/server.py
 # Cada KB se sirve bajo /<slug>/mcp; no hay KB por defecto en la raiz.
 ENV KB_ROOT=/kb
 ENV KB_MODELO=/modelo
+# Directorio de perfiles de decision (un .md por destino), servido como el recurso
+# /encuadre. Es opcional: si el volumen no esta montado, el servidor arranca igual y
+# no monta ese recurso.
+ENV KB_PERFILES=/perfiles
 # Hosts legitimos para la proteccion anti-DNS-rebinding del SDK (se sobreescribe
 # desde compose). Sin esto el servidor responde 421 detras del proxy.
 ENV KB_ALLOWED_HOSTS=kb-mcp:8765,localhost:8765,127.0.0.1:8765
@@ -41,4 +45,4 @@ EXPOSE 8765
 
 # Sirve todas las KB bajo KB_ROOT, cada una en /<slug>/mcp. Sin KB por defecto en la
 # raiz. Sin estado: el RC de MCP del 2026-07-28 elimina las sesiones de protocolo.
-CMD ["sh", "-c", "python /app/server.py --kbs $KB_ROOT --transport streamable-http --host 0.0.0.0 --port 8765"]
+CMD ["sh", "-c", "python /app/server.py --kbs $KB_ROOT --perfiles $KB_PERFILES --transport streamable-http --host 0.0.0.0 --port 8765"]

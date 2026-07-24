@@ -16,7 +16,8 @@ una vez. Cada KB se expone en su propia ruta, por el nombre de su repositorio:
 https://toolset-oci-1-1.tail2d4c18.ts.net/kb/<slug>/mcp
 ```
 
-Sirviendo hoy: `traza-ambiental` (175 nodos) y `personal` (129 nodos).
+Sirviendo hoy: `traza-ambiental` (175 nodos) y `personal` (129 nodos), más el recurso
+`encuadre`, que no es una KB (ver más abajo).
 
 ## Las tres herramientas
 
@@ -29,6 +30,42 @@ Sirviendo hoy: `traza-ambiental` (175 nodos) y `personal` (129 nodos).
 Descripciones al estándar de Anthropic (nombres naturales, no IDs; pocas herramientas
 potentes; contexto explícito). La superficie es la de un bibliotecario: no expone al que
 consulta la topología interna (polos, wikilinks, frontmatter).
+
+## El recurso `encuadre` (perfiles de decisión, no es una KB)
+
+Mismo proceso, mismo transporte, **otra naturaleza**. Un perfil no es conocimiento
+consultable: es un archivo Markdown por persona que dice cómo decide, qué necesita ver
+para aceptar algo y qué hunde un mensaje. La recuperación es determinista (dame la
+sección de la dirección saliente, tipo `pedir_recurso`, del destino `alan`), así que no
+hay índice, ni grafo, ni búsqueda: es lectura de archivo y corte por encabezado.
+
+```
+https://toolset-oci-1-1.tail2d4c18.ts.net/kb/encuadre/mcp
+```
+
+Una sola herramienta, `encuadrar(situacion, destino?, direccion?, tipo?)`, que devuelve
+la cabecera del destino, el material de la dirección y situación pedidas, y la regla de
+calibración, que va siempre. Es un bibliotecario, no un autor: entrega la materia prima y
+los criterios, y **no redacta el mensaje ni evalúa el caso**. Eso es del modelo que llama,
+igual que `consultar` devuelve pasajes y no conclusiones. Ante un destino o un tipo
+ausente o irreconocible devuelve el catálogo, nunca adivina: entregar los criterios de
+aceptación de la situación equivocada es peor que pedir una llamada más.
+
+Se monta como recurso aparte y **no** como una cuarta herramienta de cada KB, por dos
+razones: una herramienta de encuadre colgando de "Trazambiental" heredaría su cabecera de
+dominio y el agente no sabría cuándo usarla, y una ruta propia es donde podrá aplicarse la
+autorización pendiente.
+
+| Pieza | Dónde |
+|---|---|
+| Datos | `/opt/kb-perfiles`, montado `:ro` en `/perfiles`. Un `.md` por destino; el frontmatter declara `destino`. Un archivo sin `destino` pero con bloque `## calibracion` aporta la calibración común (por convención, `_calibracion.md`). |
+| Formato | Cuatro encabezados H2 se emiten: `destino`, `calibracion`, `entrante`, `saliente`. Cada situación saliente es un H3 `### saliente: <slug> - <título>`, con su primera línea en cursiva diciendo cuándo aplica. Cualquier otro H2 (por ejemplo `## notas`) queda en el archivo y no se emite. |
+| Recarga | Los perfiles se releen **en cada llamada**: editar un perfil tiene efecto inmediato, sin reiniciar el contenedor. Solo agregar un destino nuevo pide reinicio, para que la descripción del recurso lo nombre. |
+| Si falta | El recurso es opcional. Sin el volumen montado o sin ningún `.md` con `destino`, el servidor arranca igual y no lo monta. |
+
+No hay sincronización automática: `sync-kb.sh` solo actualiza clones git bajo `/opt/kb`.
+Los perfiles se copian al VPS a mano, y su fuente de verdad vive fuera del repositorio,
+porque modelan a personas reales.
 
 ## Cómo sabe el agente cuándo usar una KB (auto-descripción)
 
@@ -124,6 +161,7 @@ factual.
 | Clones de KB | `deploy.sh`, bloque `kb-mcp KB sync`: manifiesto `slug rama repo`, clon `--filter=blob:none` (historial completo para la recencia, 8 MB en vez de 154). |
 | Sync | `sync-kb.sh` (cron */15 min): `git pull` de cada KB, reindexa solo si cambió. Las KB son repos **privados**: `deploy.sh` corre `gh auth setup-git` en el VPS, sin lo cual el fetch falla con «could not read Username» y la KB queda congelada en silencio. |
 | Modelo | Montado desde `/opt/kb-modelo-256` (int8/256, ~140 MB). |
+| Perfiles | Montados desde `/opt/kb-perfiles` (`:ro`). Copiados a mano: no hay cron ni clon git. |
 
 **Agregar una KB nueva son dos pasos:** una línea en el manifiesto `KB_MANIFIESTO` de
 `deploy.sh`, y desplegar. Queda en `/kb/<slug>/mcp`.
@@ -163,6 +201,12 @@ Hoy sin auth: la ruta es pública vía Tailscale Funnel. El diseño la deja list
 capa de tokens **por KB** sobre `/kb/<slug>` — el enrutamiento por nombre de repo no se
 mezcla con la autorización. `personal` y `traza-ambiental` comparten el mismo endpoint sin
 aislamiento; cerrar eso es el trabajo de auth pendiente.
+
+`encuadre` sube la prioridad de ese trabajo, y conviene que quede escrito: contiene
+perfiles de **terceros**, no del autor, con juicios interpretativos sobre cómo decide cada
+uno. Cualquiera que conozca la URL los lee, y `/kb/salud` enumera los slugs, así que el
+nombre del recurso no es un secreto. Se desplegó con esa consecuencia asumida a
+sabiendas; es el primer candidato a quedar detrás de la capa de tokens cuando exista.
 
 ## Recursos
 

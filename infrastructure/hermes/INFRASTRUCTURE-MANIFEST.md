@@ -64,6 +64,47 @@ Cuando se modifica un archivo de configuracion:
 
 ## Current Session Changes (2026-07-23)
 
+**kb-mcp: recurso nuevo `encuadre`, perfiles de decision servidos por MCP.** Un perfil
+dice como decide una persona del entorno de trabajo, que necesita ver para aceptar algo y
+que hunde un mensaje, en dos direcciones: entrante (interpretar lo que dijo o hizo) y
+saliente (encuadrar lo que se le va a pedir, proponer o reportar). Una sola herramienta,
+`encuadrar(situacion, destino?, direccion?, tipo?)`, que devuelve `str`.
+
+**No es una KB, y esa fue la decision de diseño que mas costo.** El primer bosquejo lo
+modelaba como una base de conocimiento con repo propio, polos y nodos, por inercia de que
+este servidor sirve KBs. Se descarto: la recuperacion es determinista (la seccion de la
+direccion saliente, tipo X, del destino Y), asi que un indice no aporta y agrega una capa
+que puede fallar; fragmentar el perfil en nodos complica lo unico que hay que hacer, que
+es devolver secciones enteras; y el ciclo de edicion se volvia commit + push + esperar el
+cron de 15 min, sobre un archivo que se va a editar seguido. Es lectura de archivo y
+corte por encabezado, ~180 lineas sin dependencias nuevas. **Regla que queda:** si una
+decision agrega infraestructura (un repo, un indice, un esquema) para servir un archivo de
+texto que se lee por secciones, es la decision equivocada.
+
+Se monta como recurso aparte en `/kb/encuadre/mcp`, NO como cuarta herramienta de cada KB:
+colgando de "Trazambiental" heredaria su cabecera de dominio y el agente no sabria cuando
+usarla, y una ruta propia es donde podra aplicarse la autorizacion pendiente [DT-011].
+Datos en `/opt/kb-perfiles` montado `:ro` (no `/opt/kb-datos`, que queda reservado para
+cuando haya algo que escribir). Los perfiles se releen en cada llamada, asi que editarlos
+no exige reiniciar el contenedor. El recurso es opcional: sin volumen montado el servidor
+arranca igual y no lo monta, que es lo que permite que el CMD pase `--perfiles` siempre.
+
+Se probo por el protocolo real (stdio: initialize, tools/list, tools/call) mas los tres
+casos de la prueba de aceptacion y ocho caminos de degradacion. Sin regresion: una KB real
+(traza-ambiental, 175 nodos) sigue exponiendo sus tres herramientas y solo esas.
+
+**Se descarto deducir el tipo de situacion de las palabras del usuario.** Sin un corpus
+que pese los terminos, las palabras vacias mandan: "quiero que pague una cuenta de IA"
+deducia `trabajo_invisible` en vez de `pedir_recurso`, por compartir "quiere" con su
+descripcion. Ahora, ante un tipo ausente, devuelve el catalogo con la linea de cuando
+aplica cada uno. Entregar los criterios de aceptacion de la situacion equivocada es peor
+que pedir una llamada mas, porque el que llama los aplica creyendo que son los correctos.
+
+**Pendiente que hay que decidir, no olvidar:** `encuadre` modela a personas reales y el
+endpoint sigue sin auth, asi que cualquiera con la URL lo lee y `/kb/salud` enumera los
+slugs. Se desplego con esa consecuencia asumida a sabiendas. Es el primer candidato a
+quedar detras de la capa de tokens [DT-011].
+
 **El conector de claude.ai no podia registrarse (Caddyfile).** El catch-all
 (`try_files {path} index.html`) respondia la landing con HTTP 200 en las rutas de
 descubrimiento OAuth; un cliente MCP lo lee como "este recurso exige OAuth", arranca el

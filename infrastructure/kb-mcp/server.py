@@ -756,6 +756,345 @@ def crear_servidor(idx: Indice) -> FastMCP:
     return mcp
 
 
+# --- perfiles de decision ----------------------------------------------------
+#
+# Esto NO es una KB y a proposito no reusa nada de Indice. Un perfil es un solo
+# Markdown que se lee por secciones: la recuperacion es determinista (dame la seccion
+# de la direccion saliente, tipo "pedir_recurso", del destino "alan"), asi que un
+# indice no aportaria nada y agregaria una capa que puede fallar. Fragmentar el perfil
+# en nodos ademas complicaria lo unico que hay que hacer, que es devolver secciones
+# enteras: habria que reensamblarlas despues de haberlas partido.
+#
+# Comparte con las KB el proceso, el transporte y las convenciones, no la naturaleza.
+# Por eso se monta como recurso aparte en su propia ruta y NO como una cuarta
+# herramienta de cada KB: una herramienta de encuadre colgando de "Trazambiental"
+# heredaria su cabecera de dominio y el agente no sabria cuando usarla. Ademas deja la
+# futura autorizacion por ruta (DT-011) con donde aplicarse, que es lo que pide UD-022.
+#
+# Los perfiles se releen en CADA llamada, no al arrancar: asi editar un perfil tiene
+# efecto inmediato sin reiniciar el contenedor. Son archivos de decenas de KB, el costo
+# es despreciable. Lo unico que se calcula al arrancar es la cabecera de dominio, asi
+# que agregar un destino nuevo si pide reinicio para que la descripcion lo nombre.
+
+SLUG_ENCUADRE = "encuadre"
+
+H3 = re.compile(r"^###\s+(.+?)\s*$", re.M)
+# Cabecera de una situacion saliente: "### saliente: pedir_recurso - Pedir recursos".
+# El slug no lleva espacios ni guiones, asi que " - " separa sin ambiguedad.
+CAB_TIPO = re.compile(r"saliente\s*:\s*([a-z0-9_]+)\s*-\s*(.+)", re.I)
+# Primera linea en cursiva del cuerpo de un tipo ("*Cuando: ...*"): alimenta el catalogo.
+CUANDO = re.compile(r"\s*\*([^*]+)\*\s*$", re.M)
+
+
+@dataclass
+class Perfil:
+    slug: str
+    nombre: str
+    archivo: str
+    meta: dict
+    bloques: dict[str, str]   # titulo H2 normalizado -> texto ('destino', 'entrante', ...)
+    tipos: dict[str, dict]    # slug de tipo -> {titulo, cuando, texto}, en orden del archivo
+
+    def bloque(self, nombre: str) -> str:
+        return self.bloques.get(nombre, "").strip()
+
+    def cabecera(self) -> str:
+        """Quien es el destino, con su procedencia. Va en toda respuesta: sin ella el
+        material de una situacion se lee como una regla generica y deja de ser el
+        perfil de alguien."""
+        meta = []
+        if actualizado := self.meta.get("actualizado"):
+            meta.append(f"perfil actualizado {actualizado}")
+        fuentes = self.meta.get("fuentes")
+        if fuentes:
+            lista = fuentes if isinstance(fuentes, list) else [fuentes]
+            meta.append("fuentes: " + "; ".join(str(f) for f in lista))
+        partes = [f"### Destino: {self.nombre}"]
+        if meta:
+            partes.append(f"*{' · '.join(meta)}*")
+        if cuerpo := self.bloque("destino"):
+            partes += ["", cuerpo]
+        return "\n".join(partes)
+
+
+def _secciones_h2(cuerpo: str) -> dict[str, str]:
+    """{titulo normalizado: texto}. El preambulo (todo lo anterior al primer H2) se
+    descarta: ahi viven el titulo del archivo y las notas para quien lo edita."""
+    partes = SECCION.split(cuerpo)
+    return {normalizar(partes[i]): partes[i + 1].strip()
+            for i in range(1, len(partes) - 1, 2)}
+
+
+def _partir_tipos(texto: str) -> tuple[str, dict[str, dict]]:
+    """Separa el bloque saliente en (preambulo comun, tipos de situacion)."""
+    partes = H3.split(texto)
+    preambulo = partes[0].strip()
+    tipos: dict[str, dict] = {}
+    ultimo = None
+    for i in range(1, len(partes) - 1, 2):
+        cab, cuerpo = partes[i].strip(), partes[i + 1].strip()
+        m = CAB_TIPO.fullmatch(cab)
+        if not m:
+            # Un H3 que no declara un tipo se conserva donde estaba en vez de
+            # descartarse: un encabezado mal escrito no debe hacer desaparecer texto.
+            suelto = f"### {cab}\n\n{cuerpo}"
+            if ultimo:
+                tipos[ultimo]["texto"] += "\n\n" + suelto
+            else:
+                preambulo = f"{preambulo}\n\n{suelto}".strip()
+            continue
+        ultimo = normalizar(m.group(1))
+        # La linea de "cuando" se saca del cuerpo: se emite aparte, bajo el titulo de
+        # la situacion, y si quedara tambien en el texto saldria dos veces.
+        primera = CUANDO.match(cuerpo)
+        tipos[ultimo] = {"titulo": m.group(2).strip(),
+                         "cuando": primera.group(1).strip() if primera else "",
+                         "texto": cuerpo[primera.end():].strip() if primera else cuerpo}
+    return preambulo, tipos
+
+
+def cargar_perfiles(directorio: Path) -> tuple[dict[str, Perfil], str]:
+    """Lee el directorio de perfiles. Devuelve (perfiles por slug, calibracion comun).
+
+    Un archivo es un perfil si su frontmatter declara `destino`. Un archivo cuyo nombre
+    empieza con guion bajo y trae un bloque `## calibracion` aporta la calibracion comun
+    a todos los destinos (`_calibracion.md`). Cualquier otro se ignora, y por eso el
+    guion bajo es parte de la convencion y no decorativo: sin el, un README junto a los
+    perfiles seria candidato a aportar calibracion segun que encabezados tuviera.
+    """
+    perfiles: dict[str, Perfil] = {}
+    comun = ""
+    for ruta in sorted(directorio.glob("*.md")):
+        try:
+            texto = ruta.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue  # un archivo ilegible no puede tumbar al resto
+        meta: dict = {}
+        cuerpo = texto
+        if m := FRONTMATTER.match(texto):
+            try:
+                meta = yaml.safe_load(m.group(1)) or {}
+            except yaml.YAMLError:
+                meta = {}
+            cuerpo = texto[m.end():]
+        if not isinstance(meta, dict):
+            meta = {}
+        bloques = _secciones_h2(cuerpo)
+        slug = normalizar(str(meta.get("destino") or ""))
+        if not slug:
+            if ruta.name.startswith("_"):
+                comun = comun or bloques.get("calibracion", "").strip()
+            continue
+        preambulo, tipos = _partir_tipos(bloques.get("saliente", ""))
+        bloques["saliente"] = preambulo
+        perfiles[slug] = Perfil(slug=slug, nombre=str(meta.get("nombre") or ruta.stem),
+                                archivo=ruta.name, meta=meta, bloques=bloques, tipos=tipos)
+    return perfiles, comun
+
+
+def _catalogo_destinos(perfiles: dict[str, Perfil], motivo: str) -> str:
+    lineas = [motivo, "", f"Destinos disponibles ({len(perfiles)}):"]
+    for p in perfiles.values():
+        lineas.append(f'  - `{p.slug}`: {p.nombre}')
+    lineas.append("")
+    lineas.append('Vuelve a llamar indicando destino, por ejemplo destino="'
+                  + next(iter(perfiles)) + '".')
+    return "\n".join(lineas)
+
+
+def _catalogo_tipos(perfil: Perfil, motivo: str, situacion: str = "") -> str:
+    """Ante un tipo ausente o irreconocible NO se adivina: se devuelve el catalogo.
+
+    Se probo deducirlo de las palabras de la situacion y se descarto: sin un corpus
+    que pese los terminos, las palabras vacias mandan y el resultado era erratico
+    ("quiero que pague una cuenta de IA" deducia `trabajo_invisible` por compartir
+    "quiere" con su descripcion, en vez de `pedir_recurso`). Entregar los criterios de
+    aceptacion de la situacion equivocada es peor que pedir una llamada mas, porque el
+    modelo los aplicaria creyendo que son los correctos.
+    """
+    lineas = [motivo]
+    if situacion.strip():
+        lineas.append(f"\nLo que quieres plantear: «{situacion.strip()}»")
+    lineas += ["", f"Tipos de situación saliente para {perfil.nombre}:"]
+    for slug, t in perfil.tipos.items():
+        detalle = f" ({t['cuando']})" if t["cuando"] else ""
+        lineas.append(f"  - `{slug}`: {t['titulo']}{detalle}")
+    lineas += ["", 'Vuelve a llamar con el tipo que corresponda, por ejemplo tipo="'
+               + next(iter(perfil.tipos)) + '".',
+               'Si lo que necesitas es entender algo que este destino dijo o hizo, en '
+               'cambio, llama con direccion="entrante" y sin tipo.']
+    return "\n".join(lineas)
+
+
+def crear_servidor_encuadre(directorio: Path) -> FastMCP | None:
+    """Un recurso MCP sobre un directorio de perfiles. None si no hay ninguno."""
+    perfiles, _ = cargar_perfiles(directorio)
+    if not perfiles:
+        return None
+
+    quienes = ", ".join(p.nombre for p in perfiles.values())
+    # Misma forma que la cabecera de las KB (guia de Anthropic para descripciones de
+    # herramientas): que hace, cuando usarla, cuando NO, y que no devuelve. Aca importa
+    # sobre todo lo ultimo, porque la confusion previsible es creer que redacta el texto.
+    dominio = (
+        f"Perfiles de decisión de {len(perfiles)} persona(s) del entorno de trabajo de "
+        f"OKOS: {quienes}. No es una base de conocimiento consultable: cada perfil dice "
+        "cómo decide esa persona, qué necesita ver para aceptar algo y qué hunde un "
+        "mensaje, con sus afirmaciones marcadas como verificadas, hipótesis o contexto "
+        "no verificable. Úsalo antes de escribirle a alguien del equipo, o para "
+        "interpretar algo que esa persona dijo o hizo. No contiene documentación técnica "
+        "del producto ni conocimiento general, y no redacta nada: devuelve el material "
+        "del perfil y la regla de decisión, y el texto lo escribes tú."
+    )
+
+    mcp = FastMCP(SLUG_ENCUADRE, instructions=(
+        f"{dominio}\n\n"
+        "Una sola herramienta, `encuadrar`, que funciona en dos direcciones: "
+        "'entrante' para interpretar algo que el destino dijo o hizo, y 'saliente' para "
+        "encuadrar algo que se le quiere pedir, proponer o reportar. Es un bibliotecario, "
+        "no un autor: entrega la materia prima y los criterios, y el trabajo de evaluar "
+        "el caso concreto contra esos criterios es tuyo. Una de sus salidas válidas, y a "
+        "menudo la más valiosa, es concluir que todavía no conviene mandar el mensaje y "
+        "decir qué falta para que cumpla. Es de solo lectura: no modifica ningún perfil."
+    ))
+
+    @mcp.tool()
+    @con_dominio(dominio)
+    def encuadrar(situacion: str, destino: str | None = None,
+                  direccion: str = "saliente", tipo: str | None = None) -> str:
+        """Devuelve el material del perfil de una persona que aplica a una situación.
+
+        Úsala en dos casos. Uno, antes de escribirle algo a alguien del equipo: te
+        devuelve qué necesita ver esa persona para aceptarlo, qué lo hunde, ejemplos
+        reales del proyecto y la regla de decisión que hay que aplicar antes de redactar
+        (dirección 'saliente'). Dos, cuando esa persona dijo o hizo algo y quieres saber
+        qué significa en su marco (dirección 'entrante'). No la uses para preguntas sobre
+        el producto, el código o el negocio: solo modela cómo decide gente concreta.
+
+        Devuelve texto del perfil, en bloques: quién es el destino y qué optimiza; el
+        material de la dirección y la situación pedidas; y la regla de calibración, que
+        va siempre. Cada afirmación viene marcada como VERIFICADO (comprobado con un
+        comando reproducible), HIPOTESIS (lectura interpretativa) o CONTEXTO (no
+        verificable), y esa marca hay que conservarla al usarla.
+
+        Lo que NO hace, y es lo importante: no redacta el mensaje, no evalúa tu caso y
+        no decide por ti. Devuelve la materia prima y los criterios; contrastar tu
+        insumo concreto contra ellos es trabajo tuyo, y si no los cumple, la respuesta
+        correcta no es un texto mejor escrito sino decir que todavía no conviene
+        mandarlo y qué falta. Tampoco adivina: si no le indicas el destino o el tipo de
+        situación y hay más de una opción posible, devuelve el catálogo para que
+        vuelvas a llamar, en vez de elegir por ti.
+
+        Parámetros:
+          situacion: en texto libre, qué quieres decir o qué quieres entender. El
+                     servidor no la interpreta ni la usa para elegir por ti: la
+                     devuelve citada cuando te pide que elijas el tipo, para que no
+                     pierdas el hilo. Su valor está en obligarte a formular el caso
+                     antes de recibir los criterios con que se juzga.
+          destino: a quién va dirigido, por su slug (por ejemplo "alan"). Si lo omites
+                   y hay más de un perfil, devuelve la lista de destinos.
+          direccion: 'saliente' (por defecto) para algo que quieres decir, 'entrante'
+                     para algo que el destino dijo o hizo y quieres interpretar.
+          tipo: la categoría de situación saliente (por ejemplo "pedir_recurso",
+                "mala_noticia"). Solo aplica a la dirección saliente. Si lo omites,
+                devuelve el catálogo de tipos de ese destino, cada uno con una línea
+                que dice cuándo aplica, para que vuelvas a llamar con el correcto.
+        """
+        try:
+            perfiles, comun = cargar_perfiles(directorio)
+        except OSError as e:
+            return (f"No pude leer los perfiles en {directorio} ({e}). Es un problema de "
+                    "la instalación del servidor, no de tu llamada.")
+        if not perfiles:
+            return (f"No hay ningún perfil en {directorio}. Un perfil es un archivo .md "
+                    "cuyo frontmatter declara `destino`.")
+
+        avisos: list[str] = []
+
+        clave = normalizar(destino or "")
+        if clave:
+            elegido = perfiles.get(clave)
+            if elegido is None:
+                # Coincidencia parcial por slug o por nombre, y solo si es inequivoca.
+                cerca = [p for p in perfiles.values()
+                         if clave in p.slug or clave in normalizar(p.nombre)]
+                if len(cerca) != 1:
+                    return _catalogo_destinos(perfiles, f"No reconocí el destino «{destino}».")
+                elegido = cerca[0]
+        elif len(perfiles) == 1:
+            elegido = next(iter(perfiles.values()))
+            avisos.append(f"(No indicaste destino; hay uno solo, «{elegido.nombre}».)")
+        else:
+            return _catalogo_destinos(perfiles, "No indicaste destino y hay más de uno.")
+
+        d = normalizar(direccion or "")
+        entrante = d.startswith("entr")
+        if not entrante and not d.startswith("sal"):
+            # Degradar y avisar, como hace `consultar` con un ambito desconocido.
+            avisos.append(f"(No reconocí la dirección «{direccion}»; asumí 'saliente'. "
+                          "Las dos posibles son 'saliente' y 'entrante'.)")
+
+        # Primero se resuelve el contenido y se juntan los avisos; el ensamblado va
+        # despues, entero. Mezclar las dos cosas hacia que un aviso decidido tarde
+        # (el del tipo deducido) quedara fuera de una salida ya empezada.
+        cuerpo: list[str] = []
+        if entrante:
+            material = elegido.bloque("entrante")
+            if not material:
+                return (f"El perfil de {elegido.nombre} no tiene material de dirección "
+                        "entrante, así que no hay base para interpretar lo que hizo. "
+                        "Decirlo es la respuesta correcta: no lo deduzcas del material "
+                        "saliente, que describe otra cosa.")
+            if tipo:
+                avisos.append("(Ignoré el tipo: la dirección entrante no tiene tipos.)")
+            cuerpo = ["### Dirección entrante: cómo leer lo que hace este destino", "",
+                      material, ""]
+            pie = ('*Usa encuadrar(direccion="saliente", tipo=…) si en vez de entender '
+                   'necesitas decirle algo a este destino.*')
+        else:
+            if not elegido.tipos:
+                return (f"El perfil de {elegido.nombre} no describe ninguna situación "
+                        "saliente todavía.")
+            clave_tipo = normalizar(tipo or "")
+            if clave_tipo and clave_tipo not in elegido.tipos:
+                cerca = [k for k, t in elegido.tipos.items()
+                         if clave_tipo in k or clave_tipo in normalizar(t["titulo"])]
+                if len(cerca) != 1:
+                    return _catalogo_tipos(
+                        elegido, f"No reconocí el tipo «{tipo}» para {elegido.nombre}.",
+                        situacion)
+                clave_tipo = cerca[0]
+            if not clave_tipo:
+                return _catalogo_tipos(
+                    elegido, "No indicaste el tipo de situación y no lo doy por "
+                             "adivinado, porque aplicar los criterios de la situación "
+                             "equivocada es peor que preguntar.", situacion)
+
+            elegida = elegido.tipos[clave_tipo]
+            cuerpo = [f"### Situación: {elegida['titulo']} (dirección saliente)"]
+            if elegida["cuando"]:
+                cuerpo.append(f"*{elegida['cuando']}*")
+            cuerpo.append("")
+            if preambulo := elegido.bloque("saliente"):
+                cuerpo += [preambulo, ""]
+            cuerpo += [elegida["texto"], ""]
+            pie = ('*Usa encuadrar(direccion="entrante") si en vez de decir algo '
+                   'necesitas entender algo que este destino dijo o hizo.*')
+
+        partes = list(avisos) + ([""] if avisos else [])
+        partes += [elegido.cabecera(), ""] + cuerpo
+        if calibracion := (elegido.bloque("calibracion") or comun):
+            partes += ["### Calibración (no negociable)", "", calibracion, ""]
+        else:
+            partes.append("*(No encontré ningún bloque de calibración en la instalación: "
+                          "el material de arriba va sin su regla de calibración, tenlo "
+                          "presente al usarlo.)*\n")
+        partes.append(pie)
+        return "\n".join(partes)
+
+    return mcp
+
+
 # --- arranque ----------------------------------------------------------------
 
 def cargar_modelo():
@@ -779,6 +1118,7 @@ def main() -> None:
     p = argparse.ArgumentParser(description="Servidor MCP de solo lectura para KBs de kb-template")
     p.add_argument("--kb", action="append", default=[], help="Raiz de una KB (repetible)")
     p.add_argument("--kbs", help="Directorio que contiene varias KB")
+    p.add_argument("--perfiles", help="Directorio de perfiles de decision (un .md por destino)")
     p.add_argument("--transport", default="stdio", choices=["stdio", "streamable-http"])
     p.add_argument("--host", default="127.0.0.1")
     p.add_argument("--port", type=int, default=8765)
@@ -787,20 +1127,36 @@ def main() -> None:
     rutas = [Path(k) for k in a.kb]
     if a.kbs:
         rutas += descubrir(Path(a.kbs))
-    if not rutas:
-        p.error("indica --kb RUTA o --kbs DIRECTORIO")
+    if not rutas and not a.perfiles:
+        p.error("indica --kb RUTA, --kbs DIRECTORIO o --perfiles DIRECTORIO")
 
-    modelo = cargar_modelo()  # una sola vez, compartido por todas las KB
+    modelo = cargar_modelo() if rutas else None  # una vez, compartido por todas las KB
     indices = [Indice(r, modelo) for r in rutas]
     for i in indices:
         print(f"[kb-mcp] {i.cfg.slug}: {len(i.nodos)} entradas, "
               f"polos={list(i.cfg.polos)}, semantica={'sí' if i.vectores is not None else 'no'}",
               flush=True)
 
+    # El recurso de perfiles es opcional y NO tumba el arranque si falta: el CMD del
+    # contenedor pasa --perfiles siempre, y el directorio puede no estar montado todavia.
+    encuadre = None
+    if a.perfiles:
+        dir_perfiles = Path(a.perfiles).expanduser()
+        if not dir_perfiles.is_dir():
+            print(f"[kb-mcp] {SLUG_ENCUADRE}: no existe {dir_perfiles}, no se monta",
+                  flush=True)
+        elif (encuadre := crear_servidor_encuadre(dir_perfiles)) is None:
+            print(f"[kb-mcp] {SLUG_ENCUADRE}: sin perfiles en {dir_perfiles}, no se monta",
+                  flush=True)
+        else:
+            destinos, _ = cargar_perfiles(dir_perfiles)
+            print(f"[kb-mcp] {SLUG_ENCUADRE}: {len(destinos)} destino(s), "
+                  f"{', '.join(destinos)}", flush=True)
+
     if a.transport == "stdio":
-        if len(indices) > 1:
-            p.error("stdio sirve una sola KB; usa --kb una vez")
-        crear_servidor(indices[0]).run(transport="stdio")
+        if len(indices) + (1 if encuadre else 0) > 1:
+            p.error("stdio sirve un solo recurso; usa --kb una vez, o solo --perfiles")
+        (encuadre or crear_servidor(indices[0])).run(transport="stdio")
         return
 
     import uvicorn
@@ -817,19 +1173,27 @@ def main() -> None:
     # Cada KB SOLO bajo su slug: /<slug>/mcp. No hay KB por defecto en la raiz —
     # siempre hay que nombrar la KB. Esto deja lista una futura autorizacion por-KB:
     # cada ruta es un recurso distinto que un token podra habilitar o no.
+    # Cada recurso es un slug: las KB y, si esta montado, el de perfiles de decision.
+    recursos = [(idx.cfg.slug, crear_servidor(idx)) for idx in indices]
+    if encuadre:
+        recursos.append((SLUG_ENCUADRE, encuadre))
+
     servidores, rutas_http = [], []
-    for idx in indices:
-        mcp = crear_servidor(idx)
+    for slug, mcp in recursos:
         mcp.settings.stateless_http = True  # el RC 2026-07-28 elimina las sesiones
         if seguridad:
             mcp.settings.transport_security = seguridad
         app = mcp.streamable_http_app()      # crea el session_manager
         servidores.append(mcp)
-        rutas_http.append(Mount(f"/{idx.cfg.slug}", app=app))
+        rutas_http.append(Mount(f"/{slug}", app=app))
 
     async def salud(_):
-        return JSONResponse({"kbs": [{"slug": i.cfg.slug, "entradas": len(i.nodos),
-                                      "semantica": i.vectores is not None} for i in indices]})
+        estado = {"kbs": [{"slug": i.cfg.slug, "entradas": len(i.nodos),
+                           "semantica": i.vectores is not None} for i in indices]}
+        if encuadre:
+            destinos, _c = cargar_perfiles(Path(a.perfiles).expanduser())
+            estado["perfiles"] = {"slug": SLUG_ENCUADRE, "destinos": sorted(destinos)}
+        return JSONResponse(estado)
 
     @contextlib.asynccontextmanager
     async def lifespan(_app):
