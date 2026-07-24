@@ -289,6 +289,67 @@ Important: do NOT restart via nohup/disown — the tool rejects shell-level back
 | Having BOTH user and system gateway services installed | `hermes gateway status` defaults to user service (stopped) while system service is active. Confusing status reports. | `hermes gateway uninstall` removes the user-level duplicate. |
 | Expecting WhatsApp to replay missed group invitations after bridge restart | **They are NOT replayed.** Pending group invites received while the bridge was down are lost. | Someone must send a message in the group to trigger bridge discovery, or re-invite Hermes to the group |
 
+### Tenant session logout and re-pairing
+
+Applies when `monitor-tenants.sh` reports `<tenant>: WhatsApp bridge not listening on port N` every 5 minutes. The bridge is usually NOT simply down: it is in a crashloop. WhatsApp invalidated the session, the bridge starts, receives `Logged out`, dies, and the tenant gateway respawns it. The monitor samples a random point in that cycle, so the alert looks intermittent.
+
+**Confirm the crashloop before touching anything** (a plain restart fixes nothing here):
+
+```bash
+grep -c "Logged out" ~/.hermes/profiles/<tenant>/whatsapp/bridge.log
+# Repeated "Logged out" + "listening on port N" pairs = crashloop, not a dead bridge.
+
+for i in $(seq 1 8); do ss -tlnp | grep -oP ':<port> .*pid=\K[0-9]+' || echo NINGUNO; sleep 9; done
+# A PID that appears, vanishes, and comes back with a different number confirms it.
+
+grep -o '"whatsapp":{[^}]*}' ~/.hermes/profiles/<tenant>/gateway_state.json
+# "state":"disconnected" corroborates it.
+```
+
+Recovery requires re-scanning a QR from the tenant's phone. It cannot be automated, and for `tito` it costs the user a full manual cycle (reinstalling WhatsApp, swapping the SIM). Confirm the diagnosis first, and coordinate the moment: the QR expires in under a minute.
+
+**Phase 1 (agent).** Stop the gateway and back up the session. `reset-failed` clears the `failed` state that a SIGTERM leaves behind:
+
+```bash
+systemctl --user stop hermes-gateway-<tenant>
+systemctl --user reset-failed hermes-gateway-<tenant>
+pkill -f "bridge[.]js --port <port>" || true
+tar czf ~/<tenant>-session-backup-$(date +%Y%m%d-%H%M).tar.gz \
+  -C ~/.hermes/profiles/<tenant>/whatsapp session
+```
+
+**Phase 2 (the user, in their own terminal).** The QR only renders reliably on a real TTY, so the agent hands over this command instead of running it. `--pair-only` connects, prints the QR, saves credentials and exits without opening the HTTP server, so it never fights the gateway for port `<port>`:
+
+```bash
+ssh -t opc@toolset-oci-1-1 '
+  P=/home/opc/.hermes/profiles/<tenant>
+  rm -rf "$P/whatsapp/session"
+  /usr/bin/node /usr/local/lib/hermes-agent/scripts/whatsapp-bridge/bridge.js \
+    --pair-only --session "$P/whatsapp/session"
+'
+```
+
+Scan from *Linked devices*. A `stream:error` with `code: 515` right after scanning is expected: Baileys reconnects on its own. Done when `Pairing complete. Credentials saved.` prints and the process exits.
+
+**Phase 3 (agent).** Restore service and verify:
+
+```bash
+systemctl --user start hermes-gateway-<tenant>
+sleep 25
+ss -tlnp | grep ":<port> "
+curl -sf http://127.0.0.1:<port>/health
+bash ~/.hermes/scripts/monitor-tenants.sh; echo "EXIT=$?"
+```
+
+Verify stability, not just that the port answers: sample the PID for 90 seconds and confirm it does not change. A crashloop also produces a listening port, just not for long. Check that the gateway relaunched the bridge with `--mode bot` (the pairing run defaults to `self-chat`, which rejects everything with `self_chat_mode_rejects_non_self`). `EXIT=0` with no output from the monitor closes the incident.
+
+| Pitfall | What happens | Correct approach |
+|---|---|---|
+| `pkill -f "bridge.js --port 3001"` inside an `ssh '...'` command | **It kills the SSH shell itself.** `-f` matches the full command line, and the remote shell carries that same text in its own argv. The connection closes with no output and `\|\| true` does not help: the shell was signalled, not failed. | Break the self-match with a character class: `pkill -f "bridge[.]js --port 3001"` |
+| Restarting the gateway to fix `Logged out` | The bridge comes back and dies again. Restarting never re-authenticates. | Re-pair (Phase 2). Only a QR scan restores the session. |
+| Deleting `session/` before the user has the phone ready | The QR expires in under a minute and the tenant is left with no session and no one to scan. | Back up first, and delete only at the moment of pairing |
+| Running `--pair-only` while the gateway is up | Two Baileys clients on the same session directory. | Stop the gateway first (Phase 1) |
+
 ### New group discovery
 
 When Hermes is added to a new WhatsApp group:

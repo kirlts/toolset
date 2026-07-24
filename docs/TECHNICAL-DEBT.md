@@ -148,3 +148,29 @@ Riesgo concreto: si el VPS se recrea o si otro deploy corre desde `main` antes d
 
 **Remediation plan:** pushear `toolset` cuando el usuario decida. El deploy resultante es idempotente y fue analizado paso a paso: el `Caddyfile` no cambiará (`cmp` da igual → no reinicia Caddy), las KB figuran como «ya clonada», `pull_policy: build` evita el aborto en `compose pull`, y `gh auth setup-git` es idempotente.
 **Status:** ☐ Pending. Bloqueado por decisión del usuario (push manual).
+
+---
+
+## [DT-013] `monitor-tenants.sh` repite la misma alerta cada 5 minutos, sin dedupe ni escalamiento
+
+**Severity:** Medium
+**Origin:** session 2026-07-23 (sesión de WhatsApp de `tito` deslogueada)
+**Description:** El monitor sale con `exit 1` cada vez que detecta un problema, y el sistema de cron de Hermes traduce ese código a «cron failed» y notifica. Para una condición persistente eso significa un mensaje idéntico cada 5 minutos, indefinidamente. El incidente de `tito` produjo seis antes de que el usuario interviniera, y habría seguido toda la noche.
+
+El efecto es doble y se agrava solo: el ruido entrena a ignorar el canal, que es justo donde llegarían las alertas de un incidente distinto. Además el mensaje no distingue dos situaciones que exigen respuestas opuestas: un bridge caído (se reinicia y vuelve) y una sesión deslogueada (ningún reinicio la arregla, hace falta que una persona escanee un QR). Ambas se reportan con el mismo texto, «WhatsApp bridge not listening on port N».
+
+**Remediation plan:** llevar estado entre corridas (por ejemplo un archivo por tenant con la firma de la última alerta y su timestamp) y emitir solo ante un cambio de estado, con un recordatorio espaciado si la condición persiste. En paralelo, leer `bridge.log` en busca de `Logged out` para clasificar la causa y emitir un mensaje accionable que nombre el procedimiento de re-pareo.
+**Status:** ☐ Pending
+
+---
+
+## [DT-014] El bridge de un tenant se respawnea sin backoff ni tope de reintentos
+
+**Severity:** Low
+**Origin:** session 2026-07-23 (sesión de WhatsApp de `tito` deslogueada)
+**Description:** El gateway de cada tenant relanza su bridge cuando muere. Ante una falla permanente, como una sesión que WhatsApp invalidó, eso produce un crashloop que no converge: el bridge arranca, recibe `Logged out`, muere y vuelve a arrancar. Se contaron 14 ciclos registrados en `bridge.log` antes de la intervención, sin espera creciente entre intentos ni límite que detenga el ciclo.
+
+Consecuencia operativa: la falla permanente se disfraza de falla intermitente. Un chequeo externo que muestrea el puerto a veces lo encuentra ocupado y a veces vacío, lo que desplaza el diagnóstico hacia la red o hacia el propio monitor en vez de la sesión. El costo en recursos es bajo, así que la severidad lo es también; el costo real es el tiempo de diagnóstico que se pierde.
+
+**Remediation plan:** aplicar backoff exponencial entre relanzamientos y un tope tras el cual el gateway deja de intentar y marca el estado como degradado, que es lo que hacen los orquestadores maduros ante el mismo patrón. Un `Logged out` es condición terminal y debería reconocerse como tal en vez de reintentarse.
+**Status:** ☐ Pending

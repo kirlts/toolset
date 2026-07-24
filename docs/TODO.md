@@ -356,9 +356,28 @@
 
 **Covered checks:** `Transversal governance`
 
-- [ ] 🔲 68 instancias preexistentes repartidas en los nueve documentos: TODO (24), TECHNICAL-DEBT (10), CHANGELOG (8), RULES (5), USER-DECISIONS (5), VERIFICATION (4), REPOMAP (2), MEMORY (1). La regla nunca se aplicó de forma retroactiva. La purga exige reescribir frases, no sustituir caracteres, así que se hace documento por documento y con revisión.
+- [ ] 🔲 59 instancias preexistentes repartidas en ocho documentos: TODO (24), TECHNICAL-DEBT (10), CHANGELOG (8), RULES (5), USER-DECISIONS (5), VERIFICATION (4), REPOMAP (2), MEMORY (1). MASTER-SPEC ya está limpio. El total decía 68 y contradecía a su propio desglose, que sí coincide con el recuento real (`2026-07-23`). La regla nunca se aplicó de forma retroactiva. La purga exige reescribir frases, no sustituir caracteres, así que se hace documento por documento y con revisión.
 
-|---
+---
+
+## [EPIC-017] Resiliencia de la mensajería multi-tenant
+
+> Ref: MASTER-SPEC §7.1
+
+### [TASK-023] Recuperación de sesión de WhatsApp por tenant
+
+> Ref: MASTER-SPEC §7.1
+
+**Covered checks:** `[DEV.CR.28.LLM]`, `[DEV.CR.29.LLM]`
+
+- [x] Diagnóstico del crashloop del bridge de `tito`: WhatsApp invalidó la sesión, el gateway respawneaba el proceso y el monitor lo veía caído de forma intermitente `2026-07-23`
+- [x] Sesión re-vinculada por QR con `--pair-only`, bridge estable en `:3001` con `--mode bot` y monitor en `EXIT=0` `2026-07-23`
+- [x] Procedimiento de tres fases documentado en `hermes-skills/toolset-ops/SKILL.md`, con las trampas ya cobradas `2026-07-23`
+- [ ] 🔲 Dar dedupe y escalamiento a `monitor-tenants.sh`: hoy repite la misma alerta cada 5 minutos sin agrupar ni silenciar (ver [DT-013])
+- [ ] 🔲 Distinguir en el monitor «bridge caído» de «sesión deslogueada», que exige acción humana y no se arregla reiniciando
+- [ ] 🔲 Acotar el respawn del bridge de tenant con backoff y tope de reintentos (ver [DT-014])
+
+---
 
 ## Overall Coverage Summary
 
@@ -380,4 +399,5 @@
 | EPIC-014 | TASK-019 | Por definir | 0 | 0 | 0 | 0 |
 | EPIC-015 | TASK-020 | Por definir | 0 | 0 | 0 | 0 |
 | EPIC-016 | TASK-021 a TASK-022 | In Progress | 6 | 0 | 1 | 7 |
-| **TOTAL** | | | **26** | **3** | **2** | **31** |
+| EPIC-017 | TASK-023 | In Progress | 2 | 0 | 0 | 2 |
+| **TOTAL** | | | **28** | **3** | **2** | **33** |

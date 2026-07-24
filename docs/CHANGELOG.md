@@ -19,9 +19,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `deploy.sh` transfería el `Caddyfile` con `mv`, rompiendo el inode del bind mount (el contenedor seguía viendo el archivo viejo), y nada recargaba Caddy —que corre con `admin off` y no admite reload en caliente. Un cambio de rutas se transfería sin surtir efecto, en silencio. Ahora: `tee`, detección de cambio, validación dentro del contenedor y reinicio solo si corresponde.
 - Las KB son repos privados y git no traía credenciales: el clon inicial y el cron de sync fallaban con «could not read Username». `deploy.sh` corre `gh auth setup-git` (idempotente).
 
+### Fixed
+- **La sesión de WhatsApp del tenant `tito` quedó deslogueada y su bridge en crashloop**: arrancaba en `:3001`, WhatsApp respondía `Logged out`, moría, y el gateway lo respawneaba. Como el monitor muestrea cada 5 minutos un punto cualquiera de ese ciclo, la caída permanente se veía intermitente. Sesión re-vinculada por QR con `--pair-only`; bridge estable y monitor en `EXIT=0`.
+
 ### Documentation
 - **[DEV.CR.18] falsificada**: el `basicauth` que protegía las URLs de gestión de Hindsight fue removido en `1de879b`/`db17f50` sin actualizar la verificación ni [DT-002]. `/dashboard` y `/api/banks` responden 200 desde internet. [DT-002] reabierto.
-- Nuevos: [DT-011] kb-mcp sin autenticación ni aislamiento entre KB; [DT-012] estado del VPS adelantado al repositorio.
+- Procedimiento de re-pareo de sesión por tenant en `hermes-skills/toolset-ops/SKILL.md`: cómo distinguir un crashloop de un bridge caído, las tres fases de recuperación y las trampas ya cobradas, entre ellas un `pkill -f` que mata la propia sesión SSH que lo invoca.
+- Nuevos: [DT-011] kb-mcp sin autenticación ni aislamiento entre KB; [DT-012] estado del VPS adelantado al repositorio; [DT-013] el monitor de tenants repite la misma alerta cada 5 minutos sin dedupe; [DT-014] el bridge de tenant se respawnea sin backoff ni tope.
 
 ## [0.6.0] - 2026-07-06
 

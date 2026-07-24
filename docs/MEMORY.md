@@ -101,3 +101,23 @@ This prevents context saturation and ensures durable knowledge retention.
 **Pattern:** Anthropic documenta que la descripcion es «by far the most important factor in tool performance», y que debe cubrir cuatro cosas: que hace, cuando usarla y cuando NO, que significa cada parametro, y que informacion NO devuelve. El criterio rector es escribirla como el onboarding de alguien nuevo, explicitando el contexto que uno da por sabido, incluida la terminologia de nicho.
 **Lesson:** Al exponer un servicio por MCP, la descripcion debe nombrar el dominio concreto y sus limites, no describir el mecanismo. Conviene derivar del propio contenido lo que envejece (los temas que cubre) y declarar a mano solo el encuadre, para que no quede vieja sin que nadie la mantenga.
 **Source:** [Anthropic: Define tools](https://platform.claude.com/docs/en/agents-and-tools/tool-use/implement-tool-use), [Writing tools for agents](https://www.anthropic.com/engineering/writing-tools-for-agents)
+
+---
+
+## [HEU-010] `pkill -f` mata al shell que lo invoca cuando el patrón viaja en su propia línea de comandos
+
+**Date:** 2026-07-23
+**Origin:** Un `pkill -f "bridge.js --port 3001"` dentro de un `ssh '...'` cerró la conexión de golpe, sin imprimir nada y sin ejecutar los pasos siguientes.
+**Pattern:** `-f` compara el patrón contra la línea de comandos completa de cada proceso. Un shell que ejecuta un script contiene el texto del script en su propio argv, así que si el patrón aparece ahí, el shell se convierte en su propia víctima. `pkill` se excluye a sí mismo del match, pero no excluye a su padre. Un `|| true` no protege: el shell no falla, recibe una señal. El síntoma es una terminación limpia y muda que se confunde con un problema de red o de permisos.
+**Lesson:** Romper la auto-coincidencia con una clase de caracteres, `pkill -f "bridge[.]js --port 3001"`, que matchea el proceso real pero no el literal del script. Es el mismo truco que `ps aux | grep "[s]sh"`. Vale para todo comando que filtre por línea de comandos, incluidos `pgrep` y `killall -r`. Regla general: al buscar procesos por su texto, verificar siempre si el propio buscador queda dentro del conjunto buscado.
+**Source:** [Wikipedia: pkill](https://en.wikipedia.org/wiki/Pkill), [pgrep and pkill: Linux scripting process management friends](https://opensourcehacker.com/2012/11/26/pgrep-and-pkill-your-linux-scripting-process-management-friends/)
+
+---
+
+## [HEU-011] Un supervisor que reinicia sin backoff disfraza una falla permanente de falla intermitente
+
+**Date:** 2026-07-23
+**Origin:** Un chequeo cada 5 minutos reportaba un bridge de WhatsApp «no escuchando» de forma errática. No era errático: el proceso estaba en crashloop y el chequeo caía en puntos distintos del ciclo.
+**Pattern:** Cuando un supervisor relanza de inmediato un proceso que falla por una causa permanente, el servicio alterna entre arriba y abajo varias veces por minuto. Cualquier observador externo que muestree a intervalos fijos obtiene resultados contradictorios, y esa contradicción desvía el diagnóstico hacia la red, hacia el propio monitor o hacia una supuesta condición de carrera, cuando la causa es estable y está en los logs del proceso. Los orquestadores maduros evitan justo esto: Kubernetes marca `CrashLoopBackOff` y espacia los reintentos de forma exponencial, convirtiendo el parpadeo en un estado nombrado y visible.
+**Lesson:** Ante un síntoma intermitente en un proceso supervisado, la primera hipótesis es el crashloop, no la intermitencia real. Se confirma barato: muestrear el PID varias veces seguidas y contar reinicios en el log. Un PID que cambia entre muestras es un ciclo, no un servicio inestable. Al diseñar supervisión, todo reinicio automático necesita backoff creciente y un tope que declare el estado degradado; sin eso, el sistema oculta la falla en vez de exhibirla.
+**Source:** [Kubernetes Health Checks and Probes (CrashLoopBackOff y backoff exponencial)](https://betterstack.com/community/guides/monitoring/kubernetes-health-checks/)

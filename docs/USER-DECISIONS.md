@@ -396,3 +396,16 @@
 - Instrucciones de proyecto en el cliente (descartado: obliga al usuario a explicar el servidor cada vez; debe bastar la URL).
 **Consequences:** Las descripciones son largas y explícitas por norma, y cuestan contexto en cada llamada. Toda herramienta nueva del servidor debe seguir la misma forma.
 **Reversion conditions:** Si Anthropic publicara una guía que contradiga la actual, se adopta la nueva.
+
+---
+
+## [UD-026] Documentar un aprendizaje operativo no se pregunta, se hace
+
+**Date:** 2026-07-23
+**Context:** Tras recuperar la sesión de WhatsApp de `tito`, el agente ofreció documentar el procedimiento en la skill de operaciones y pidió autorización para tocar el repositorio.
+**Decision:** El usuario zanjó que era innecesario preguntarlo: «Si, agrégalo. No deberías ni siquiera preguntarme.» Documentar un procedimiento recién validado es parte del trabajo, no una intervención opcional que requiera aprobación aparte. La misma respuesta extendió el alcance al eje documental completo por `/document`, no solo a la skill.
+**Discarded alternatives:**
+- Ofrecer la documentación y esperar respuesta (descartado: convierte en decisión del usuario algo que ya está implícito en terminar la tarea, y el conocimiento se pierde si la sesión se corta antes de que conteste).
+- Documentar solo en la skill operativa (descartado: el eje documental deja de reflejar el estado real, que es exactamente lo que `/document` existe para evitar).
+**Consequences:** Cerrar un incidente incluye escribir lo aprendido sin pedir permiso: la skill que corresponda y la sincronización del eje documental. El umbral de consulta queda reservado para lo que altera producción o destruye información, no para escribir documentación.
+**Reversion conditions:** Si el volumen documental generado empezara a estorbar más de lo que aporta, el usuario acota qué merece registro.

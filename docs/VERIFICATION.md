@@ -134,3 +134,15 @@
 - 🔲 `[DEV.CR.27.MIX]` Un tercero consulta la KB por MCP sin friccion.
   - *Resultado esperado:* el colega conecta el conector con la URL entregada y obtiene respuestas utiles sin asistencia.
   - *Verificacion:* 🔲 Pendiente de uso real. Pre-verificado por IA: conector de claude.ai y Claude Code verificados con consulta real (`¿que es un NFU?`, `¿quien financia la recoleccion?`). Falta la confirmacion del usuario final.
+
+### Verificaciones de Resiliencia de la Mensajeria Multi-tenant (EPIC-017)
+
+> Ref: MASTER-SPEC §7.1
+
+- ✅ `[DEV.CR.28.LLM]` El bridge de cada tenant escucha de forma estable, no solo de forma instantanea.
+  - *Resultado esperado:* el PID que ocupa el puerto del tenant se mantiene igual durante un muestreo sostenido, y `/health` responde `connected`.
+  - *Verificacion:* ✅ `tito` en `:3001`, mismo PID en siete muestras a lo largo de 90 segundos, `{"status":"connected","queueLength":0}` y `gateway_state.json` con `"state":"connected"`. El contraste importa: en crashloop el puerto tambien responde, pero el PID cambia y hay ventanas largas sin nadie escuchando. (🤖 Verified by ss + curl; 2026-07-23)
+
+- 🔲 `[DEV.CR.29.LLM]` El monitor de tenants no repite indefinidamente una alerta ya emitida.
+  - *Resultado esperado:* ante una condicion persistente, `monitor-tenants.sh` alerta una vez y luego agrupa o silencia hasta que el estado cambie o se supere un umbral de escalamiento.
+  - *Verificacion:* 🔲 Pendiente. Hoy emite la misma alerta cada 5 minutos sin dedupe: el incidente de `tito` produjo seis mensajes identicos antes de que el usuario interviniera (ver [DT-013]).
