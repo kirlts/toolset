@@ -1082,7 +1082,16 @@ def crear_servidor_encuadre(directorio: Path) -> FastMCP | None:
                    'necesitas entender algo que este destino dijo o hizo.*')
 
         partes = list(avisos) + ([""] if avisos else [])
-        partes += [elegido.cabecera(), ""] + cuerpo
+        partes += [elegido.cabecera(), ""]
+        # Las advertencias van ANTES del material de la situacion, no al final: son cosas
+        # ya resueltas que se siguen pidiendo como pendientes, y de nada sirve encuadrar
+        # bien un pedido innecesario. Una prueba con jueces ciegos (2026-07-24) encuadro
+        # impecablemente "activar RLS en 113 tablas", que se hizo en febrero: el dato
+        # estaba en el perfil pero en un bloque que no se emitia.
+        if advertencias := elegido.bloque("advertencias"):
+            partes += ["### Antes de nada: comprueba que no sea algo ya resuelto", "",
+                       advertencias, ""]
+        partes += cuerpo
         if calibracion := (elegido.bloque("calibracion") or comun):
             partes += ["### Calibración (no negociable)", "", calibracion, ""]
         else:
