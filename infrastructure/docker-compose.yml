@@ -167,10 +167,15 @@ services:
     pull_policy: build
     container_name: kb-mcp
     restart: unless-stopped
-    # ~900 MB en regimen. La tabla int8 (256 dims) son 128 MB; el grueso es el
+    # ~855 MB en regimen. La tabla int8 (256 dims) son 128 MB; el grueso es el
     # tokenizador multilingue (500.353 tokens). Si hiciera falta recuperar RAM,
     # quitar model2vec del Dockerfile deja el servidor en ~60 MB con solo la capa lexica.
-    mem_limit: 1200m
+    # El limite era 1200m y dejaba 346 MB de margen: una sola llamada a consultar()
+    # lo superaba y el kernel mataba el contenedor con SIGKILL (exit 137), asi que
+    # tools/list respondia y tools/call daba 502. Verificado 2026-07-24. El VPS tiene
+    # 10,9 GB con ~4,2 GB disponibles, asi que 2 GB deja margen de sobra sin apretar
+    # a Hermes, que es lo que no se toca.
+    mem_limit: 2000m
     read_only: true
     security_opt:
       - no-new-privileges:true
