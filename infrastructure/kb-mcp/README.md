@@ -59,7 +59,8 @@ autorización pendiente.
 | Pieza | Dónde |
 |---|---|
 | Datos | `/opt/kb-perfiles`, montado `:ro` en `/perfiles`. Un `.md` por destino; el frontmatter declara `destino`. Un archivo sin `destino` pero con bloque `## calibracion` aporta la calibración común (por convención, `_calibracion.md`). |
-| Formato | Cuatro encabezados H2 se emiten: `destino`, `calibracion`, `entrante`, `saliente`. Cada situación saliente es un H3 `### saliente: <slug> - <título>`, con su primera línea en cursiva diciendo cuándo aplica. Cualquier otro H2 (por ejemplo `## notas`) queda en el archivo y no se emite. |
+| Formato | Cinco encabezados H2 se emiten: `destino`, `advertencias`, `calibracion`, `entrante`, `saliente`. Cada situación saliente es un H3 `### saliente: <slug> - <título>`, con su primera línea en cursiva diciendo cuándo aplica. Cualquier otro H2 (por ejemplo `## notas`) queda en el archivo y no se emite. |
+| `## advertencias` | Cosas ya resueltas que se siguen pidiendo como pendientes. Va **antes** del material de la situación, porque encuadrar bien un pedido innecesario es peor que no encuadrarlo. Lo añadió una prueba con jueces ciegos (2026-07-24) donde el asistente encuadró impecablemente "activar RLS en 113 tablas", hecho en febrero: el dato estaba en el perfil, en un bloque que no se emitía. |
 | Recarga | Los perfiles se releen **en cada llamada**: editar un perfil tiene efecto inmediato, sin reiniciar el contenedor. Solo agregar un destino nuevo pide reinicio, para que la descripción del recurso lo nombre. |
 | Si falta | El recurso es opcional. Sin el volumen montado o sin ningún `.md` con `destino`, el servidor arranca igual y no lo monta. |
 

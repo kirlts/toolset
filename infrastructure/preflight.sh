@@ -176,8 +176,12 @@ warn_check "Hermes WebUI via Caddy (localhost)" bash -c \
 
 # ── Skills ─────────────────────────────────────────────────────────
 
+# Busca a cualquier profundidad, no solo `skills/*/SKILL.md`: las skills se organizan
+# por categoria (skills/<categoria>/<skill>/SKILL.md), asi que a profundidad 2 no hay
+# ninguna y el invariante fallaba SIEMPRE, con 94 SKILL.md instalados. Cada deploy
+# terminaba en rojo por eso, y un rojo permanente deja de informar. Verificado 2026-07-24.
 check "Skills directory populated" bash -c \
-  "ls ${HERMES_HOME}/skills/*/SKILL.md 2>/dev/null | head -1 | grep -q SKILL"
+  "find ${HERMES_HOME}/skills -name SKILL.md -print -quit 2>/dev/null | grep -q SKILL"
 
 # ── Context file ──────────────────────────────────────────────────
 
