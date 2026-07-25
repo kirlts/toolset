@@ -62,7 +62,20 @@ Cuando se modifica un archivo de configuracion:
 
 ---
 
-## Current Session Changes (2026-07-23)
+## Current Session Changes (2026-07-25)
+
+**kb-mcp: tercera KB publicada — `okos`.** Una línea nueva en el bloque `KB_MANIFIESTO` de
+`infrastructure/deploy.sh`: `okos master https://github.com/kirlts/kb-okos.git` (repo privado;
+el clone funciona porque el VPS autentica via `gh auth git-credential`, igual que `personal` y
+`traza-ambiental`, ambos también privados). Sin cambios en `server.py`, el compose, el Dockerfile
+ni `sync-kb.sh` — el servidor descubre toda KB bajo `/opt/kb` solo. La KB queda en
+`/kb/okos/mcp`. Contenido: trabajo de Martín en conversio-connect/OKOS (ontología
+`comprobado`/`en-curso`, 20 entradas seed de la Semana 1, validadas con 26 casos de uso
+objetivos al 100% contra el mismo `server.py` en local antes de publicar).
+
+---
+
+## Session Changes (2026-07-23)
 
 **RETIRADO el 2026-07-24 por decision del usuario.** El recurso `encuadre` y todo el
 codigo de perfiles se quitaron de `server.py`, el compose y el Dockerfile; el volumen

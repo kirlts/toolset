@@ -750,7 +750,8 @@ if [ -f "$KB_SYNC_SRC" ]; then
     || echo "[DEPLOY]   ⚠️  gh no autenticado: las KB privadas no podran sincronizarse"
 
   KB_MANIFIESTO="traza-ambiental planning https://github.com/kirlts/traza-ambiental.git
-personal main https://github.com/kirlts/personal.git"
+personal main https://github.com/kirlts/personal.git
+okos master https://github.com/kirlts/kb-okos.git"
   echo "$KB_MANIFIESTO" | while read -r slug rama repo; do
     [ -n "$slug" ] || continue
     ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
