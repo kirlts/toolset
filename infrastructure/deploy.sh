@@ -758,6 +758,52 @@ personal main https://github.com/kirlts/personal.git"
      fi" 2>/dev/null || true
 fi
 
+# --- Sync kb-mcp server code (server.py + Dockerfile) ---
+# Cierra la brecha DT-012: hasta 2026-07-24 el codigo del servidor kb-mcp solo se
+# desplegaba a mano por SSH — el pipeline dejaba el contenedor corriendo la version
+# anterior en silencio (deploy verde ≠ contenedor actualizado, el mismo patron de
+# fallo silencioso de HEU-006). Bloque deliberadamente no-fatal (`|| true` en todo)
+# y condicionado por checksum: si el codigo remoto ya es identico no toca NADA (ni
+# build ni restart — cero riesgo para lo que esta corriendo). Solo reconstruye
+# cuando hay diferencia real, y verifica la salud del contenedor despues.
+KB_MCP_SRC="$(dirname "${COMPOSE_FILE}")/kb-mcp"
+if [ -f "$KB_MCP_SRC/server.py" ] && [ -f "$KB_MCP_SRC/Dockerfile" ]; then
+  echo "[DEPLOY] Syncing kb-mcp server code..."
+  KB_MCP_LOCAL_SUM=$(cat "$KB_MCP_SRC/server.py" "$KB_MCP_SRC/Dockerfile" | md5sum | awk '{print $1}')
+  KB_MCP_REMOTE_SUM=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    "${SSH_HOST}" \
+    "cat /opt/toolset/kb-mcp/server.py /opt/toolset/kb-mcp/Dockerfile 2>/dev/null | md5sum | awk '{print \$1}'" \
+    2>/dev/null || echo "unreachable")
+  if [ "$KB_MCP_LOCAL_SUM" = "$KB_MCP_REMOTE_SUM" ]; then
+    echo "[DEPLOY]   kb-mcp code unchanged; container untouched."
+  elif [ "$KB_MCP_REMOTE_SUM" = "unreachable" ]; then
+    echo "[DEPLOY]   ⚠️  no se pudo leer el codigo remoto; kb-mcp queda como esta (no bloqueante)."
+  else
+    scp -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+      "$KB_MCP_SRC/server.py" "$KB_MCP_SRC/Dockerfile" \
+      "${SSH_HOST}:/tmp/" 2>/dev/null || true
+    ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+      "${SSH_HOST}" \
+      "sudo cp /tmp/server.py /opt/toolset/kb-mcp/server.py && \
+       sudo cp /tmp/Dockerfile /opt/toolset/kb-mcp/Dockerfile && \
+       rm -f /tmp/server.py /tmp/Dockerfile && \
+       cd ${REMOTE_DIR} && \
+       sudo docker compose build kb-mcp 2>&1 | tail -1 && \
+       sudo docker compose up -d kb-mcp 2>&1 | tail -1" 2>/dev/null \
+      && echo "[DEPLOY]   kb-mcp rebuilt with new code." \
+      || echo "[DEPLOY]   ⚠️  kb-mcp rebuild fallo; el contenedor sigue con la version anterior (no bloqueante)."
+    # Verificacion post-cambio explicita: healthy en <=90s o advertencia visible.
+    ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+      "${SSH_HOST}" \
+      "for i in \$(seq 1 18); do \
+         sudo docker ps --format '{{.Status}}' --filter name=kb-mcp | grep -q '(healthy)' && exit 0; \
+         sleep 5; \
+       done; exit 1" 2>/dev/null \
+      && echo "[DEPLOY]   kb-mcp healthy post-rebuild." \
+      || echo "[DEPLOY]   ⚠️  kb-mcp NO reporta healthy tras el rebuild — revisar 'docker logs kb-mcp'."
+  fi
+fi
+
 # --- Write Hermes .env on remote (always overwrite — Hermes creates a default template) ---
 # Hermes systemd service runs as user 'opc', so .hermes dir is under /home/opc/
 HERMES_DIR="/home/opc/.hermes"
