@@ -258,17 +258,36 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     sudo systemctl start hermes-webui 2>/dev/null || true" | sed 's/^/  [UP] /'
 
 # --- Verify Caddy port binding (docker-proxy often drops it) ---
+# El fuser -k + --force-recreate juntos son la via correcta solo cuando caddy esta
+# Running pero sordo (docker-proxy colgado): matar el proceso justo antes de que
+# compose recree el MISMO contenedor corre una carrera con el daemon ("No such
+# container" al referenciar un ID que compose ya estaba retirando). Si el
+# contenedor quedo en Created/Exited (p.ej. porque un `up` previo aborto por la
+# espera de `hindsight`), no hay proxy que matar: basta un `up -d` normal.
+# Ademas, el `|| true` final es obligatorio: esto es un intento de recuperacion
+# best-effort que YA se verifica despues (PORT_RETRY y el loop de servicios
+# criticos); sin el, un fallo aca disparaba `pipefail` + `set -e` y abortaba TODO
+# el deploy a mitad de camino, dejando caddy a medio recrear (bug real: 2026-07-25).
 echo "[DEPLOY] Verifying Caddy port binding..."
 PORT_OK=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   "${SSH_HOST}" \
   "curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://localhost:8080/health 2>/dev/null || echo '000'" 2>/dev/null || echo "000")
 if [ "$PORT_OK" != "200" ] && [ "$PORT_OK" != "502" ]; then
-  echo "  Port 8080 not responding (HTTP $PORT_OK). Force-restarting Caddy..."
+  echo "  Port 8080 not responding (HTTP $PORT_OK). Attempting recovery..."
   ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     "${SSH_HOST}" \
-    "sudo fuser -k 8080/tcp 2>/dev/null || true; \
-     sleep 2; \
-     cd ${REMOTE_DIR} && sudo docker compose up -d --force-recreate caddy 2>&1" | sed 's/^/  [FIX] /'
+    "cd ${REMOTE_DIR} && \
+     STATE=\$(sudo docker inspect caddy --format '{{.State.Status}}' 2>/dev/null || echo missing); \
+     echo \"  caddy state: \$STATE\"; \
+     if [ \"\$STATE\" = running ]; then \
+       echo '  running but unresponsive: killing stale port binding and recreating'; \
+       sudo fuser -k 8080/tcp 2>/dev/null || true; \
+       sleep 2; \
+       sudo docker compose up -d --force-recreate caddy 2>&1; \
+     else \
+       echo \"  not running (\$STATE): starting\"; \
+       sudo docker compose up -d caddy 2>&1; \
+     fi" | sed 's/^/  [FIX] /' || true
   sleep 5
   PORT_RETRY=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     "${SSH_HOST}" \
