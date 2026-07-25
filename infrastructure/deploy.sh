@@ -754,7 +754,11 @@ personal main https://github.com/kirlts/personal.git
 okos master https://github.com/kirlts/kb-okos.git"
   echo "$KB_MANIFIESTO" | while read -r slug rama repo; do
     [ -n "$slug" ] || continue
-    ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    # -n: sin stdin. Dentro de un while-read, ssh sin -n se COME las lineas restantes
+    # del manifiesto — solo la primera KB se procesaba y el resto moria en silencio
+    # (descubierto 2026-07-25 al agregar la tercera KB: el log solo decia
+    # "traza-ambiental ya clonada" y okos nunca se clono).
+    ssh -n -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
       "${SSH_HOST}" \
       "export PATH=/usr/local/bin:/home/opc/.local/bin:\$PATH GIT_TERMINAL_PROMPT=0; \
        sudo mkdir -p /opt/kb && sudo chown opc:opc /opt/kb; \

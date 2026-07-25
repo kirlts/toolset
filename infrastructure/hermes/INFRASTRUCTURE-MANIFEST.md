@@ -73,6 +73,13 @@ ni `sync-kb.sh` — el servidor descubre toda KB bajo `/opt/kb` solo. La KB qued
 `comprobado`/`en-curso`, 20 entradas seed de la Semana 1, validadas con 26 casos de uso
 objetivos al 100% contra el mismo `server.py` en local antes de publicar).
 
+**fix(deploy): `ssh -n` en el loop de KB_MANIFIESTO.** Bug preexistente descubierto al agregar
+la tercera KB: dentro del `while read`, el `ssh` sin `-n` consumía las líneas restantes del
+manifiesto — solo la PRIMERA KB se procesaba y el resto moría en silencio (el log del run
+30143520596 solo dice "traza-ambiental ya clonada"; `personal` nunca se re-verificaba y `okos`
+nunca se clonó). Reproducido en local (`cat` dentro del loop se traga el stdin) y corregido con
+`ssh -n`. Con 2 KBs ya clonadas el bug era invisible; con una KB nueva era bloqueante.
+
 ---
 
 ## Session Changes (2026-07-23)
