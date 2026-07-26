@@ -1,7 +1,7 @@
 ---
 name: reddit-reporting
 description: "Use when generating scheduled reports from Reddit subreddits via Composio Reddit tools (REDDIT_GET_R_TOP, REDDIT_SEARCH_ACROSS_SUBREDDITS, REDDIT_RETRIEVE_POST_COMMENTS). Covers fetching posts, computing engagement, extracting top comments, and producing either a single-page PDF (fpdf2) or a text summary for group chat delivery."
-version: 1.2.0
+version: 1.3.0
 author: Hermes Agent (user-local)
 license: MIT
 metadata:
@@ -13,10 +13,11 @@ metadata:
 ## Reference Files
 
 - `references/cm-punk-sami-zayn-community-analysis.md` — Case study: live community sentiment analysis for a major WWE title change, including Reddit threads, comment extraction, personal message crafting, and full session flow.
+- `references/web-search-fallback-aaa-case-study.md` — Case study: using workbench web_search() as fallback when Composio Reddit connection is inactive. Covers query design, data quality comparison, and when fallback is sufficient.
 
 ## Version History
 
-v1.1.0 — Initial version. Added scheduled report patterns, PDF generation, and text summary delivery.
+v1.3.0 — Added web_search fallback for when Composio Reddit connection is inactive in cron mode. Added pitfall #13 about OAuth token expiry between cron runs. Updated prerequisite verification.
 
 Generate scheduled reports from Reddit subreddits by fetching posts via Composio Reddit tools, computing engagement scores (score * num_comments), extracting top comments, and producing either:
 
@@ -37,7 +38,8 @@ The workflow is designed for cron jobs: fully autonomous, no user interaction ne
 
 ## Prerequisites
 
-- Composio Reddit connection active (verify via COMPOSIO_SEARCH_TOOLS)
+- Composio Reddit connection active (verify via COMPOSIO_SEARCH_TOOLS). **CRITICAL for cron**: connections can expire between runs and require OAuth re-auth (interactive, impossible in cron). Always verify at the start of every cron run. If inactive, use the fallback approach below.
+- **Fallback**: When Reddit tools are unavailable (connection expired, no user to re-auth), use COMPOSIO_REMOTE_WORKBENCH with the built-in `web_search()` helper (Exa AI-powered) to find Reddit content indirectly — event results, discussion summaries, and community reactions are often indexed. See "Fallback: Web Search When Reddit Tools Unavailable" below.
 - For PDF output only: fpdf2 installed (`pip install fpdf2`) + DejaVuSans fonts on host (`/usr/share/fonts/dejavu-sans-fonts/DejaVuSans.ttf`)
 - For text summary output: no extra dependencies
 - For cron: the session has no user — plan for zero-interaction execution
@@ -220,6 +222,37 @@ Unicode/encoding: Strip or replace emoji characters and unusual Unicode. ASCII-s
   - Truncate to ~120 chars for compact layout
   - Skip comments whose cleaned body is empty, `< 3 chars`, or is only `[deleted]`/`[removed]`
 
+### Fallback: Web Search When Reddit Tools Unavailable
+
+When COMPOSIO_SEARCH_TOOLS reports "No Active connection for toolkit=reddit", DO NOT attempt COMPOSIO_MANAGE_CONNECTIONS in cron mode — the OAuth link requires interactive user action and expires in 10 minutes. Instead, use this fallback:
+
+**Phase 1 — COMPOSIO_REMOTE_WORKBENCH with web_search**: Use the workbench's built-in `web_search()` helper (Exa AI-powered) to find Reddit-sourced content indirectly. This works because search engines index Reddit threads, event result posts, and community discussion summaries.
+
+```python
+# In COMPOSIO_REMOTE_WORKBENCH:
+# Example: fetch AAA weekly info when Reddit tools are down
+results1, err1 = web_search("AAA Lucha Libre results July 2026 full show")
+results2, err2 = web_search("SquaredCircle AAA discussion reactions July 2026")
+results3, err3 = web_search("site:reddit.com/r/SquaredCircle specific-topic-name")
+
+# Each returns text summaries from indexed sources
+# Compile into report directly from web search results
+```
+
+**Strategy for topic-specific searches**:
+1. Run 4-8 parallel `web_search()` calls with different angles (event names, wrestler names, promotion names, "SquaredCircle [topic] reactions")
+2. Search engines return condensed summaries that often include match results, community sentiment, and key discussion points
+3. Cross-reference results across searches to build a comprehensive picture
+4. Use the `site:reddit.com/r/SUBREDDIT` operator for Reddit-scoped searches when possible
+5. Note that this yields *summarized* information, not raw comment data — you lose specific upvote counts and verbatim quotes, but gain the overall picture
+
+**When to use fallback vs direct Reddit tools**:
+- **Use direct Reddit tools** when you need exact comment bodies, upvote counts, author names, or scores
+- **Use web_search fallback** when: (a) connection is inactive in cron mode, (b) you need a quick overview without parsing raw Reddit JSON, or (c) the data sources are also covered by general web search
+- For text summary output (not PDF), the fallback is usually sufficient — you still get event results, storyline developments, and community sentiment
+
+**Phase 2 — Synthesize and deliver**: Same as normal text summary output. Use the gathered information to produce the formatted summary directly.
+
 ### Two-Phase Pattern (Cron)
 
 In cron mode, `execute_code` is blocked. Use this two-phase approach:
@@ -285,7 +318,7 @@ Use session_search or bank recall to retrieve context if needed.
 
 #### 2. Fetch Fresh Reddit Data
 
-Use COMPOSIO_SEARCH_TOOLS to plan the search, then COMPOSIO_MULTI_EXECUTE_TOOL with parallel calls. **CRITICAL**: run BOTH of these in a single multi-execute call — they are complements, not alternatives. Keyword-only search misses spoiler-tagged event threads (see Pitfall #12). The top-post sweep catches those; the keyword search catches specific discussion threads.
+Use COMPOSIO_SEARCH_TOOLS to plan the search, then COMPOSIO_MULTI_EXECUTE_TOOL with parallel calls. **CRITICAL**: run BOTH of these in a single multi-execute call — they are complements, not alternatives. Keyword-only search misses spoiler-tagged event threads (see Pitfall #13). The top-post sweep catches those; the keyword search catches specific discussion threads.
 
 **Option A — Top posts from relevant subreddits** (general pulse):
 ```
@@ -422,10 +455,13 @@ When the user returns ~24 hours after an event and asks for an update:
 
 11. **Two-phase cron pattern.** In cron mode, do NOT try to do everything in one tool. Phase 1: COMPOSIO_MULTI_EXECUTE_TOOL to fetch posts + COMPOSIO_REMOTE_WORKBENCH to parse/save report JSON. Phase 2: `terminal` with Python heredoc to read the report dict and generate the PDF. This avoids `execute_code` being blocked and keeps each phase under the 3-minute workbench limit.
 
-12. **Spoiler-tagged posts invisible to keyword search (event communities).** Subreddits like r/SquaredCircle, r/NBA, r/movies, and other event-focused communities use spoiler tags or generic titles for result threads: `[RAW SPOILERS] Main Event Result`, `[Post Game Thread] Final Score`, `Official Discussion Megathread`. These titles DON'T contain wrestler/player/movie names, so REDDIT_SEARCH_ACROSS_SUBREDDITS with `search_query=\"CM Punk\"` or `search_query=\"LeBron James\"` returns ZERO results for the most important threads. **Fix**: always run REDDIT_GET_R_TOP (subreddit-wide scope, `t=\"day\"` or `t=\"week\"`) in parallel with keyword searches. The spoiler-tagged threads show up by engagement, not by keyword matching. For sports/wrestling/event sentiment analysis, this is mandatory — never rely on keyword search alone.
+13. **Spoiler-tagged posts invisible to keyword search (event communities).** Subreddits like r/SquaredCircle, r/NBA, r/movies, and other event-focused communities use spoiler tags or generic titles for result threads: `[RAW SPOILERS] Main Event Result`, `[Post Game Thread] Final Score`, `Official Discussion Megathread`. These titles DON'T contain wrestler/player/movie names, so REDDIT_SEARCH_ACROSS_SUBREDDITS with `search_query="CM Punk"` or `search_query="LeBron James"` returns ZERO results for the most important threads. **Fix**: always run REDDIT_GET_R_TOP (subreddit-wide scope, `t="day"` or `t="week"`) in parallel with keyword searches. The spoiler-tagged threads show up by engagement, not by keyword matching. For sports/wrestling/event sentiment analysis, this is mandatory — never rely on keyword search alone.
+
+12. **Composio Reddit connection expires between cron runs.** OAuth tokens can become stale. COMPOSIO_SEARCH_TOOLS reveals the status at the start of each run. If inactive in cron mode, you CANNOT re-establish it — the COMPOSIO_MANAGE_CONNECTIONS flow returns an OAuth link that requires interactive browser use and expires in 10 minutes. Use the web_search fallback instead (see above). Do NOT attempt to call Reddit tools on a dead connection — they will fail silently or return errors.
 
 ## Verification Checklist
 
+- [ ] Composio Reddit connection verified as active (or fallback activated if inactive)
 - [ ] All subreddits/queries fetched successfully (check `success_count`)
 - [ ] Engagement scores computed correctly (if using GET_R_TOP)
 - [ ] Top 3 posts per subreddit have comments fetched
