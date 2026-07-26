@@ -92,6 +92,39 @@
     @kb_slash path_regexp kbslash ^/kb/(.+)/$
     redir @kb_slash /kb/{re.kbslash.1} 308
 
+    # --- Acceso por direccion-capacidad para la KB okos (UD-004/D5 de kb-okos) ---
+    # El secreto viaja EN LA RUTA porque los conectores (claude.ai) solo aceptan una
+    # URL, y la respuesta ante ruta desnuda o secreto malo es 404 —nunca 401: un 401
+    # dispara en el cliente MCP el descubrimiento OAuth contra /.well-known/*, que
+    # aqui responde 404 a proposito, y el cliente falla con un error confuso.
+    # Los valores viven en el .env del servidor (via docker-compose), NUNCA en este
+    # archivo. Si la variable falta, el matcher queda con un hueco imposible de
+    # calzar y la ruta muere: falla CERRADO (la KB inalcanzable, jamas abierta).
+    #
+    # Acceso total: /kb/<KB_TOKEN_COMPLETO>/okos/mcp — todos los niveles del backend
+    # quedan bajo este secreto (tambien /okos-publicado, util para probar la vista).
+    handle /kb/{$KB_TOKEN_COMPLETO}/* {
+        uri strip_prefix /kb/{$KB_TOKEN_COMPLETO}
+        reverse_proxy kb-mcp:8765 {
+            flush_interval -1
+        }
+    }
+    # Acceso al nivel publicado SOLAMENTE: /kb/<KB_TOKEN_PUBLICADO>/okos-publicado/mcp.
+    # El matcher incluye el slug para que este secreto NO alcance la vista completa.
+    handle /kb/{$KB_TOKEN_PUBLICADO}/okos-publicado/* {
+        uri strip_prefix /kb/{$KB_TOKEN_PUBLICADO}
+        reverse_proxy kb-mcp:8765 {
+            flush_interval -1
+        }
+    }
+    # Las rutas desnudas de okos dejan de existir hacia afuera.
+    handle /kb/okos/* {
+        respond 404
+    }
+    handle /kb/okos-publicado/* {
+        respond 404
+    }
+
     handle_path /kb/* {
         reverse_proxy kb-mcp:8765 {
             flush_interval -1

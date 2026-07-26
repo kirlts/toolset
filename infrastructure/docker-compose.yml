@@ -118,6 +118,10 @@ services:
       FUNNEL_DOMAIN: ${FUNNEL_DOMAIN:-toolset-oci-1-1.tail2d4c18.ts.net}
       FUNNEL_AUTH_USER: ${FUNNEL_AUTH_USER:-toolset-admin}
       FUNNEL_AUTH_PASSWORD: ${FUNNEL_AUTH_PASSWORD:-changeme}
+      # Secretos de las direcciones-capacidad de la KB okos. Valores en el .env del
+      # servidor, jamas en git. Sin valor, la ruta falla CERRADA (ver Caddyfile).
+      KB_TOKEN_COMPLETO: ${KB_TOKEN_COMPLETO:-}
+      KB_TOKEN_PUBLICADO: ${KB_TOKEN_PUBLICADO:-}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - /opt/toolset/landing:/usr/share/caddy/landing

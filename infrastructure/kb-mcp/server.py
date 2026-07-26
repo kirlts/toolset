@@ -19,6 +19,7 @@ from __future__ import annotations
 import argparse
 import collections
 import contextlib
+import copy
 import datetime
 import math
 import textwrap
@@ -96,6 +97,20 @@ class ConfigKB:
     descripcion: str
     polos: dict[str, str]          # directorio -> etiqueta legible
     alias: dict[str, str]          # alias en minusculas -> directorio
+    # Niveles de acceso declarados por la KB. Opcional: sin `niveles`, la KB se
+    # sirve entera en su ruta de siempre y nada cambia (el caso de toda KB que no
+    # opte por esto). Cada nivel se nombra por lo que HACE, no por quien lo usa:
+    #   nombre_nivel: {campo, valor, herramientas, etiqueta}
+    # `campo`/`valor` seleccionan que entradas entran (por un campo del frontmatter
+    # que la propia KB define); `herramientas` acota que herramientas se registran.
+    # El servidor no sabe que significa ninguno de esos valores: solo compara.
+    niveles: dict[str, dict] = field(default_factory=dict)
+    # Calendario de re-verificacion por tipo (dias). Opcional. Si una entrada de un
+    # tipo listado lleva `verificado: YYYY-MM-DD` mas viejo que su plazo, el servidor
+    # lo declara junto a la fuente en cada resultado — el lector (una IA) ve la
+    # frescura sin que nadie tenga que editar el archivo. Comparacion de fechas pura:
+    # el juicio de si la entrada SIGUE siendo verdad es de la calibracion, no de aqui.
+    retencion: dict[str, int] = field(default_factory=dict)
 
     @classmethod
     def desde(cls, ruta: Path) -> "ConfigKB":
@@ -120,12 +135,23 @@ class ConfigKB:
             alias[normalizar(entrada.get("alias") or d)] = d
             alias[normalizar(d)] = d
 
+        niveles = cfg.get("niveles") or {}
+        if not isinstance(niveles, dict):
+            niveles = {}
+        retencion = cfg.get("retencion") or {}
+        if not isinstance(retencion, dict):
+            retencion = {}
+        retencion = {t: int(d) for t, d in retencion.items()
+                     if isinstance(d, (int, float)) and int(d) > 0}
+
         return cls(
             slug=cfg.get("slug") or ruta.name,
             nombre=cfg.get("nombre") or ruta.name,
             descripcion=cfg.get("descripcion") or "",
             polos=polos,
             alias=alias,
+            niveles=niveles,
+            retencion=retencion,
         )
 
 
@@ -221,6 +247,11 @@ class Indice:
                 cuerpo = texto[m.end():]
             else:
                 cuerpo = texto
+            if isinstance(meta, dict) and meta.get("retirado") is True:
+                # Retirada: fuera de servicio con etiqueta. No se indexa en NINGUN
+                # nivel; git conserva el archivo y su historia. Es la disposicion
+                # final del ciclo de curaduria, no un borrado.
+                continue
             rel = ruta.relative_to(self.base)
             creado, modificado = fechas.get(str(rel), (0, 0))
             # Directory Index Node: el nodo que representa una carpeta y enumera a sus
@@ -323,7 +354,20 @@ class Indice:
             return []
         v = self.modelo.encode([consulta]).astype("float32")[0]
         v = v / max(float(np.linalg.norm(v)), 1e-9)
-        return [self.orden[i] for i in np.argsort(-(self.vectores @ v))[:tope]]
+        # `self.nodos` puede venir acotado por restringir(): se filtra aca porque los
+        # vectores y su orden se comparten entre niveles (se calculan una sola vez).
+        orden = (self.orden[i] for i in np.argsort(-(self.vectores @ v)))
+        return [n for n in orden if n in self.nodos][:tope]
+
+    def restringir(self, campo: str, valor) -> "Indice":
+        """Devuelve una vista de este indice con solo las entradas cuyo `campo` del
+        frontmatter vale `valor`. Comparte el indice lexico, los vectores y el modelo
+        —construirlos de nuevo costaria tanto como el arranque entero—; lo unico propio
+        es el diccionario de entradas visibles, y de ahi cuelga todo lo demas: buscar,
+        leer, los vecinos y el panorama recorren `self.nodos`."""
+        vista = copy.copy(self)
+        vista.nodos = {n: nd for n, nd in self.nodos.items() if nd.meta.get(campo) == valor}
+        return vista
 
     # -- ayudas ---------------------------------------------------------------
 
@@ -359,10 +403,26 @@ class Indice:
 
     def fuente(self, n: Nodo) -> str:
         etiqueta = self.cfg.polos.get(n.polo, n.polo)
+        partes = [n.nombre, etiqueta]
         if n.modificado:
-            fecha = datetime.date.fromtimestamp(n.modificado).isoformat()
-            return f"{n.nombre} · {etiqueta} · actualizada {fecha}"
-        return f"{n.nombre} · {etiqueta}"
+            partes.append(f"actualizada {datetime.date.fromtimestamp(n.modificado).isoformat()}")
+        # Frescura declarada al lector en cada resultado. Comparacion de fechas pura
+        # (calendario por tipo, kb/mcp.yaml `retencion`); el juicio de si la entrada
+        # sigue siendo verdad pertenece a la calibracion, no al servidor.
+        plazo = self.cfg.retencion.get(str(n.meta.get("tipo")))
+        if plazo:
+            sello = n.meta.get("verificado")
+            try:
+                fecha_sello = (sello if isinstance(sello, datetime.date)
+                               else datetime.date.fromisoformat(str(sello)))
+            except (TypeError, ValueError):
+                fecha_sello = None
+            if fecha_sello is None:
+                partes.append("sin fecha de verificación — tratar como no confirmada")
+            elif (datetime.date.today() - fecha_sello).days > plazo:
+                partes.append(f"re-verificación VENCIDA (sellada {fecha_sello.isoformat()}) "
+                              "— tratar como no confirmada")
+        return " · ".join(partes)
 
     def recientes(self, polo: str | None = None, tope: int = 12) -> list[str]:
         """Entradas ordenadas por ultima modificacion (git), de nueva a vieja. Se
@@ -451,9 +511,16 @@ def con_dominio(cabecera: str):
     return decorar
 
 
-def crear_servidor(idx: Indice) -> FastMCP:
-    """Un servidor MCP por KB. Las tres herramientas se cierran sobre su indice."""
+def crear_servidor(idx: Indice, herramientas: list[str] | None = None) -> FastMCP:
+    """Un servidor MCP por KB. Las tres herramientas se cierran sobre su indice.
+
+    `herramientas` acota cuales se registran (None = todas). Se usa para servir la
+    misma KB en mas de un nivel de acceso: cada nivel recibe su propio indice —ya
+    acotado por Indice.restringir()— y su propia lista. Una herramienta que no se
+    registra no existe para ese cliente: no aparece en el listado ni se puede invocar,
+    que es mas fuerte que comprobar un permiso al ejecutarla."""
     cfg = idx.cfg
+    permitida = (lambda n: True) if herramientas is None else (lambda n: n in herramientas)
     def alias_visible(directorio: str) -> str:
         """El alias con que se nombra un polo al agente: el declarado en mcp.yaml si
         lo hay, si no el nombre de la carpeta. (Un polo tiene siempre al menos dos
@@ -505,7 +572,13 @@ def crear_servidor(idx: Indice) -> FastMCP:
         "cuando la respuesta vaya a sostener una decisión."
     ))
 
-    @mcp.tool()
+    def registrar(fn):
+        """Registra la herramienta solo si este nivel la incluye. Si no, la funcion
+        queda definida pero nunca se declara al cliente: no aparece en el listado ni
+        se puede invocar."""
+        return mcp.tool()(fn) if permitida(fn.__name__) else fn
+
+    @registrar
     @con_dominio(dominio)
     def consultar(pregunta: str, ambito: str | None = None,
                   orden: str = "relevancia", limite: int = 6,
@@ -571,9 +644,11 @@ def crear_servidor(idx: Indice) -> FastMCP:
             filtros.append("AND polo = ?")
             args.append(polo)
         try:
+            # El indice lexico es compartido entre niveles (se construye una vez), asi
+            # que se filtra por las entradas visibles de ESTE nivel.
             lexico = [f[0] for f in idx.db.execute(
                 f"SELECT nombre FROM docs WHERE docs MATCH ? {' '.join(filtros)} "
-                f"ORDER BY rank LIMIT {tope_lex}", args).fetchall()]
+                f"ORDER BY rank LIMIT {tope_lex}", args).fetchall() if f[0] in idx.nodos]
         except sqlite3.OperationalError as e:
             return f"No pude interpretar esa consulta ({e}). Prueba con palabras sueltas."
 
@@ -668,7 +743,7 @@ def crear_servidor(idx: Indice) -> FastMCP:
         partes.append("Usa leer(tema) para el texto completo de cualquiera de estas.")
         return "\n".join(partes)
 
-    @mcp.tool()
+    @registrar
     @con_dominio(dominio)
     def leer(tema: str) -> str:
         """Devuelve el texto íntegro y verbatim de una entrada, por su nombre.
@@ -718,7 +793,7 @@ def crear_servidor(idx: Indice) -> FastMCP:
                        "— pídelas por su nombre si quieres alguna.*"]
         return "\n".join(salida)
 
-    @mcp.tool()
+    @registrar
     @con_dominio(dominio)
     def panorama(tema: str | None = None) -> str:
         """Da una vista de conjunto: el inventario de la base, o el mapa de un tema.
@@ -847,14 +922,32 @@ def main() -> None:
     # siempre hay que nombrar la KB. Esto deja lista una futura autorizacion por-KB:
     # cada ruta es un recurso distinto que un token podra habilitar o no.
     servidores, rutas_http = [], []
-    for idx in indices:
-        mcp = crear_servidor(idx)
+
+    def montar(idx: Indice, ruta: str, herramientas: list[str] | None = None) -> FastMCP:
+        mcp = crear_servidor(idx, herramientas)
         mcp.settings.stateless_http = True  # el RC 2026-07-28 elimina las sesiones
         if seguridad:
             mcp.settings.transport_security = seguridad
-        app = mcp.streamable_http_app()      # crea el session_manager
-        servidores.append(mcp)
-        rutas_http.append(Mount(f"/{idx.cfg.slug}", app=app))
+        rutas_http.append(Mount(ruta, app=mcp.streamable_http_app()))  # crea el session_manager
+        return mcp
+
+    for idx in indices:
+        # Ruta de siempre: la KB entera. Una KB que no declara niveles termina aca y
+        # se comporta exactamente igual que antes de que los niveles existieran.
+        servidores.append(montar(idx, f"/{idx.cfg.slug}"))
+
+        # Un montaje mas por cada nivel declarado, con su propio indice acotado y su
+        # propia lista de herramientas. Son procesos de busqueda independientes sobre
+        # los mismos datos: lo que un nivel no incluye, no existe para el.
+        for nombre, cfg_nivel in (idx.cfg.niveles or {}).items():
+            if not isinstance(cfg_nivel, dict) or not cfg_nivel.get("campo"):
+                print(f"[kb-mcp] {idx.cfg.slug}: nivel '{nombre}' sin campo; se omite", flush=True)
+                continue
+            vista = idx.restringir(cfg_nivel["campo"], cfg_nivel.get("valor", True))
+            servidores.append(montar(vista, f"/{idx.cfg.slug}-{nombre}",
+                                     cfg_nivel.get("herramientas")))
+            print(f"[kb-mcp]   nivel '{nombre}': {len(vista.nodos)} entradas, "
+                  f"herramientas={cfg_nivel.get('herramientas') or 'todas'}", flush=True)
 
     async def salud(_):
         return JSONResponse({"kbs": [{"slug": i.cfg.slug, "entradas": len(i.nodos),

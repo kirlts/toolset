@@ -62,7 +62,28 @@ Cuando se modifica un archivo de configuracion:
 
 ---
 
-## Current Session Changes (2026-07-25)
+## Current Session Changes (2026-07-26)
+
+**kb-mcp: niveles de acceso por KB + retiro + frescura (server.py).** Tres capacidades nuevas,
+todas opt-in por KB via su `kb/mcp.yaml` (una KB que no declara nada se sirve EXACTAMENTE igual
+que antes — verificado con `personal`): (1) `niveles`: la misma KB montada mas de una vez, cada
+nivel con un indice acotado por un campo del frontmatter y una lista de herramientas registradas
+(lo no registrado no existe para ese cliente); (2) `retirado: true` en una entrada la saca de
+TODOS los indices (git conserva); (3) `retencion` + `verificado`: el servidor rotula al servir
+las entradas vencidas o sin sello ("tratar como no confirmada") — comparacion de fechas pura.
+Hoy solo `okos` declara nivel (`publicado`) y calendario. Copias espejo sincronizadas
+(kb-template, ~/kb-mcp). Validado en local contra las 3 KB antes de subir: 20/20 casos de uso de
+dos puntos de vista, 0 fugas entre niveles.
+
+**Caddy: direcciones-capacidad para okos (UD-004/D5 de kb-okos).** `/kb/okos/*` y
+`/kb/okos-publicado/*` responden 404 hacia afuera; el acceso es via
+`/kb/{$KB_TOKEN_COMPLETO}/okos/mcp` (total) y `/kb/{$KB_TOKEN_PUBLICADO}/okos-publicado/mcp`
+(solo nivel publicado — el matcher incluye el slug para que este secreto NO alcance la vista
+completa). 404 y no 401 a proposito: un 401 dispara el descubrimiento OAuth contra
+`/.well-known/*` (que responde 404) y el cliente MCP falla confuso. Secretos en el `.env` del
+VPS via passthrough del compose (`KB_TOKEN_COMPLETO`, `KB_TOKEN_PUBLICADO`), jamas en git; sin
+valor la ruta falla CERRADA (validado con env vacios). `personal` y `traza-ambiental` siguen
+abiertas sin cambio (decision del usuario pendiente).
 
 **kb-mcp: tercera KB publicada — `okos`.** Una línea nueva en el bloque `KB_MANIFIESTO` de
 `infrastructure/deploy.sh`: `okos master https://github.com/kirlts/kb-okos.git` (repo privado;
