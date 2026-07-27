@@ -102,17 +102,22 @@
     # calzar y la ruta muere: falla CERRADO (la KB inalcanzable, jamas abierta).
     #
     # Acceso total: /kb/<KB_TOKEN_COMPLETO>/okos/mcp — todos los niveles del backend
-    # quedan bajo este secreto (tambien /okos-publicado, util para probar la vista).
+    # quedan bajo este secreto (incl. /okos-publicado/mcp, para que Martin pueda
+    # probar la vista restringida con su propio secreto).
     handle /kb/{$KB_TOKEN_COMPLETO}/* {
         uri strip_prefix /kb/{$KB_TOKEN_COMPLETO}
         reverse_proxy kb-mcp:8765 {
             flush_interval -1
         }
     }
-    # Acceso al nivel publicado SOLAMENTE: /kb/<KB_TOKEN_PUBLICADO>/okos-publicado/mcp.
-    # El matcher incluye el slug para que este secreto NO alcance la vista completa.
-    handle /kb/{$KB_TOKEN_PUBLICADO}/okos-publicado/* {
-        uri strip_prefix /kb/{$KB_TOKEN_PUBLICADO}
+    # Acceso del fundador — MISMA forma visible que el acceso total: /kb/<secreto>/okos/mcp.
+    # El nivel restringido ("publicado") NUNCA debe aparecer en nada que el fundador vea o
+    # escriba: revelaria que existe una vista con mas acceso (UD-006, la misma regla de no
+    # revelar la jerarquia, aplicada aqui a la URL en vez de al contenido). El secreto por
+    # si solo decide el destino: cualquier sufijo que el cliente escriba (o ninguno) se
+    # reescribe siempre al mismo backend restringido, sin exponer su nombre interno.
+    handle /kb/{$KB_TOKEN_PUBLICADO}/* {
+        rewrite * /okos-publicado/mcp
         reverse_proxy kb-mcp:8765 {
             flush_interval -1
         }
