@@ -1,5 +1,8 @@
 name: Health Check
 
+permissions:
+  issues: write
+
 on:
   schedule:
     - cron: '*/5 * * * *'
