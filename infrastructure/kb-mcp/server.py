@@ -28,7 +28,7 @@ import re
 import sqlite3
 import subprocess
 import unicodedata
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 import yaml
@@ -50,6 +50,20 @@ except ImportError:  # sin capa semantica queda solo la lexica, no se cae
 
 MODELO = os.environ.get("KB_MODELO", "minishlab/potion-multilingual-128M")
 
+# Palabras vacias del castellano. Sin esta lista, una consulta ajena al dominio calzaba por
+# piezas gramaticales: "receta de pan de masa madre" traia entradas porque "mas" aparece en
+# "más" (el indice normaliza tildes), y "cual es la capital de Francia" por el "cual" de
+# "la condicion bajo la cual". El filtro por frecuencia no las atrapa: son comunes en la
+# lengua, no en el corpus. Se listan en su forma sin tildes, que es como se normalizan.
+VACIAS = frozenset("""
+a al algo alguna algunas alguno algunos ante antes aqui asi aun aunque cada como con contra
+cual cuales cuando de del desde donde dos e el ella ellas ellos en entre era eran es esa esas
+ese eso esos esta estan estas este esto estos ha han hasta hay la las le les lo los mas me
+mi mientras mis mucha muchas mucho muchos muy nada ni no nos nuestra nuestro o os otra otras
+otro otros para pero poco por porque que quien quienes se sea segun ser si sin sobre solo son
+su sus tal tambien tan tanto te tiene tienen todo todos tras un una unas uno unos y ya
+""".split())
+
 # --- parseo ------------------------------------------------------------------
 
 FRONTMATTER = re.compile(r"^---\n(.*?)\n---\n?", re.S)
@@ -59,6 +73,13 @@ OPERADORES = re.compile(r'["*:()]|\b(AND|OR|NOT|NEAR)\b')
 # Marcadores de intencion enumerativa: la respuesta es un indice, no un nodo suelto.
 LISTADO = re.compile(r"\b(lista|listar|listado|cuales|cuáles|todos|todas|enumera|"
                      r"que proyectos|qué proyectos|que hay|qué hay|inventario)\b")
+
+# Pregunta definicional: "que es X", "quienes son", "de que trata". Es justo cuando el nodo
+# panoramico —el mas conectado— ES la respuesta correcta, asi que se le levanta la penalizacion
+# de hub. Sin esto, preguntar "que es esta plataforma" no devolvia la entrada de la plataforma.
+DEFINICIONAL = re.compile(r"\b(que es|qué es|que son|qué son|quien es|quién es|quienes son|"
+                          r"quiénes son|de que trata|de qué trata|en que consiste|"
+                          r"en qué consiste)\b")
 
 CAMPOS_GRAFO = ("depende_de", "se_descompone_en", "se_relaciona_con")
 NO_POLO = {"assets", ".obsidian", ".trash"}
@@ -215,6 +236,64 @@ def fechas_git(raiz: Path, base: Path) -> dict[str, tuple[int, int]]:
     return fechas
 
 
+SUB_H = re.compile(r"^(##|###)\s+(.+?)\s*$", re.M)
+FICHA = re.compile(r"^-\s+\*\*([^:*]+):\*\*\s*(.+?)\s*$", re.M)
+
+
+def _coercer(v):
+    """Lleva el valor de una ficha al mismo terreno que el que declara el nivel. El
+    frontmatter escribe booleanos y la ficha escribe palabras; sin esto «no» nunca seria
+    distinto de `True` y el recorte no haria nada."""
+    t = str(v).strip().lower().rstrip(".")
+    if t in ("si", "s\u00ed", "yes", "true", "1"):
+        return True
+    if t in ("no", "false", "0"):
+        return False
+    return t
+
+
+def recortar_subentradas(cuerpo: str, campo: str, valor) -> str:
+    """Quita las sub-entradas cuya ficha declara `campo` con un valor distinto de `valor`.
+
+    Una entrada agrupa un sujeto entero, asi que puede mezclar contenido de distinta
+    visibilidad. El nivel restringido decide por ARCHIVO; cada sub-entrada puede declarar
+    la suya. Sin este recorte ese campo es decorativo: se escribe «no» y el contenido
+    llega igual — que es exactamente lo que se midio el 2026-07-27, con un hallazgo
+    interno servido entero al nivel de direccion.
+
+    Quien NO declara el campo se queda: hereda la visibilidad de su entrada. Eso es lo
+    que hace el recorte compatible con todo lo escrito antes de que el campo existiera.
+
+    Caen tambien los titulos de seccion que quedan sin nada debajo: una seccion vacia
+    delata por su solo nombre que ahi habia algo que no se muestra.
+    """
+    cabeceras = list(SUB_H.finditer(cuerpo))
+    if not cabeceras:
+        return cuerpo
+    fuera: list[tuple[int, int]] = []
+    for i, m in enumerate(cabeceras):
+        if m.group(1) != "###":
+            continue
+        fin = cabeceras[i + 1].start() if i + 1 < len(cabeceras) else len(cuerpo)
+        campos = {k.strip().lower(): v for k, v in FICHA.findall(cuerpo[m.start():fin])}
+        declarado = campos.get(campo.strip().lower())
+        if declarado is not None and _coercer(declarado) != _coercer(valor):
+            fuera.append((m.start(), fin))
+    for ini, fin in reversed(fuera):
+        cuerpo = cuerpo[:ini] + cuerpo[fin:]
+    while True:
+        cabeceras = list(SUB_H.finditer(cuerpo))
+        vacia = next((m for i, m in enumerate(cabeceras)
+                      if m.group(1) == "##"
+                      and not cuerpo[m.end():(cabeceras[i + 1].start()
+                                              if i + 1 < len(cabeceras)
+                                              else len(cuerpo))].strip()), None)
+        if vacia is None:
+            return cuerpo.rstrip() + "\n"
+        sig = next((c.start() for c in cabeceras if c.start() > vacia.start()), len(cuerpo))
+        cuerpo = cuerpo[:vacia.start()] + cuerpo[sig:]
+
+
 class Indice:
     def __init__(self, ruta: Path, modelo=None):
         self.raiz = ruta.expanduser().resolve()
@@ -307,7 +386,7 @@ class Indice:
     def expandir(self, consulta: str) -> str:
         if OPERADORES.search(consulta):
             return consulta
-        terminos = PALABRA.findall(consulta)
+        terminos = [t for t in PALABRA.findall(consulta) if normalizar(t) not in VACIAS]
         utiles = [t for t in terminos if self.frecuencia.get(raiz(t), 0.0) <= 0.5] or terminos
         grupos = []
         for termino in utiles:
@@ -359,6 +438,17 @@ class Indice:
         orden = (self.orden[i] for i in np.argsort(-(self.vectores @ v)))
         return [n for n in orden if n in self.nodos][:tope]
 
+    def cercania_maxima(self, consulta: str) -> float | None:
+        """Similitud del vecino semantico mas cercano, en [0,1]. Es la senal de si la
+        consulta cae siquiera cerca del dominio de la base; la usa el piso de pertinencia."""
+        if self.modelo is None or self.vectores is None or not self.nodos:
+            return None
+        v = self.modelo.encode([consulta]).astype("float32")[0]
+        v = v / max(float(np.linalg.norm(v)), 1e-9)
+        sims = self.vectores @ v
+        visibles = [i for i, n in enumerate(self.orden) if n in self.nodos]
+        return float(max(sims[i] for i in visibles)) if visibles else None
+
     def restringir(self, campo: str, valor) -> "Indice":
         """Devuelve una vista de este indice con solo las entradas cuyo `campo` del
         frontmatter vale `valor`. Comparte el indice lexico, los vectores y el modelo
@@ -366,7 +456,27 @@ class Indice:
         es el diccionario de entradas visibles, y de ahi cuelga todo lo demas: buscar,
         leer, los vecinos y el panorama recorren `self.nodos`."""
         vista = copy.copy(self)
-        vista.nodos = {n: nd for n, nd in self.nodos.items() if nd.meta.get(campo) == valor}
+        visibles = {n: nd for n, nd in self.nodos.items() if nd.meta.get(campo) == valor}
+        # Y dentro de cada entrada visible, se recorta lo que declare otra visibilidad.
+        # Se hace ACA, sobre el cuerpo, y no al servir el extracto: asi ninguna funcion
+        # que lea `cuerpo` mas adelante puede olvidarse del recorte. `menciona` se
+        # recalcula sobre el texto recortado — si no, el nombre de una entrada interna
+        # citada solo dentro de lo recortado seguiria saliendo en «Conecta con».
+        vista.nodos = {}
+        for n, nd in visibles.items():
+            recortado = recortar_subentradas(nd.cuerpo, campo, valor)
+            vista.nodos[n] = nd if recortado == nd.cuerpo else replace(
+                nd, cuerpo=recortado,
+                menciona=sorted({x.strip() for x in WIKILINK.findall(recortado)}))
+        # Indice lexico propio: el compartido se construyo con los cuerpos SIN recortar, y
+        # el extracto usa su fragmento como localizador. Cuando ese fragmento ya no existe
+        # en el cuerpo recortado, `extracto` devolvia el fragmento crudo — texto recortado
+        # servido tal cual. Es la fuga que se midio el 2026-07-27, y no se cierra recortando
+        # solo el cuerpo: hay que recortar tambien lo que el buscador puede encontrar.
+        # Los vectores siguen compartidos a proposito: reencodear cuesta el arranque entero
+        # y solo influyen en el ORDEN, nunca en el texto que se entrega.
+        vista.db = sqlite3.connect(":memory:", check_same_thread=False)
+        vista._fts()
         return vista
 
     # -- ayudas ---------------------------------------------------------------
@@ -442,19 +552,20 @@ class Indice:
         #  definicion. El Inventario se ofrece en panorama(), que es la via explicita.)
         try:
             fila = self.db.execute(
-                "SELECT snippet(docs, 1, '', '', ' … ', 52) FROM docs "
+                "SELECT snippet(docs, 1, '', '', ' … ', 64) FROM docs "
                 "WHERE docs MATCH ? AND nombre = ? LIMIT 1",
                 (consulta_fts, nombre),
             ).fetchone()
             if fila and fila[0]:
                 pasaje = fila[0].strip()
-                if not extendido:
-                    return pasaje
-                # Modo extendido: FTS5 acota snippet() a 64 tokens, insuficiente
-                # para la ventana pedida. El snippet actua como localizador y la
-                # ventana (~1400 caracteres) se recorta del cuerpo alrededor de la
-                # coincidencia. Si el fragmento no se reencuentra verbatim (caso
-                # raro: separador multi-fragmento), se degrada al snippet normal.
+                # El snippet crudo de FTS5 tope 64 tokens (su maximo) se queda corto: la
+                # entrada correcta salia primera y la respuesta igual no servia porque el
+                # extracto cortaba ANTES del dato —el numero, la remediacion, el pedido
+                # concreto—, que en un nodo-sujeto suele vivir en una sub-entrada mas abajo.
+                # Medido en dos evaluaciones seguidas: pasaba en 4 de 8 preguntas. Por eso el
+                # snippet se usa como LOCALIZADOR y la ventana se recorta del cuerpo a su
+                # alrededor, tambien en el modo por defecto; extendido solo agranda la ventana.
+                ancho = 1400 if extendido else 900
                 cuerpo = self.nodos[nombre].cuerpo
                 fragmento = pasaje.split(" … ")[0]
                 # snippet() antepone/pospone la elipsis cuando recorta bordes;
@@ -462,16 +573,21 @@ class Indice:
                 fragmento = fragmento.removeprefix("… ").removesuffix(" …")
                 pos = cuerpo.find(fragmento)
                 if pos < 0:
-                    return pasaje
-                ini = max(0, pos + len(fragmento) // 2 - 700)
-                ventana = " ".join(cuerpo[ini:ini + 1400].split())
+                    # El fragmento no esta en este cuerpo: o el indice quedo desfasado, o
+                    # apunta a algo que este nivel no puede ver. En ningun caso se devuelve
+                    # el fragmento del indice — solo se muestra el cuerpo que SI corresponde.
+                    cuerpo = " ".join(cuerpo.split())
+                    tope = 1400 if extendido else 900
+                    return (cuerpo[:tope] + " …") if len(cuerpo) > tope else cuerpo
+                ini = max(0, pos + len(fragmento) // 2 - ancho // 2)
+                ventana = " ".join(cuerpo[ini:ini + ancho].split())
                 pre = "… " if ini > 0 else ""
-                post = " …" if ini + 1400 < len(cuerpo) else ""
+                post = " …" if ini + ancho < len(cuerpo) else ""
                 return f"{pre}{ventana}{post}"
         except sqlite3.OperationalError:
             pass
         cuerpo = " ".join(self.nodos[nombre].cuerpo.split())
-        tope = 1400 if extendido else 440
+        tope = 1400 if extendido else 900
         return (cuerpo[:tope] + " …") if len(cuerpo) > tope else cuerpo
 
 
@@ -677,8 +793,40 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None) -> FastMC
             key=lambda nom: -len(raices_preg & {raiz(p) for p in PALABRA.findall(nom)}))
         por_nombre = subcadena + por_palabras
 
-        # Fusion reciproca ponderada: el nombre manda, la semantica entiende la
-        # intencion, la lexica corrige cuando importa la palabra exacta.
+        # Piso de pertinencia. La capa semantica SIEMPRE devuelve los vecinos mas cercanos,
+        # por lejos que esten: sin este corte la base contesta con aplomo "receta de pan de
+        # masa madre" y quien pregunta —cada vez mas seguido, otra IA— no tiene como saber
+        # que no habia nada. Se descarta solo si se cumplen las TRES condiciones: ninguna
+        # coincidencia literal, ningun nombre de entrada parecido, y similitud por debajo del
+        # piso. Un corte por similitud a secas no servia: medida sobre dos bases reales, la
+        # franja de lo pertinente en una se solapa con la de lo ajeno en la otra. Exigir
+        # ademas cero senal lexica y de nombre deja pasar toda pregunta con vocabulario del
+        # dominio, que es el caso normal.
+        if not lexico and not por_nombre and idx.vectores is not None:
+            cercania = idx.cercania_maxima(pregunta)
+            # 0.15 es deliberadamente bajo. Medido sobre dos bases reales, la franja de lo
+            # pertinente empieza cerca de 0.26 y la de lo ajeno llega hasta 0.25: no hay corte
+            # limpio. Ante esa superposicion se prefiere el falso positivo —devolver algo
+            # flojo, que quien pregunta puede descartar— sobre el falso negativo: negar una
+            # pregunta legitima es el error caro. Con 0.30 la base llegaba a rechazar "que
+            # problemas de seguridad hay". Asi solo se corta lo inequivocamente ajeno; lo del
+            # dominio vecino (otra herramienta de software) igual pasa, y esa es una
+            # limitacion conocida que se atrapa en la capa de juicio, no aqui.
+            if cercania is not None and cercania < 0.15:
+                return (f"No encontré nada sobre «{pregunta}» en esta base. "
+                        "Es una respuesta informativa: esta base no cubre ese tema.")
+
+        # NOTA (2026-07-27) — se probó y se descartó un aviso de "respuesta solo por parecido":
+        # marcar la respuesta cuando ninguna entrada menciona literalmente lo preguntado, para
+        # que un nivel restringido no devuelva relleno indistinguible de una respuesta real.
+        # Ninguna variante alcanzó una señal confiable (la mejor acertó 6 de 11 casos): el
+        # nombre de quien mantiene la base aparece en casi todas sus entradas y basta para
+        # anclar cualquier consulta, y acotar el anclaje a términos raros arrastró falsos
+        # avisos sobre preguntas legítimas. Tampoco sirve un corte por similitud: medido sobre
+        # casos reales, una pregunta CON respuesta puntuó 0,194 y una SIN respuesta 0,217.
+        # Sin un reranker —descartado por la regla de no meter un modelo en el camino de
+        # servir— no hay escala de relevancia calibrada. Queda como limitación conocida: la
+        # detecta la capa de juicio de la evaluación, no el servidor.
         puntaje: dict[str, float] = {}
         for ranking, peso in ((por_nombre[:5], 1.6), (semantico, 1.0), (lexico, 0.6)):
             for pos, nom in enumerate(ranking):
@@ -689,10 +837,21 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None) -> FastMC
         # preguntar "empresa del fundador" trae SAUCO porque es vecina de "Mercado del NFU",
         # aunque su texto no diga "fundador". Se excluyen los hubs (muchos vecinos) para no
         # arrastrar nodos-indice genericos, y el aporte es pequeño: reordena, no manda.
+        # El umbral de hub es PROPORCIONAL al corpus. Fijo en 25 estaba calibrado para una
+        # base de ~176 entradas; en una de 16 ningun nodo lo alcanza, asi que su indice
+        # principal difundia hacia todo y ganaba cualquier consulta puntual. La cota
+        # superior de 25 deja intactas las bases grandes (130 y 176 entradas dan 25 igual).
+        # Un hub se define por la FRACCION del corpus con que conecta, no por un conteo suelto:
+        # con 20% (len//5) una entrada de contenido bien enlazada cruzaba el umbral apenas la
+        # base crecia y se hundia sola —paso de verdad: al llegar a 7 vecinos sobre 19 entradas,
+        # el nodo de pedidos abiertos quedaba penalizado y desaparecia de las consultas que mas
+        # importaban—. Un hub real conecta con cerca de la mitad de todo. La cota de 25 deja
+        # intactas las bases grandes (130 y 176 entradas dan 25 igual).
+        umbral_hub = max(6, min(25, int(len(idx.nodos) * 0.45)))
         cabeza = sorted(puntaje, key=lambda x: -puntaje[x])[:8]
         for nom in cabeza:
             vecinos = idx.relacionados(nom)
-            if len(vecinos) > 25:  # hub: conecta con casi todo, su vecindad no informa
+            if len(vecinos) > umbral_hub:  # hub: conecta con casi todo, su vecindad no informa
                 continue
             for v in vecinos:
                 if not polo or idx.nodos[v].polo == polo:
@@ -710,6 +869,31 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None) -> FastMC
             for nom, sc in list(puntaje.items()):
                 if idx.nodos[nom].es_indice:
                     puntaje[nom] = sc * 1.9
+                elif len(idx.relacionados(nom)) > umbral_hub:
+                    # Una entrada que conecta con casi todo NO es un indice: no enumera nada,
+                    # solo nombra de paso a cada subsistema. Sin esta mitad, una pregunta de
+                    # listado la dejaba con su puntaje intacto mientras el resto competia, y
+                    # ganaba —"cuales son los accesos que faltan" devolvia el mapa de la
+                    # plataforma antes que la entrada de los accesos, medido el 2026-07-27—.
+                    # Es el mismo castigo que la rama de al lado, que hasta ahora no cubria
+                    # las preguntas de listado.
+                    puntaje[nom] = sc * 0.55
+        else:
+            # Mitad simetrica del boost anterior. Un nodo que conecta con casi todo el corpus
+            # habla de todo, asi que su vector queda cerca de CUALQUIER consulta y su texto
+            # comparte vocabulario con todas: sin esto gana hasta preguntas que no son de la
+            # base. Se atenua, no se excluye —sigue siendo la respuesta correcta cuando de
+            # verdad se pregunta por el conjunto—, y solo cuando la pregunta es puntual.
+            # Se probo eximir de la penalizacion a los que calzaban por nombre o por
+            # coincidencia literal —la bitacora pierde "que paso el primer dia del onboarding",
+            # que es lo unico que ella responde— y fue peor: no arreglo ese caso y degrado
+            # otros cinco. La red de regresion lo atrapo. Queda como esta: la penalizacion es
+            # burda pero su efecto neto es positivo, y el ajuste fino del ranking sin una
+            # escala de relevancia calibrada es prueba y error con resultado impredecible.
+            if not DEFINICIONAL.search(normalizar(pregunta)):
+                for nom, sc in list(puntaje.items()):
+                    if len(idx.relacionados(nom)) > umbral_hub:
+                        puntaje[nom] = sc * 0.55
 
         if reciente:
             # Dos partes. (a) Sembrar el pozo con lo MAS NUEVO del corpus aunque no sea
@@ -727,6 +911,16 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None) -> FastMC
                 mod = idx.nodos[nom].modificado
                 if mod:
                     puntaje[nom] *= 1 + 5.0 * math.exp(-(ahora - mod) / HALF_LIFE)
+        # Pedir algo por su nombre EXACTO lo devuelve primero, sin excepcion. Sin esta regla,
+        # dos entradas cuyos titulos se contienen entre si se tapaban mutuamente: preguntar
+        # "Pruebas automaticas" devolvia "Conectar las pruebas automaticas a la publicacion",
+        # porque la mas larga contiene la frase y gana por la capa lexica. Es un choque que se
+        # repite cada vez que un plan se llama parecido al subsistema que responde, o sea,
+        # siempre — y se vuelve mas frecuente cuanto mas crece la base.
+        exacto = next((nom for nom in puntaje if normalizar(nom) == objetivo), None)
+        if exacto and puntaje:
+            puntaje[exacto] = max(puntaje.values()) * 1.5
+
         ganadores = sorted(puntaje, key=lambda x: -puntaje[x])[:n]
 
         if not ganadores:
