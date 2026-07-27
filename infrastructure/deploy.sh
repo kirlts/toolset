@@ -771,14 +771,22 @@ okos master https://github.com/kirlts/kb-okos.git"
          echo '  ${slug} clonada' || { rm -rf \"\$S\"; echo '  ${slug} clone fallo (no bloqueante)'; }; \
        else echo '  ${slug} ya clonada'; fi" 2>/dev/null || true
   done
+  # El cron escribe a un log, NO a /dev/null. Con /dev/null, un sync que falla —el caso
+  # real: credenciales de git ausentes, el fetch aborta— deja la KB congelada en la version
+  # del dia del clon y nada lo dice: el servicio responde sano, con contenido viejo. La linea
+  # se reescribe si quedo apuntando a /dev/null de un despliegue anterior.
   echo "[DEPLOY] Ensuring kb-sync cron entry..."
   ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     "${SSH_HOST}" \
-    "if crontab -l 2>/dev/null | grep -q 'sync-kb.sh'; then \
+    "LINEA='*/15 * * * * bash /home/opc/.hermes/scripts/sync-kb.sh >> /var/log/kb-sync.log 2>&1'; \
+     sudo touch /var/log/kb-sync.log && sudo chown opc:opc /var/log/kb-sync.log; \
+     printf '/var/log/kb-sync.log {\\n  weekly\\n  rotate 4\\n  compress\\n  missingok\\n  notifempty\\n}\\n' \
+       | sudo tee /etc/logrotate.d/kb-sync > /dev/null; \
+     if crontab -l 2>/dev/null | grep -qF \"\$LINEA\"; then \
        echo '  cron already set'; \
      else \
-       (crontab -l 2>/dev/null; echo '*/15 * * * * bash /home/opc/.hermes/scripts/sync-kb.sh > /dev/null 2>&1') | crontab -; \
-       echo '  cron added (every 15 min)'; \
+       (crontab -l 2>/dev/null | grep -v 'sync-kb.sh'; echo \"\$LINEA\") | crontab -; \
+       echo '  cron set (every 15 min, logging to /var/log/kb-sync.log)'; \
      fi" 2>/dev/null || true
 fi
 
