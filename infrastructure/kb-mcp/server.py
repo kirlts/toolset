@@ -92,6 +92,12 @@ def normalizar(palabra: str) -> str:
 
 def raiz(palabra: str) -> str:
     base = normalizar(palabra)
+    # Se probo colapsar los diptongos (ue→o, ie→e) para reunificar prueba/probar — y empeoro
+    # el caso que queria arreglar: «qué tan probada está la plataforma» paso a calzar con TODO
+    # lo que dice "pruebas", y el plan «Conectar las pruebas…» le gano a la entrada del
+    # subsistema (posicion 3 → 5, medido A/B el 2026-07-27). Misma leccion que la exencion de
+    # hubs que este archivo ya documenta: ajustar el ranking sin una escala de relevancia
+    # calibrada es prueba y error, y la red de regresion es quien decide. No reintentar a ciegas.
     return _STEM(base) if _STEM else base
 
 
@@ -544,6 +550,31 @@ class Indice:
         candidatos.sort(key=lambda n: -n.modificado)
         return [n.nombre for n in candidatos[:tope]]
 
+    def _indice_subentradas(self, nombre: str, ini: int, ancho: int) -> str:
+        """Linea final del extracto: las sub-entradas que la ventana dejo FUERA, cada una
+        con su ficha minima (estado, a quien espera). Existe porque la ventana muestra un
+        solo pedazo de un nodo-sujeto, y quien pregunta por el pedido que espera al Project
+        Manager recibia siempre el pedazo del pedido del fundador — alargar la ventana no
+        lo arreglaba, porque el ancla era la misma (tercera evaluacion, 2026-07-27). Con
+        esta linea, lo que la ventana no muestra al menos queda ENUMERADO con su estado, y
+        el lector sabe que hay mas y que se llama asi. Se construye del cuerpo ya recortado
+        por nivel: lo invisible no aparece ni aca."""
+        cuerpo = self.nodos[nombre].cuerpo
+        fuera = []
+        for m in re.finditer(r"^###\s+(.+?)\s*$", cuerpo, re.M):
+            if ini <= m.start() < ini + ancho:
+                continue
+            fin = cuerpo.find("\n### ", m.end())
+            bloque = cuerpo[m.end():fin if fin > 0 else len(cuerpo)]
+            campos = dict(re.findall(r"^-\s+\*\*([^:*]+):\*\*\s*(.+?)\s*$", bloque, re.M))
+            ficha = campos.get("Estado", "")
+            if espera := campos.get("Espera a"):
+                ficha += f", espera a {espera}"
+            fuera.append(f"«{m.group(1)}»" + (f" ({ficha})" if ficha else ""))
+        if not fuera:
+            return ""
+        return "\n*También en esta entrada:* " + " · ".join(fuera[:8])
+
     def extracto(self, nombre: str, consulta_fts: str, extendido: bool = False) -> str:
         """Pasaje alrededor de la coincidencia; si el acierto vino de la capa
         semantica no hay coincidencia literal, asi que se muestra la apertura."""
@@ -567,27 +598,106 @@ class Indice:
                 # alrededor, tambien en el modo por defecto; extendido solo agranda la ventana.
                 ancho = 1400 if extendido else 900
                 cuerpo = self.nodos[nombre].cuerpo
+                # Si el cuerpo entero cabe en la ventana con un margen razonable, se sirve
+                # entero. Recortar 200 caracteres de una entrada de 1.100 no ahorra nada y
+                # pierde justo la cola — medido el 2026-07-27: dos compromisos de ~1.100
+                # caracteres cortaban en «…ese acceso» y «Queda por confirmar…», dejando
+                # fuera la frase que respondia la pregunta, que en el molde de en-curso
+                # vive al final de la seccion de estado.
+                plano_entero = " ".join(cuerpo.split())
+                if len(plano_entero) <= ancho * 1.4:
+                    return plano_entero
                 fragmento = pasaje.split(" … ")[0]
                 # snippet() antepone/pospone la elipsis cuando recorta bordes;
                 # esos marcadores no existen en el cuerpo y romperian el find.
                 fragmento = fragmento.removeprefix("… ").removesuffix(" …")
                 pos = cuerpo.find(fragmento)
-                if pos < 0:
-                    # El fragmento no esta en este cuerpo: o el indice quedo desfasado, o
-                    # apunta a algo que este nivel no puede ver. En ningun caso se devuelve
-                    # el fragmento del indice — solo se muestra el cuerpo que SI corresponde.
-                    cuerpo = " ".join(cuerpo.split())
-                    tope = 1400 if extendido else 900
-                    return (cuerpo[:tope] + " …") if len(cuerpo) > tope else cuerpo
-                ini = max(0, pos + len(fragmento) // 2 - ancho // 2)
-                ventana = " ".join(cuerpo[ini:ini + ancho].split())
-                pre = "… " if ini > 0 else ""
-                post = " …" if ini + ancho < len(cuerpo) else ""
-                return f"{pre}{ventana}{post}"
+                # El snippet localiza UNA coincidencia, y en un nodo-sujeto con varias
+                # sub-entradas suele ser la equivocada: preguntar por la memoria del motor
+                # centraba la ventana en la sub-entrada de funciones de borde (medido
+                # 2026-07-27, y antes «pasaba en 4 de 8 preguntas» con la ventana crudo).
+                # Se puntua cada coincidencia por que tan RARO es lo que cae en su ventana,
+                # y gana la mas densa. Tres decisiones que costaron una depuracion cada una:
+                # 1) Se cuenta por GRUPO de expansion, no por forma — «mensaje»+«mensajes»
+                #    es un concepto, no dos puntos.
+                # 2) Cada grupo pesa por su rareza EN EL CORPUS (1/(1+df)), no en el nodo:
+                #    pesar por rareza local hacia que cualquier termino unico dominara —
+                #    «motor» aparece una vez en el cuerpo y arrastraba la ventana, pero el
+                #    nodo entero es sobre el motor: no discrimina nada. «memoria» esta en
+                #    dos entradas del corpus: esa es la pregunta. El titulo se excluye del
+                #    barrido por la misma razon — es el sujeto, no una pista.
+                # 3) La ventana arranca poco ANTES de la coincidencia, no centrada: centrar
+                #    gastaba media ventana mirando hacia atras y cortaba la causa que viene
+                #    despues del enunciado (medido: la limpieza fallida quedaba sin su causa).
+                grupos = [{normalizar(f) for f in re.findall(r'"([^"]+)"', g)}
+                          for g in re.split(r'\)\s+OR\s+\(|^\(|\)$',
+                                            consulta_fts.strip()) if g.strip()]
+                grupos = [g for g in grupos if g]
+                sin_titulo = normalizar(cuerpo)
+                fin_titulo = sin_titulo.find("\n")
+                # Si la pregunta es esencialmente el TITULO del nodo, no hay nada que
+                # localizar: quien pregunta por el sujeto entero se lleva la apertura, que
+                # es donde la regla de orden coloca el «por confirmar» y lo abierto. La
+                # densidad aca solo estorba — movia la ventana a la sub-entrada mas cargada
+                # y el limite declarado arriba no llegaba nunca (regresion medida en la
+                # bateria el 2026-07-27).
+                palabras_titulo = {normalizar(w) for w in PALABRA.findall(nombre)}
+                es_el_titulo = grupos and all(g & palabras_titulo for g in grupos)
+                if len(grupos) > 1 and not es_el_titulo:
+                    ocurrencias = []   # (posicion, indice de grupo)
+                    peso = {}
+                    for gi, g in enumerate(grupos):
+                        pps = [m.start() for f in g
+                               for m in re.finditer(re.escape(f), sin_titulo)
+                               if m.start() > fin_titulo][:60]
+                        if not pps:
+                            continue
+                        try:
+                            df = self.db.execute(
+                                "SELECT count(*) FROM docs WHERE docs MATCH ?",
+                                (" OR ".join(f'"{f}"' for f in sorted(g)),)
+                            ).fetchone()[0]
+                        except sqlite3.OperationalError:
+                            df = 1
+                        peso[gi] = 1.0 / (1 + df)
+                        ocurrencias += [(pp, gi) for pp in pps]
+
+                    def score_en(p0):
+                        presentes = {gi for pp, gi in ocurrencias
+                                     if p0 - 120 <= pp < p0 + ancho}
+                        return sum(peso[gi] for gi in presentes)
+
+                    mejor = max((pp for pp, _ in ocurrencias),
+                                key=score_en, default=None)
+                    if mejor is not None and (pos < 0
+                                              or score_en(mejor) > score_en(pos)):
+                        pos, fragmento = mejor, cuerpo[mejor:mejor + 20]
+                if pos >= 0:
+                    ini = max(0, pos - 120)
+                    ventana = " ".join(cuerpo[ini:ini + ancho].split())
+                    pre = "… " if ini > 0 else ""
+                    post = " …" if ini + ancho < len(cuerpo) else ""
+                    return f"{pre}{ventana}{post}{self._indice_subentradas(nombre, ini, ancho)}"
+                # Nada calzo en este cuerpo: o el indice quedo desfasado, o apunta a algo
+                # que este nivel no puede ver. En ningun caso se devuelve el fragmento del
+                # indice — solo se muestra el cuerpo que SI corresponde. El indice de
+                # sub-entradas va TAMBIEN aca: este es justamente el camino que toma un
+                # acierto puramente semantico, donde la ventana es la apertura y todas las
+                # sub-entradas quedan fuera de ella.
+                aplanado = " ".join(cuerpo.split())
+                tope = 1400 if extendido else 900
+                if len(aplanado) <= tope:
+                    return aplanado
+                return aplanado[:tope] + " …" + self._indice_subentradas(nombre, 0, tope)
         except sqlite3.OperationalError:
             pass
+        # Acierto puramente semantico: el snippet lexico no devolvio fila, asi que la
+        # ventana es la apertura del nodo. El indice de sub-entradas importa MAS aca que
+        # en ningun otro camino — todas quedan fuera de la ventana.
         cuerpo = " ".join(self.nodos[nombre].cuerpo.split())
         tope = 1400 if extendido else 900
+        if len(cuerpo) > tope:
+            return cuerpo[:tope] + " …" + self._indice_subentradas(nombre, 0, tope)
         return (cuerpo[:tope] + " …") if len(cuerpo) > tope else cuerpo
 
 
@@ -816,6 +926,44 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None) -> FastMC
                 return (f"No encontré nada sobre «{pregunta}» en esta base. "
                         "Es una respuesta informativa: esta base no cubre ese tema.")
 
+        # AVISO de posible fuera-de-dominio (2026-07-27, tercera evaluación). Tres personas
+        # reales hicieron preguntas legítimas que esta base no cubre —costos, idiomas, borrado
+        # de datos— y recibieron seis resultados de relleno indistinguibles de una respuesta.
+        # El corte duro de arriba no los atrapa (0.15 es solo para lo inequívocamente ajeno) y
+        # suprimir resultados sería el error caro. Esto es distinto: un AVISO encabezando la
+        # respuesta, con los resultados intactos debajo. Señal COMBINADA, medida ese día sobre
+        # 4 preguntas fuera + 8 dentro (0 falsos avisos): algún concepto de la pregunta no
+        # existe en el índice léxico, Y la cercanía semántica queda bajo 0.32 — cada señal por
+        # separado ya se probó antes y no separaba (la nota de abajo documenta ese intento).
+        # El margen es delgado (0.300 fuera vs 0.344 dentro): si aparece un falso aviso, se
+        # recalibra con esa medición, no a ojo.
+        if idx.vectores is not None:
+            # Los grupos se reconstruyen con la MISMA regla que expandir() —termino
+            # informativo → sus formas conocidas— en vez de parsear su texto: el texto
+            # mezcla grupos con parentesis y terminos sueltos con comodin, y parsearlo
+            # se rompia justo en las preguntas que mas importaba atrapar.
+            terminos_inf = [p for p in PALABRA.findall(pregunta)
+                            if normalizar(p) not in VACIAS]
+            sin_calce, grupos_fts = 0, []
+            for termino in terminos_inf:
+                formas = idx.vocabulario.get(raiz(termino), set()) | {normalizar(termino)}
+                consulta_g = " OR ".join(f'"{f}"' for f in sorted(formas))
+                grupos_fts.append(consulta_g)
+                try:
+                    if not idx.db.execute("SELECT 1 FROM docs WHERE docs MATCH ? LIMIT 1",
+                                          (consulta_g,)).fetchone():
+                        sin_calce += 1
+                except sqlite3.OperationalError:
+                    pass
+            if grupos_fts and sin_calce:
+                cercania = idx.cercania_maxima(pregunta)
+                if sin_calce == len(grupos_fts) or (cercania is not None
+                                                    and cercania < 0.32):
+                    aviso += ("⚠ Puede que esta base no cubra lo preguntado: parte "
+                              "de la pregunta no calza con nada de lo escrito. Los "
+                              "resultados de abajo son lo más cercano, no una "
+                              "respuesta confirmada.\n\n")
+
         # NOTA (2026-07-27) — se probó y se descartó un aviso de "respuesta solo por parecido":
         # marcar la respuesta cuando ninguna entrada menciona literalmente lo preguntado, para
         # que un nivel restringido no devuelva relleno indistinguible de una respuesta real.
@@ -865,6 +1013,53 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None) -> FastMC
         # SOLO cuando la pregunta pide enumerar. Un boost general contaminaba las
         # preguntas puntuales: los indices genericos (Inicio, Contexto) subian y
         # desplazaban al nodo concreto que respondia.
+        # La pregunta que nombra un TIPO de compromiso («qué planes hay abiertos», «qué
+        # preguntas siguen sin respuesta») debe favorecer a las entradas de ese tipo. Sin
+        # esto, «planes abiertos» traia una decision y ningun plan: el vocabulario del tipo
+        # vive en el frontmatter, no en la prosa, asi que ninguna capa lo veia. Solo aplica
+        # cuando la palabra aparece; una pregunta comun no toca nada.
+        TIPOS = {"plan": ("plan", "planes"), "pregunta": ("pregunta", "preguntas"),
+                 "requerido": ("pedido", "pedidos", "requerido", "requeridos"),
+                 "decision": ("decision", "decisiones"),
+                 "hallazgo": ("hallazgo", "hallazgos", "problema", "problemas"),
+                 "medicion": ("medicion", "mediciones", "medida", "medidas")}
+        palabras_pregunta = set(PALABRA.findall(normalizar(pregunta)))
+        tipos_pedidos = {tp for tp, formas in TIPOS.items()
+                         if palabras_pregunta & set(formas)}
+        # Preguntar por AVANCES o por lo ya comprobado debe favorecer lo cerrado y lo
+        # verificado por sobre lo abierto. Sin esto, «qué avances hubo ya comprobados»
+        # devolvía 4 pendientes y el único cierre real en la posición 3 (tercera
+        # evaluación, confirmado con tres preguntas distintas): el buscador solo ve texto,
+        # y el estado vive en la ficha. Mismo mecanismo aditivo que el empuje por tipo.
+        AVANCE = {"avance", "avances", "comprobado", "comprobados", "comprobo",
+                  "funcionando", "resuelto", "resueltos", "cerrado", "cerrados",
+                  "logrado", "logrados", "completado", "completados"}
+        palabras_avance = set(PALABRA.findall(normalizar(pregunta)))
+        if palabras_avance & AVANCE and puntaje:
+            tope_av = max(puntaje.values())
+            for nom in list(puntaje):
+                nd = idx.nodos[nom]
+                cerrado = ("**Estado:** resuelto" in nd.cuerpo
+                           or str(nd.meta.get("estado")) == "resuelto"
+                           or (nd.polo != "en-curso"
+                               and "**Estado:** resuelto" in nd.cuerpo))
+                if cerrado:
+                    puntaje[nom] += tope_av * 0.6
+
+        if tipos_pedidos and puntaje:
+            # El empuje es PROPORCIONAL al tope, como el del titulo exacto: un piso fijo
+            # (0.02) no movia nada contra puntajes reales de 0.2 — se probo y los planes
+            # seguian fuera del top-5. Aditivo, no multiplicativo: conserva el orden de
+            # relevancia ENTRE las entradas del tipo, y las sube en bloque por sobre lo
+            # que no es del tipo pedido.
+            tope_sc = max(puntaje.values())
+            for nom in list(puntaje) + [n for n in idx.nodos if n not in puntaje]:
+                nd = idx.nodos[nom]
+                tiene = (str(nd.meta.get("tipo")) in tipos_pedidos
+                         or any(f"**Tipo:** {tp}" in nd.cuerpo for tp in tipos_pedidos))
+                if tiene:
+                    puntaje[nom] = puntaje.get(nom, 0.0) + tope_sc * 0.8
+
         if LISTADO.search(normalizar(pregunta)):
             for nom, sc in list(puntaje.items()):
                 if idx.nodos[nom].es_indice:
