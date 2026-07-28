@@ -81,6 +81,11 @@ DEFINICIONAL = re.compile(r"\b(que es|qué es|que son|qué son|quien es|quién e
                           r"quiénes son|de que trata|de qué trata|en que consiste|"
                           r"en qué consiste)\b")
 
+# Pesos del orden de resultados (opcion B del plan de pertinencia). Los escribe
+# tools/entrenar-ranker.py; embebidos para que viajen con el servidor a cualquier
+# despliegue. Vacio = el reordenamiento no opera y el orden queda como siempre.
+RANKER_PESOS = {"mu": [0.288714, 2.815629, 0.411747, 0.07533, 0.028249, 0.014124, 0.417797, 0.766817], "sigma": [0.110918, 3.916402, 0.297663, 0.224654, 0.165682, 0.118003, 0.254933, 0.092759], "w": [0.033335, 0.432704, -0.364289, 1.517586, -0.506827, -0.352314, 0.456419, 0.544161], "b": -2.087991}
+
 CAMPOS_GRAFO = ("depende_de", "se_descompone_en", "se_relaciona_con")
 NO_POLO = {"assets", ".obsidian", ".trash"}
 
@@ -454,6 +459,57 @@ class Indice:
         sims = self.vectores @ v
         visibles = [i for i, n in enumerate(self.orden) if n in self.nodos]
         return float(max(sims[i] for i in visibles)) if visibles else None
+
+    def rasgos(self, pregunta: str, nombres: list[str]) -> dict[str, list[float]]:
+        """Vector de rasgos por candidato, para el orden con pesos entrenados.
+
+        La MISMA función alimenta el entrenamiento (tools/entrenar-ranker.py) y el
+        servicio: si divergieran, los pesos quedarían calibrados contra rasgos que el
+        servidor no calcula. Todo es determinista y ya estaba pagado en el arranque
+        —vectores, índice léxico, grafo—; nada de esto agrega dependencias.
+        """
+        q_norm = normalizar(pregunta)
+        terminos = [tt for tt in PALABRA.findall(q_norm) if tt not in VACIAS]
+        grupos = [self.vocabulario.get(raiz(tt), set()) | {tt} for tt in terminos]
+        v = None
+        if self.modelo is not None and self.vectores is not None:
+            v = self.modelo.encode([pregunta]).astype("float32")[0]
+            v = v / max(float(np.linalg.norm(v)), 1e-9)
+        # bm25 de una vez para todos los candidatos que calzan
+        bm = {}
+        try:
+            fts = self.expandir(pregunta)
+            for nom, sc in self.db.execute(
+                    "SELECT nombre, bm25(docs) FROM docs WHERE docs MATCH ?", (fts,)):
+                bm[nom] = sc  # más negativo = mejor, convención FTS5
+        except sqlite3.OperationalError:
+            pass
+        peor_bm = max(bm.values()) if bm else 0.0
+        umbral_hub = max(6, min(25, int(len(self.nodos) * 0.45)))
+        fuera: dict[str, list[float]] = {}
+        for nom in nombres:
+            nd = self.nodos[nom]
+            cuerpo_n = normalizar(nd.cuerpo)
+            titulo_n = normalizar(nom)
+            pal_tit = [w for w in PALABRA.findall(titulo_n) if w not in VACIAS]
+            cos = 0.0
+            if v is not None and nom in self.orden:
+                cos = float(self.vectores[self.orden.index(nom)] @ v)
+            cobertura = (sum(1 for g in grupos if any(f in cuerpo_n for f in g))
+                         / len(grupos)) if grupos else 0.0
+            tit_en_preg = (sum(1 for w in pal_tit if w in q_norm) / len(pal_tit)) if pal_tit else 0.0
+            fuera[nom] = [
+                cos,
+                # bm25 reescalado a "más alto = mejor", 0 si no calzó
+                (peor_bm - bm[nom]) if nom in bm else 0.0,
+                cobertura,
+                tit_en_preg,
+                1.0 if (titulo_n in q_norm or q_norm in titulo_n) else 0.0,
+                1.0 if nd.es_indice else 0.0,
+                min(1.0, len(self.relacionados(nom)) / max(umbral_hub, 1)),
+                math.log(1 + len(nd.cuerpo)) / 10.0,
+            ]
+        return fuera
 
     def restringir(self, campo: str, valor) -> "Indice":
         """Devuelve una vista de este indice con solo las entradas cuyo `campo` del
@@ -1120,6 +1176,30 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None) -> FastMC
             puntaje[exacto] = max(puntaje.values()) * 1.5
 
         ganadores = sorted(puntaje, key=lambda x: -puntaje[x])[:n]
+
+        # Orden con pesos entrenados (opcion B del plan de pertinencia). La mezcla a mano
+        # de arriba elige QUIENES entran; esta capa decide EN QUE ORDEN se muestran, con
+        # una formula calibrada sobre etiquetas generadas del propio corpus y evaluada
+        # contra 67 preguntas juzgadas que el entrenamiento nunca ve. Se reordena una
+        # cabeza acotada y el puntaje original queda de desempate — si los pesos estan
+        # vacios, nada cambia.
+        # Los empujes de intencion son CONTRATOS, no sugerencias: «que planes hay» debe
+        # encabezar con planes, un titulo exacto debe ganar, «avances» favorece lo cerrado.
+        # El orden entrenado no compite con eso (medido: sin esta guarda rompia el caso
+        # INT-006 de la bateria). Solo reordena preguntas sin intencion declarada.
+        intencion = bool(tipos_pedidos or (palabras_avance & AVANCE)
+                         or LISTADO.search(normalizar(pregunta)) or exacto)
+        if RANKER_PESOS and puntaje and not intencion:
+            # Se reordena EXACTAMENTE el lote que se iba a servir — la misma distribucion
+            # con que se entreno (candidatos = top-n del orden base). Ampliar la cabeza a
+            # mas candidatos que el lote seria aplicar el modelo fuera de su distribucion.
+            cabeza = list(ganadores)
+            F = idx.rasgos(pregunta, cabeza)
+            _mu, _sg, _w, _b = (RANKER_PESOS[k] for k in ("mu", "sigma", "w", "b"))
+            def _score(nom):
+                return sum(wi * ((f - m) / (s or 1.0)) for f, m, s, wi
+                           in zip(F[nom], _mu, _sg, _w)) + _b
+            ganadores = sorted(cabeza, key=lambda x: (-_score(x), -puntaje[x]))[:n]
 
         # Un problema no viaja solo (regla de escalamiento, servida). Si un ganador trae
         # un hallazgo, su respondedor VIVO —el compromiso de en-curso que lo cita— entra
