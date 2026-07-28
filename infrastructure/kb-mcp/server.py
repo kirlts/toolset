@@ -731,6 +731,30 @@ class Indice:
                     if mejor is not None and (pos < 0
                                               or score_en(mejor) > score_en(pos)):
                         pos, fragmento = mejor, cuerpo[mejor:mejor + 20]
+                    # SEGUNDA VENTANA (2026-07-28, tercer juez que tropieza con esto): en un
+                    # nodo-sujeto grande, una pregunta compuesta —«quién consume X y qué se
+                    # rompe si Y»— calza fuerte en DOS sub-entradas alejadas, y una sola
+                    # ventana entrega media respuesta por bien elegida que este. Si existe
+                    # otra zona con la mitad o mas del puntaje de la mejor y FUERA de su
+                    # alcance, se sirven dos ventanas mas cortas en vez de una larga: misma
+                    # longitud total, respuesta completa.
+                    segunda = None
+                    if pos >= 0 and ocurrencias:
+                        lejos = [pp for pp, _ in ocurrencias
+                                 if abs(pp - pos) > ancho]
+                        if lejos:
+                            cand2 = max(lejos, key=score_en)
+                            if score_en(cand2) >= score_en(pos) * 0.5:
+                                segunda = cand2
+                    if segunda is not None:
+                        w = int(ancho * 0.55)
+                        a, b = sorted((pos, segunda))
+                        v1 = " ".join(cuerpo[max(0, a - 80):max(0, a - 80) + w].split())
+                        v2 = " ".join(cuerpo[max(0, b - 80):max(0, b - 80) + w].split())
+                        pre = "… " if a > 80 else ""
+                        post = " …" if b - 80 + w < len(cuerpo) else ""
+                        return (f"{pre}{v1} […] {v2}{post}"
+                                f"{self._indice_subentradas(nombre, a - 80, (b - a) + w)}")
                 if pos >= 0:
                     ini = max(0, pos - 120)
                     ventana = " ".join(cuerpo[ini:ini + ancho].split())
