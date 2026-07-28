@@ -1129,16 +1129,19 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None) -> FastMC
         # de nombre. Reemplaza al ultimo ganador (no agranda el lote) y a lo mas uno por
         # respuesta — es un rescate, no un canal paralelo de ranking. La cita es curada
         # (`menciona` del respondedor), asi que no depende de ningun umbral.
-        con_hallazgo = [g for g in ganadores if "**Tipo:** hallazgo" in idx.nodos[g].cuerpo]
-        if con_hallazgo and len(ganadores) > 1:
-            for g in con_hallazgo:
-                vivos = [nom for nom, nd in idx.nodos.items()
-                         if nd.polo == "en-curso" and g in nd.menciona
-                         and str(nd.meta.get("estado")) != "resuelto"]
-                if vivos and not any(v in ganadores for v in vivos):
-                    mejor_vivo = max(vivos, key=lambda v: puntaje.get(v, 0.0))
-                    ganadores[-1] = mejor_vivo
-                    break
+        # SOLO cuando el problema ES la pregunta — el nodo con hallazgo va primero—: el
+        # rescate reemplaza al último puesto, y eso desaloja a alguien. Con la condición
+        # amplia («algún ganador trae hallazgo») desalojaba resultados pertinentes en
+        # preguntas que no eran sobre el problema: se midió con «¿la limpieza de multimedia
+        # funciona?», donde el quinto ganador traía un hallazgo ajeno y el rescate botó del
+        # sexto puesto justo a la entrada que respondía.
+        if len(ganadores) > 1 and "**Tipo:** hallazgo" in idx.nodos[ganadores[0]].cuerpo:
+            g = ganadores[0]
+            vivos = [nom for nom, nd in idx.nodos.items()
+                     if nd.polo == "en-curso" and g in nd.menciona
+                     and str(nd.meta.get("estado")) != "resuelto"]
+            if vivos and not any(v in ganadores for v in vivos):
+                ganadores[-1] = max(vivos, key=lambda v: puntaje.get(v, 0.0))
 
         if not ganadores:
             return (f"Nada sobre «{pregunta}». Busqué por palabras y por significado. "
