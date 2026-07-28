@@ -567,7 +567,10 @@ class Indice:
             fin = cuerpo.find("\n### ", m.end())
             bloque = cuerpo[m.end():fin if fin > 0 else len(cuerpo)]
             campos = dict(re.findall(r"^-\s+\*\*([^:*]+):\*\*\s*(.+?)\s*$", bloque, re.M))
-            ficha = campos.get("Estado", "")
+            # El tipo va primero: sin el, un logro cerrado y un problema viejo se leen
+            # igual en la lista (quinta evaluacion) — y el tipo es justo lo que permite
+            # armar el informe sin abrir cada entrada.
+            ficha = " · ".join(x for x in (campos.get("Tipo"), campos.get("Estado")) if x)
             if espera := campos.get("Espera a"):
                 ficha += f", espera a {espera}"
             fuera.append(f"«{m.group(1)}»" + (f" ({ficha})" if ficha else ""))
@@ -1117,6 +1120,25 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None) -> FastMC
             puntaje[exacto] = max(puntaje.values()) * 1.5
 
         ganadores = sorted(puntaje, key=lambda x: -puntaje[x])[:n]
+
+        # Un problema no viaja solo (regla de escalamiento, servida). Si un ganador trae
+        # un hallazgo, su respondedor VIVO —el compromiso de en-curso que lo cita— entra
+        # al lote aunque no haya puntuado: quien pregunta por el problema recibe el plan
+        # en la misma respuesta, no como un nombre suelto en «Conecta con». Medido en la
+        # quinta evaluación: el hallazgo del correo salía primero y su plan aparecia solo
+        # de nombre. Reemplaza al ultimo ganador (no agranda el lote) y a lo mas uno por
+        # respuesta — es un rescate, no un canal paralelo de ranking. La cita es curada
+        # (`menciona` del respondedor), asi que no depende de ningun umbral.
+        con_hallazgo = [g for g in ganadores if "**Tipo:** hallazgo" in idx.nodos[g].cuerpo]
+        if con_hallazgo and len(ganadores) > 1:
+            for g in con_hallazgo:
+                vivos = [nom for nom, nd in idx.nodos.items()
+                         if nd.polo == "en-curso" and g in nd.menciona
+                         and str(nd.meta.get("estado")) != "resuelto"]
+                if vivos and not any(v in ganadores for v in vivos):
+                    mejor_vivo = max(vivos, key=lambda v: puntaje.get(v, 0.0))
+                    ganadores[-1] = mejor_vivo
+                    break
 
         if not ganadores:
             return (f"Nada sobre «{pregunta}». Busqué por palabras y por significado. "
