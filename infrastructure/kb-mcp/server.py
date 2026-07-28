@@ -84,7 +84,7 @@ DEFINICIONAL = re.compile(r"\b(que es|qué es|que son|qué son|quien es|quién e
 # Pesos del orden de resultados (opcion B del plan de pertinencia). Los escribe
 # tools/entrenar-ranker.py; embebidos para que viajen con el servidor a cualquier
 # despliegue. Vacio = el reordenamiento no opera y el orden queda como siempre.
-RANKER_PESOS = {"mu": [0.288714, 2.815629, 0.411747, 0.07533, 0.028249, 0.014124, 0.417797, 0.766817], "sigma": [0.110918, 3.916402, 0.297663, 0.224654, 0.165682, 0.118003, 0.254933, 0.092759], "w": [0.033335, 0.432704, -0.364289, 1.517586, -0.506827, -0.352314, 0.456419, 0.544161], "b": -2.087991}
+RANKER_PESOS = {"mu": [0.288714, 2.815629, 0.411747, 0.07533, 0.028249, 0.014124, 0.417797, 0.766817], "sigma": [0.110918, 3.916402, 0.297663, 0.224654, 0.165682, 0.118003, 0.254933, 0.092759], "w": [0.033335, 0.432704, -0.364289, 1.517586, -0.506827, -0.352314, 0.456419, 0.544161], "b": -2.087991, "kb": "okos"}
 
 CAMPOS_GRAFO = ("depende_de", "se_descompone_en", "se_relaciona_con")
 NO_POLO = {"assets", ".obsidian", ".trash"}
@@ -1189,7 +1189,12 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None) -> FastMC
         # INT-006 de la bateria). Solo reordena preguntas sin intencion declarada.
         intencion = bool(tipos_pedidos or (palabras_avance & AVANCE)
                          or LISTADO.search(normalizar(pregunta)) or exacto)
-        if RANKER_PESOS and puntaje and not intencion:
+        # Los pesos van amarrados a la base con que se calibraron: la normalizacion
+        # (mu/sigma) es de SU corpus, y aplicarla a otra base reordenaria sus resultados
+        # en silencio con una calibracion ajena. Otra base sirve su orden de siempre
+        # hasta tener pesos propios.
+        if (RANKER_PESOS and puntaje and not intencion
+                and RANKER_PESOS.get("kb") == idx.cfg.slug):
             # Se reordena EXACTAMENTE el lote que se iba a servir — la misma distribucion
             # con que se entreno (candidatos = top-n del orden base). Ampliar la cabeza a
             # mas candidatos que el lote seria aplicar el modelo fuera de su distribucion.
