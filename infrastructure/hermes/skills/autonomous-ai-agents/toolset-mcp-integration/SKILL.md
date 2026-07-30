@@ -320,6 +320,42 @@ When an MCP tool returns a result larger than ~200K characters, the runtime auto
 
 See `references/mcp-output-persistence.md` for the full pattern and file format.
 
+## Bulk Operations: REST API vs MCP Tools
+
+When to use the Hindsight REST API directly instead of MCP tools:
+
+| Scenario | MCP Tools | REST API (`http://127.0.0.1:8888`) |
+|----------|-----------|-------------------------------------|
+| Single recall/retain/reflect | ✅ Perfect — small payloads, conversational | ❌ Overkill |
+| Export ALL memories from a bank | ❌ Responses >100K chars get truncated or temp-file-encoded | ✅ Returns clean JSON with pagination |
+| Paginated memory listing | ❌ 3+ concurrent list_memories calls truncate | ✅ Standard HTTP pagination (limit+offset) |
+| Daily sync (all banks) | ❌ Timeouts, truncation, encode issues | ✅ Single script, all 16 banks |
+| Ad-hoc reflect on one bank | ✅ Fast, conversational | ✅ Also fine |
+
+### REST API Endpoints
+
+```
+Base: http://127.0.0.1:8888
+Docker container: hindsight (port 8888 mapped to host)
+```
+
+| Endpoint | Method | Notes |
+|----------|--------|-------|
+| `/v1/default/banks` | GET | List all banks → `{"banks": [...]}` |
+| `/v1/default/banks/{bank_id}/memories/list` | GET | Params: `limit`, `offset`, `type`, `tags`, `q` |
+| `/v1/default/banks/{bank_id}/reflect` | POST | Body: `{"query": "...", "budget": "high", "max_tokens": 4096}` |
+| `/v1/default/banks/{bank_id}/memories` | POST | Body: `{"items": [...], "async": false}` |
+
+Key difference from MCP: retain with `async: false` blocks until stored and returns `{"success": true, "items_count": 1}` — no operation ID tracking needed.
+
+### When NOT to use REST API
+
+- Inside a conversation turn where you need to chain multiple operations with reasoning — MCP tools are conversational
+- When you're in a context where localhost:8888 isn't accessible (e.g., from a subagent without network access to Docker)
+- For single memory operations — MCP tools are faster for one-off recall/retain/reflect
+
+**See `hermes-sync-configure/references/bank-sync-execution.md` for the full daily sync procedure including the complete Python script.**
+
 ## Pitfalls
 
 1. **Confusing `memory()` with `retain()`/`recall()`** — The most common error. `memory()` is a 2KB profile tool for the `hermes` bank only. `retain`/`recall` are the MCP tools for full bank access across all repos.
@@ -367,3 +403,7 @@ See `references/mcp-output-persistence.md` for the full pattern and file format.
     generated (each restart creates a new gateway process that re-fetches
     config, but the 90s timeout can kill it mid-connect). Fix the unit and
     the restart pattern stabilizes.
+
+11. **Using MCP `list_memories` for bank exports** — MCP tool output is limited to ~500KB/200K chars before truncation or temp-file redirection. For banks with 200+ facts, `list_memories` returns 400K-800K chars which either gets truncated or double-encoded. The REST API at `http://127.0.0.1:8888` returns clean paginated JSON with no size limit. See "Bulk Operations" section above.
+
+12. **MCP tools unavailable for large batch workflows** — The daily sync of 16 banks cannot be done via MCP tools alone. The MCP tools are conversational/interactive. For batch automation, use the REST API and split the work across 3 script invocations to stay under the 600s terminal timeout.

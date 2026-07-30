@@ -42,7 +42,10 @@ Algunos proyectos tienen su bitácora en Google Drive (no en filesystem). El per
 1. ¿Hay un perfil activo? → leer su SOUL.md → buscar "bitácora" o "Google Drive Resources" o "REGLA ABSOLUTA — Bitácora"
 2. Si SOUL.md dice "Google Drive" (o `drive-bitacora`) → usar Composio Google Docs / Drive tools
 3. Si SOUL.md NO menciona Drive → BITACORA.md local
-4. Si NO hay perfil activo (DM, orquestador default) → preguntar al usuario o no asumir
+4. Si NO hay perfil activo (DM, orquestador default):
+   - **Antes de preguntar al usuario**, verificar si `channel_aliases.json` tiene un `name` para el grupo actual. Si el name existe, buscar si hay un perfil en `.hermes/profiles/<name-kebab-case>/SOUL.md` (el name del grupo en kebab-case suele coincidir con el profile dir).
+   - Si existe el profile en disco → leer su SOUL.md directamente y seguir pasos 1-3 sobre ese perfil (aunque no esté enrutado formalmente).
+   - Si no existe ningún perfil en disco → preguntar al usuario o no asumir.
 
 ## Reglas
 

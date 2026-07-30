@@ -38,16 +38,18 @@ For each bank (process SEQUENTIALLY per bank — reflect+retain are stateful; bu
 
 **IMPORTANT — parallel list_memories constraint:** Do NOT batch more than 2 list_memories calls in the same turn for banks likely to produce >500KB responses. When 3+ concurrent list_memories calls are made for larger banks, some responses can be truncated with "Full output could not be saved to sandbox". However, batching 3-5 *small* banks (<300KB response expected, i.e. under ~100 facts) in one turn has been observed to work reliably (2026-07-19: 5 banks up to 427 facts/~852KB each all succeeded). Err on the side of serializing any bank you're unsure about. reflect() and retain() calls are safe to batch since their payloads are small.
 
-### Method A (RECOMMENDED): Direct MCP JSON-RPC via curl
+### ⚠️ Method A (deprecated — REST API preferred over MCP JSON-RPC)
 
-Call the hindsight MCP endpoint directly using JSON-RPC over HTTP SSE. This is more reliable than extracting from MCP tool output because it avoids temp-file hunting and double-encoded JSON issues.
+Direct MCP JSON-RPC via curl is **no longer recommended** for bulk exports. As of 2026-07-30, POSTing to the MCP SSE endpoint at the tailscale URL returns `"Invalid Content-Type header"` — the MCP SSE transport requires a persistent connection, not individual curl requests.
 
-The endpoint is at the URL configured in `~/.hermes/config.yaml` under `memory.hindsight.url`:
+**Use Method D (Local REST API) instead.** Keep Method A's export script as a fallback only if the REST API is unavailable.
+
+**Legacy details preserved below for reference:**
+
+The endpoint was at:
 ```
 https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/mcp/
 ```
-
-The response is SSE-streamed (`event: message\r\ndata: {...}`). Parse the `data:` line for the result.
 
 #### Python export script
 
@@ -118,6 +120,137 @@ wait
 ```
 
 **Pagination**: The script handles pagination automatically (limit=1000, offset-based). No bank has exceeded 1000 facts as of 2026-07-10, but the loop is defensive.
+
+### Method D (PREFERRED): Local Hindsight REST API
+
+The Hindsight Docker container exposes a REST API on `http://127.0.0.1:8888` (not to be confused with the MCP SSE endpoint at the tailscale URL — that one does NOT accept standard HTTP POST). This approach is simpler, faster, and more reliable than MCP JSON-RPC: standard HTTP POST/GET, no SSE parsing, no double-encoded JSON, no Content-Type issues.
+
+**Key endpoints:**
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/v1/default/banks` | GET | List all banks |
+| `/v1/default/banks/{bank_id}/memories/list` | GET | Paginated memory list (params: limit, offset, type, tags) |
+| `/v1/default/banks/{bank_id}/reflect` | POST | Run reflect |
+| `/v1/default/banks/{bank_id}/memories` | POST | Retain memories |
+
+**Response formats:**
+
+- list_memories: `{"items": [...], "total": N, "limit": N, "offset": N}`
+- reflect: `{"text": "# Synthesis...", "usage": {...}}`
+- retain: `{"success": true, "items_count": 1, "bank_id": "..."}`
+- list_banks: `{"banks": [{"bank_id": "...", "name": "...", "fact_count": N, ...}]}`
+
+**Reflect request body:**
+```json
+{
+  "query": "Sintetiza las interacciones, decisiones, aprendizajes y cambios...",
+  "budget": "high",
+  "max_tokens": 4096
+}
+```
+
+**Retain request body (async=false preferred for cron — blocks until stored):**
+```json
+{
+  "items": [{
+    "content": "reflect output text here",
+    "context": "daily-summary",
+    "timestamp": "2026-07-30T00:00:00Z",
+    "tags": ["daily-summary", "YYYY-MM-DD", "BANK_ID"]
+  }],
+  "async": false
+}
+```
+
+**Full sync script structure:**
+
+The script is written to `/tmp/hindsight-sync.py` (ephemeral — recreate from this doc each run). It uses `urllib.request` (stdlib, no pip deps):
+
+```python
+#!/usr/bin/env python3
+"""Hindsight Daily Sync — export all banks, reflect+retain, git push."""
+import json, os, subprocess
+from datetime import datetime, timezone
+import urllib.request
+
+API = "http://127.0.0.1:8888"
+TODAY = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+EXPORT = "/home/opc/workspace/toolset/infrastructure/hermes/banks"
+
+def api_get(path):
+    with urllib.request.urlopen(f"{API}{path}", timeout=120) as r:
+        return json.loads(r.read().decode())
+
+def api_post(path, body):
+    data = json.dumps(body).encode()
+    req = urllib.request.Request(f"{API}{path}", data=data, method="POST",
+                                  headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=300) as r:
+        return json.loads(r.read().decode())
+
+def memories(bid):
+    all_items, off = [], 0
+    while True:
+        r = api_get(f"/v1/default/banks/{bid}/memories/list?limit=500&offset={off}")
+        items = r.get("items", [])
+        all_items.extend(items)
+        if off + 500 >= r.get("total", 0):
+            break
+        off += 500
+    return all_items
+
+# Discover banks
+banks = api_get("/v1/default/banks").get("banks", [])
+skip = {"default", "test_one_bank.py", "sync_phase2_reflect.py", "sync_phase1_export.py",
+        "sync_banks.py", "reflect-progress.json", "export-manifest-2026-07-22.json"}
+banks = [b for b in banks if b["bank_id"] not in skip]
+
+for b in banks:
+    bid = b["bank_id"]
+    os.makedirs(f"{EXPORT}/{bid}", exist_ok=True)
+
+    mems = memories(bid)
+    json.dump({"export_date": TODAY, "bank_id": bid,
+               "total_memories": len(mems), "memories": mems},
+              open(f"{EXPORT}/{bid}/{TODAY}.json", "w"),
+              indent=2, ensure_ascii=False, default=str)
+
+    ref = api_post(f"/v1/default/banks/{bid}/reflect", {
+        "query": "Sintetiza las interacciones, decisiones, aprendizajes y cambios...",
+        "budget": "high", "max_tokens": 4096})
+    text = ref.get("text", "")
+    if text:
+        api_post(f"/v1/default/banks/{bid}/memories", {
+            "items": [{"content": text, "context": "daily-summary",
+                       "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                       "tags": ["daily-summary", TODAY, bid]}],
+            "async": False})
+
+# Git
+os.chdir("/home/opc/workspace/toolset")
+for cmd in [["git", "pull", "--rebase", "origin", "main"],
+            ["git", "add", "infrastructure/hermes/banks/"],
+            ["git", "commit", "-m", f"hermes-sync: banks {TODAY}"],
+            ["git", "push", "origin", "main"]]:
+    subprocess.run(cmd, timeout=120)
+```
+
+**Timeout scaling — split into batches:** Processing all ~16 banks in one script takes 8-10 minutes and will hit the 600s terminal timeout. Split across 3 sequential scripts in the same conversation:
+
+| Batch | Banks | Est. time |
+|-------|-------|-----------|
+| 1 | hermes, personal-buffer, desarrollo-trazambiental-profile, witral, evidencia-zero, yacv | ~200s |
+| 2 | cl-concerts-db, toolset-profile, trazambiental-profile, kairos, researchit, toolset | ~200s |
+| 3 | chat-profile, wwe-profile, personal-profile, entrenador-profile | ~150s |
+
+Run as three sequential `terminal()` calls in the same assistant turn.
+
+**Python helpers (for ad-hoc per-bank operations via execute_code or terminal):**
+```python
+BASE = "http://127.0.0.1:8888"
+# Actually define these inline before each use — session vars don't persist across terminal() calls
+```
 
 ### Method B (legacy): MCP tool output → persisted temp file
 
@@ -244,31 +377,37 @@ git log --oneline -3
 | **Parallel list_memories causes truncation** | 3+ concurrent `list_memories` calls produce "could not be saved to sandbox" even for small banks (58 facts, 116KB). **Do not batch more than 2 list_memories calls.** Serialize them, or at most parallelize 2 at a time. reflect() and retain() calls ARE safe to batch. |
 | reflect returns empty content for large banks | Retry with shorter query + lower budget (`budget="low", max_tokens=512`). The full synthesis prompt can hit output length limits on 300+ fact banks. **If retry also fails** (observed with `toolset` at 125 facts and `personal-profile` at 224 facts on 2026-07-15): compose a manual summary from the `list_memories` output. Scan the items for patterns (dates, entities, tags) and write a 3-8 sentence summary focusing on what was done/learned/decided. The reflect failure appears to be a `deepseek-v4-flash` output length issue, not a data problem — the manual fallback produces a valid retain. |
 | **retain() MCP call timeout** | retain() initiates an async operation on the server side, but the MCP call itself can timeout (300s). Observed with researchit (~226 facts) and wwe-profile (~403 facts). **Mitigation:** Retry once — the async operation is often accepted server-side despite the transport timeout. A second attempt reliably succeeds. |
-| Export script missing at `/tmp/export_bank.py` | The script is ephemeral by nature. Re-create from the script block in this reference doc. Consider making it persistent if it's used 3+ times. |
+| **Script execution hits 600s terminal timeout** | Processing all 16 banks in one script takes ~480-600s. The terminal timeout is 600s. **Mitigation:** Split across 3 scripts (6 banks → 6 banks → 4 banks). Each completes in ~200-300s. See Method D for the batch breakdown. |
+| Export script missing at `/tmp/hindsight-sync.py` or `/tmp/export_bank.py` | The script is ephemeral by nature. Re-create from the script block in this reference doc. Consider making it persistent if it's used 3+ times. |
 | `default` bank exists and has facts | Skip it — it's an internal Hindsight bank, not a project bank. |
 | Banks file grows with each daily dump | This is intentional — dumps are versioned by date for audit trail. |
 
-## Appendix: Bank Inventory (as of 2026-07-23)
+| **REST API reflect returns empty `text` for busy banks** | Observed on some banks when reflect times out internally. Retry with `budget="low"` and a shorter query, or fall back to manual summary from list_memories output. |
+| **MCP JSON-RPC via curl returns `Invalid Content-Type header`** | The MCP SSE endpoint does not accept standard HTTP POST with JSON body. Use the REST API at `http://127.0.0.1:8888` instead. |
+
+## Appendix: Bank Inventory (as of 2026-07-30)
 
 | Bank | Facts | Notes |
 |---|---|---|
-| personal-buffer | ~3,000 | Staging for KB candidates (largest bank, needs 3 pages). Individual entries are large — `limit=500` may still overflow sandbox; use `limit=300` if truncation occurs. |
-| hermes | ~2,101 | Orchestrator identity & state (needs 3 pages) |
-| wwe-profile | ~473 | WWE preferences |
-| chat-profile | ~302 | General chat ideas & patterns |
-| personal-profile | ~339 | Curated KB (Terreno/Mito) |
-| toolset-profile | ~360 | Toolset infra decisions |
-| researchit | ~260 | Research engine |
-| entrenador-profile | ~225 | Personal trainer profile |
-| cl-concerts-db | ~181 | Concert DB project |
-| toolset | ~202 | Infra multi-tenant |
-| kairos | ~161 | Governance framework |
-| evidencia-zero | ~99 | Data sanitization tool |
-| desarrollo-trazambiental-profile | ~122 | Dev sub-group Trazambiental |
-| trazambiental-profile | ~116 | Equipo Trazambiental |
-| yacv | ~89 | Resume builder |
-| witral | ~73 | Plugin-based data router |
+| personal-buffer | ~4,717 | Staging for KB candidates (largest bank, ~10 pages at limit=500) |
+| hermes | ~2,544 | Orchestrator identity & state (needs 6 pages at limit=500) |
+| wwe-profile | ~515 | WWE preferences |
+| personal-profile | ~408 | Curated KB (Terreno/Mito) |
+| toolset-profile | ~393 | Toolset infra decisions |
+| chat-profile | ~349 | General chat ideas & patterns |
+| researchit | ~284 | Research engine |
+| entrenador-profile | ~270 | Personal trainer profile |
+| toolset | ~226 | Infra multi-tenant |
+| cl-concerts-db | ~213 | Concert DB project |
+| desarrollo-trazambiental-profile | ~200 | Dev sub-group Trazambiental |
+| kairos | ~179 | Governance framework |
+| trazambiental-profile | ~158 | Equipo Trazambiental |
+| evidencia-zero | ~113 | Data sanitization tool |
+| yacv | ~103 | Resume builder |
+| witral | ~95 | Plugin-based data router |
 
-**Threshold guide**: Banks with >1,000 facts (personal-buffer, hermes) need pagination (3 pages at limit=1000). For personal-buffer specifically, `limit=1000` for page 2 (offset=1000) may timeout under load — retry once, or fall back to `limit=750`. If `limit=500` responses are truncated ("could not be saved to sandbox") for personal-buffer, drop to `limit=300`. All other banks fit in a single `limit=1000` call.
+**Threshold guide**: Banks with >1,000 facts need pagination. For personal-buffer (4,714 facts), `limit=500` needs 10 pages. For hermes (2,544 facts), `limit=500` needs 6 pages. All other banks fit in a single `limit=500` call.
+
+**REST API pagination**: `GET /v1/default/banks/{bid}/memories/list?limit=500&offset=0` → response has `items`, `total`, `limit`, `offset`. Use `while offset < total: offset += limit` to paginate.
 
 This table is for orientation only — always use live `list_banks()` for the actual counts.
