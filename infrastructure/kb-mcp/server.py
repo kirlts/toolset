@@ -84,7 +84,93 @@ DEFINICIONAL = re.compile(r"\b(que es|qué es|que son|qué son|quien es|quién e
 # Pesos del orden de resultados (opcion B del plan de pertinencia). Los escribe
 # tools/entrenar-ranker.py; embebidos para que viajen con el servidor a cualquier
 # despliegue. Vacio = el reordenamiento no opera y el orden queda como siempre.
-RANKER_PESOS = {"mu": [0.288714, 2.815629, 0.411747, 0.07533, 0.028249, 0.014124, 0.417797, 0.766817], "sigma": [0.110918, 3.916402, 0.297663, 0.224654, 0.165682, 0.118003, 0.254933, 0.092759], "w": [0.033335, 0.432704, -0.364289, 1.517586, -0.506827, -0.352314, 0.456419, 0.544161], "b": -2.087991, "kb": "okos"}
+# NOTA sobre el peso de `centralidad`, fijado en 0 el 2026-07-30 por medición, no por gusto:
+# es un prior de popularidad del grafo, y en esta base «Accesos requeridos» está declarada como
+# vecina por casi todo, así que ganaba preguntas ajenas —«cómo funciona el cobro», «qué tan
+# probada está la plataforma»— con el coseno empatado y sin evidencia léxica. Medido sobre las 81
+# preguntas juzgadas, quitarlo mejora 3 de 4: nota correcta servida 29→30%, top-3 55→57, fuera del
+# listado 19→17, primer lugar igual. El entrenador lo vuelve a poner positivo porque optimiza
+# primer lugar sobre el subconjunto de entrenamiento; si se reentrena, revisar contra esta nota.
+RANKER_PESOS = {'kb': 'okos', 'mu': [0.351663, 4.062396, 0.546557, 0.081794, 0.034301, 0.0, 0.542179, 0.94143, 0.100488], 'sigma': [0.126125, 4.938254, 0.252806, 0.236047, 0.182001, 1e-06, 0.23785, 0.115645, 0.135562], 'w': [0.085658, 0.415418, 0.180627, 1.218747, -0.401717, 0.0, 0.0, -0.075452, 0.013916], 'b': -1.938051}
+
+FICHA_CAMPO = re.compile(r"^-\s+\*\*[^*]+:\*\*.*$", re.MULTILINE)
+
+
+def ficha_pendiente(nodo) -> str:
+    """La ficha de campos de una sub-entrada ABIERTA del compromiso.
+
+    Un compromiso se consulta para saber en qué está y a quién espera, y eso vive en
+    la ficha —«Estado», «Espera a», «Checkpoint»—, no en la prosa. La ventana del
+    extracto la saltaba, y el índice de hermanas la sirve parafraseada, que no es lo
+    mismo para quien tiene que actuar. Medido el 2026-07-30: dos casos de la batería
+    en rojo por esto, uno de ellos el del Project Manager preguntando qué conseguir.
+    Se prefiere una sub-entrada abierta; si no hay, la primera que haya.
+    """
+    lineas = nodo.cuerpo.split("\n")
+    bloques, actual = [], []
+    for l in lineas:
+        if FICHA_CAMPO.match(l):
+            actual.append(l.strip())
+        elif actual:
+            bloques.append(actual)
+            actual = []
+    if actual:
+        bloques.append(actual)
+    if not bloques:
+        return ""
+    abiertos = [b for b in bloques
+                if any("**Estado:**" in x and "abierto" in x.lower() for x in b)]
+    elegido = (abiertos or bloques)[0]
+    return " ".join(" ".join(elegido).split())
+
+
+def subentradas(cuerpo: str) -> list[tuple[str, str]]:
+    """Parte una entrada en sus unidades atómicas: (título, texto).
+
+    La primera es la cabecera —todo lo anterior a la primera sub-entrada— que es lo que
+    responde «qué es esto». Las demás son las sub-entradas, cada una con su título, su
+    ficha de campos y su evidencia. Esta es la unidad sobre la que la base está diseñada
+    y sobre la que se recupera desde el 2026-07-30: antes se indexaba la entrada entera
+    —hasta 40.000 caracteres— y una sub-entrada corta y precisa no podía ganarle a la
+    dilución de la frecuencia de términos.
+    """
+    partes = re.split(r"(?m)^### ", cuerpo)
+    salida = [("", partes[0])]
+    for sub in partes[1:]:
+        titulo = sub.split("\n", 1)[0].strip()
+        salida.append((titulo, sub))
+    return salida
+
+
+LIMITE_DECLARADO = re.compile(r"(?:\*\*)?Por confirmar[^\n]*", re.IGNORECASE)
+
+
+def limite_declarado(nodo) -> str:
+    """El «Por confirmar…» que la entrada declara en su RESUMEN.
+
+    La regla de la casa dice que el límite va arriba, y la prosa la cumple. Pero el
+    extracto no empieza arriba: es una ventana centrada en el pasaje que mejor calza,
+    así que un límite escrito en «Qué es» no llegaba nunca al lector cuando el acierto
+    caía en una sub-entrada. Medido el 2026-07-30: dos casos de la batería en rojo por
+    esto, con la prosa correcta. Se sirve el límite por mecanismo en vez de pedirle a
+    cada nota que lo repita.
+    """
+    m = re.search(r"##\s*Qué es(.*?)(?=\n##\s|\Z)", nodo.cuerpo, re.S)
+    zona = m.group(1) if m else nodo.cuerpo[:1500]
+    hit = LIMITE_DECLARADO.search(zona)
+    return " ".join(hit.group(0).split()) if hit else ""
+
+
+def links_de_padre(nodo) -> set:
+    """Nombres que el nodo declara como su padre (`depende_de`). Sirve para detectar
+    hubs: si muchas entradas declaran a la misma como padre, esa es un índice de hecho
+    aunque su nombre no coincida con el del directorio."""
+    v = nodo.meta.get("depende_de")
+    if not v:
+        return set()
+    crudo = v if isinstance(v, list) else [v]
+    return {x.strip() for c in crudo for x in WIKILINK.findall(str(c))}
+
 
 CAMPOS_GRAFO = ("depende_de", "se_descompone_en", "se_relaciona_con")
 NO_POLO = {"assets", ".obsidian", ".trash"}
@@ -425,19 +511,95 @@ class Indice:
             "INSERT INTO docs (nombre, cuerpo, polo) VALUES (?,?,?)",
             [(n.nombre, n.cuerpo, n.polo) for n in self.nodos.values()],
         )
+        # Y el MISMO corpus partido en sub-entradas. Recuperar sobre lo chico y devolver
+        # lo grande («small-to-big»): la relevancia se decide en la unidad atómica, donde
+        # la frecuencia de términos significa algo, y la respuesta se sirve con su entrada
+        # padre. Medido el 2026-07-30: con el índice solo por entrada, 21 de 81 preguntas
+        # juzgadas no traían la entrada correcta en ninguna posición — falla de generación
+        # de candidatos, que ningún ajuste de pesos puede arreglar.
+        db.executescript("DROP TABLE IF EXISTS subdocs;")
+        db.execute(
+            "CREATE VIRTUAL TABLE subdocs USING fts5("
+            "  nombre, sub, cuerpo, crudo UNINDEXED, polo UNINDEXED,"
+            "  tokenize='unicode61 remove_diacritics 2')"
+        )
+        db.executemany(
+            "INSERT INTO subdocs (nombre, sub, cuerpo, crudo, polo) VALUES (?,?,?,?,?)",
+            # `cuerpo` lleva el nombre y el título antepuestos porque pesan en el calce;
+            # `crudo` es lo que se sirve, sin esa repetición.
+            [(n.nombre, t, f"{n.nombre} — {t}\n{c}" if t else f"{n.nombre}\n{c}", c, n.polo)
+             for n in self.nodos.values() for t, c in subentradas(n.cuerpo)],
+        )
         db.commit()
 
     def _semantica(self) -> None:
-        """Vectoriza cada entrada completa (no fragmentos: con embeddings estaticos
-        los trozos cortos son mas ruidosos que el promedio del documento)."""
+        """Vectoriza la cabecera de cada entrada Y cada una de sus sub-entradas.
+
+        Antes se vectorizaba `cuerpo[:2000]` y nada mas. Con entradas de 41.000
+        caracteres eso dejaba el 95% del contenido invisible para la busqueda
+        semantica, y producia dos efectos medidos el 2026-07-29:
+
+          · Entradas cuya cabecera es generica se volvian atractores universales:
+            «Accesos requeridos» salia primera para «que le puedo prometer sobre
+            redes sociales», «hay algun riesgo de seguridad» y «que tan probada
+            esta la plataforma» — tres preguntas sin relacion entre si.
+          · Lo escrito hondo era irrecuperable: la nota de precios de Meta y la del
+            identificador nuevo de WhatsApp existian y no se encontraban.
+
+        Ahora cada sub-entrada se vectoriza por separado y la entrada puntua con su
+        MEJOR sub-entrada. Se sigue devolviendo una entrada por resultado —no
+        cambia el contrato— pero deja de depender de que lo importante caiga en los
+        primeros 2.000 caracteres.
+
+        El motivo original para no fragmentar (con embeddings estaticos los trozos
+        cortos son mas ruidosos que el promedio del documento) no aplica a esta
+        granularidad: una sub-entrada no es un trozo arbitrario sino una unidad con
+        su titulo, su ficha de campos y su evidencia — que es exactamente la unidad
+        sobre la que esta base esta disenada.
+        """
         self.vectores = None
         self.orden: list[str] = []
+        self.es_cabecera: list[bool] = []
         if self.modelo is None:
             return
-        self.orden = list(self.nodos)
-        textos = [self.nodos[n].cuerpo[:2000] for n in self.orden]
+        textos: list[str] = []
+        for nombre in self.nodos:
+            cuerpo = self.nodos[nombre].cuerpo
+            partes = re.split(r"(?m)^### ", cuerpo)
+            # La cabecera (todo lo anterior a la primera sub-entrada) representa a la
+            # entrada como sujeto: es lo que responde «que es esto».
+            textos.append(f"{nombre}\n{partes[0][:2000]}")
+            self.orden.append(nombre)
+            self.es_cabecera.append(True)
+            for sub in partes[1:]:
+                # El titulo va repetido a proposito: pesa, y es lo que un lector busca.
+                titulo = sub.split("\n", 1)[0]
+                textos.append(f"{nombre} — {titulo}\n{sub[:1500]}")
+                self.orden.append(nombre)
+                self.es_cabecera.append(False)
         V = self.modelo.encode(textos).astype("float32")
         self.vectores = V / np.clip(np.linalg.norm(V, axis=1, keepdims=True), 1e-9, None)
+        # Posiciones de todos los vectores de cada entrada, para puntuarla por su MEJOR
+        # sub-entrada en vez de por su cabecera (ver `rasgos`).
+        self.filas: dict[str, list[int]] = {}
+        for i, nom in enumerate(self.orden):
+            self.filas.setdefault(nom, []).append(i)
+        # Las unidades atómicas, normalizadas una sola vez: los rasgos las necesitan para
+        # medir cobertura donde significa algo. Sobre la entrada entera, una de 40.000
+        # caracteres contiene casi cualquier palabra y el rasgo valía ~1 para todas.
+        # Los TÍTULOS de las notas, normalizados. En esta base cada uno es una afirmación
+        # escrita a mano —«Meta empieza a cobrar por mensajes que hoy son gratis»— y por eso
+        # es la señal más informativa del corpus. Hasta el 2026-07-30 el orden solo miraba el
+        # título de la ENTRADA, que es un sustantivo genérico («Canales de mensajería»).
+        self.titulos_sub: dict[str, list[list[str]]] = {
+            nom: [[w for w in PALABRA.findall(normalizar(t)) if w not in VACIAS]
+                  for t, _ in subentradas(nd.cuerpo) if t]
+            for nom, nd in self.nodos.items()
+        }
+        self.subs_norm: dict[str, list[str]] = {
+            nom: [normalizar(f"{t} {c}") for t, c in subentradas(nd.cuerpo)]
+            for nom, nd in self.nodos.items()
+        }
 
     def semejantes(self, consulta: str, tope: int = 12) -> list[str]:
         if self.modelo is None or self.vectores is None:
@@ -446,8 +608,19 @@ class Indice:
         v = v / max(float(np.linalg.norm(v)), 1e-9)
         # `self.nodos` puede venir acotado por restringir(): se filtra aca porque los
         # vectores y su orden se comparten entre niveles (se calculan una sola vez).
+        #
+        # Desde el 2026-07-29 hay VARIOS vectores por entrada (cabecera + una por
+        # sub-entrada), asi que el mismo nombre aparece repetido: se queda con su
+        # mejor posicion. Es «puntuar la entrada por su mejor sub-entrada» sin
+        # cambiar el contrato de devolver una entrada por resultado.
         orden = (self.orden[i] for i in np.argsort(-(self.vectores @ v)))
-        return [n for n in orden if n in self.nodos][:tope]
+        vistos: dict[str, None] = {}
+        for n in orden:
+            if n in self.nodos and n not in vistos:
+                vistos[n] = None
+                if len(vistos) >= tope:
+                    break
+        return list(vistos)
 
     def cercania_maxima(self, consulta: str) -> float | None:
         """Similitud del vecino semantico mas cercano, en [0,1]. Es la senal de si la
@@ -457,7 +630,12 @@ class Indice:
         v = self.modelo.encode([consulta]).astype("float32")[0]
         v = v / max(float(np.linalg.norm(v)), 1e-9)
         sims = self.vectores @ v
-        visibles = [i for i, n in enumerate(self.orden) if n in self.nodos]
+        # SOLO cabeceras: desde que hay un vector por sub-entrada (2026-07-29), mirar
+        # todos infla el maximo por azar y una consulta ajena al dominio deja de
+        # declararse ajena. La cabecera es la que representa el sujeto de la entrada,
+        # y el sujeto es lo que define si la base cubre o no lo preguntado.
+        visibles = [i for i, n in enumerate(self.orden)
+                    if n in self.nodos and self.es_cabecera[i]]
         return float(max(sims[i] for i in visibles)) if visibles else None
 
     def rasgos(self, pregunta: str, nombres: list[str]) -> dict[str, list[float]]:
@@ -479,9 +657,27 @@ class Indice:
         bm = {}
         try:
             fts = self.expandir(pregunta)
+            # Sobre SUB-ENTRADAS, quedándose con la mejor de cada entrada. La misma decisión
+            # que en la generación de candidatos: la relevancia se juzga en la unidad donde
+            # la frecuencia de términos significa algo, y se atribuye a la entrada padre.
+            # bm25() NO se puede usar dentro de un agregado —SQLite responde «unable to
+            # use function bm25 in the requested context»— y la excepción se tragaba
+            # silenciosamente dejando el rasgo léxico en cero para TODOS los candidatos.
+            # Vivió así desde el 2026-07-30 por la mañana: el entrenamiento vio el rasgo
+            # como constante y le asignó peso 0,000, y el orden pasó a decidirlo la
+            # centralidad del grafo. Se calcula en una subconsulta y se agrega afuera.
+            # bm25() solo se puede usar DIRECTO sobre la tabla FTS: ni dentro de un
+            # agregado ni envuelto en una subconsulta —SQLite responde «unable to use
+            # function bm25 in the requested context»—. La excepción se tragaba en
+            # silencio y el rasgo léxico quedaba en cero para TODOS los candidatos. Vivió
+            # así desde la mañana del 2026-07-30, y el entrenamiento, viendo el rasgo
+            # constante, le asignó peso 0,000: el orden pasó a decidirlo la centralidad
+            # del grafo, que es un prior y no evidencia. Se agrega en Python.
             for nom, sc in self.db.execute(
-                    "SELECT nombre, bm25(docs) FROM docs WHERE docs MATCH ?", (fts,)):
-                bm[nom] = sc  # más negativo = mejor, convención FTS5
+                    "SELECT nombre, bm25(subdocs) FROM subdocs WHERE subdocs MATCH ?",
+                    (fts,)):
+                if nom not in bm or sc < bm[nom]:
+                    bm[nom] = sc  # más negativo = mejor, convención FTS5
         except sqlite3.OperationalError:
             pass
         peor_bm = max(bm.values()) if bm else 0.0
@@ -493,11 +689,27 @@ class Indice:
             titulo_n = normalizar(nom)
             pal_tit = [w for w in PALABRA.findall(titulo_n) if w not in VACIAS]
             cos = 0.0
-            if v is not None and nom in self.orden:
-                cos = float(self.vectores[self.orden.index(nom)] @ v)
-            cobertura = (sum(1 for g in grupos if any(f in cuerpo_n for f in g))
-                         / len(grupos)) if grupos else 0.0
+            if v is not None and nom in getattr(self, "filas", {}):
+                # MEJOR de sus vectores, no el de su cabecera. `self.orden.index(nom)`
+                # devolvía siempre la primera aparición —la cabecera— así que lo escrito
+                # hondo no llegaba nunca a la decisión de orden, solo a la de candidatos.
+                cos = float(max(self.vectores[i] @ v for i in self.filas[nom]))
+            # Cobertura en la MEJOR sub-entrada, no en el cuerpo entero: es la diferencia
+            # entre «la palabra aparece en algún lugar de estas 40.000 letras» y «esta nota
+            # habla de esto». Medido el 2026-07-30: sobre el cuerpo entero el rasgo valía
+            # cerca de 1 para casi todos los candidatos, o sea no discriminaba nada.
+            subs_n = self.subs_norm.get(nom) or [cuerpo_n]
+            cobertura = (max(sum(1 for g in grupos if any(f in sn for f in g))
+                             for sn in subs_n) / len(grupos)) if grupos else 0.0
             tit_en_preg = (sum(1 for w in pal_tit if w in q_norm) / len(pal_tit)) if pal_tit else 0.0
+            # Calce con el TÍTULO DE UNA NOTA: qué fracción de las palabras de algún título
+            # de nota aparece en la pregunta. Es el equivalente del rasgo de título de
+            # entrada, sobre la unidad donde los títulos dicen algo concreto.
+            mejor_sub_tit = 0.0
+            for pal in self.titulos_sub.get(nom, []):
+                if pal:
+                    mejor_sub_tit = max(mejor_sub_tit,
+                                        sum(1 for w in pal if w in q_norm) / len(pal))
             fuera[nom] = [
                 cos,
                 # bm25 reescalado a "más alto = mejor", 0 si no calzó
@@ -508,6 +720,7 @@ class Indice:
                 1.0 if nd.es_indice else 0.0,
                 min(1.0, len(self.relacionados(nom)) / max(umbral_hub, 1)),
                 math.log(1 + len(nd.cuerpo)) / 10.0,
+                mejor_sub_tit,
             ]
         return fuera
 
@@ -635,6 +848,41 @@ class Indice:
         return "\n*También en esta entrada:* " + " · ".join(fuera[:8])
 
     def extracto(self, nombre: str, consulta_fts: str, extendido: bool = False) -> str:
+        """Sirve el pasaje, y garantiza que el límite declarado viaje con él."""
+        texto = self._extracto_bruto(nombre, consulta_fts, extendido)
+        nodo = self.nodos.get(nombre)
+        if nodo is None:
+            return texto
+        if "por confirmar" not in texto.lower():
+            lim = limite_declarado(nodo)
+            if lim:
+                texto = f"{lim} […] {texto}"
+        # Un compromiso siempre dice en qué está y a quién espera, aunque la ventana
+        # haya caído lejos de su ficha.
+        if getattr(nodo, "polo", "") == "en-curso" and "**Estado:**" not in texto:
+            ficha = ficha_pendiente(nodo)
+            if ficha:
+                texto = f"{ficha} […] {texto}"
+        return texto
+
+    def _extracto_bruto(self, nombre: str, consulta_fts: str, extendido: bool = False) -> str:
+        # Primero: la SUB-ENTRADA que mejor calza, servida entera. Es la unidad atómica de
+        # esta base —título, ficha de campos y evidencia— así que servirla completa entrega
+        # la respuesta en vez de una ventana adivinada alrededor de una coincidencia. Las
+        # cuatro máquinas de ventana que siguen abajo existían por no tener esta unidad, y
+        # quedan como respaldo para el acierto puramente semántico, donde no hay coincidencia
+        # literal que localizar.
+        try:
+            fila = self.db.execute(
+                "SELECT sub, crudo FROM subdocs WHERE subdocs MATCH ? AND nombre = ? "
+                "ORDER BY rank LIMIT 1", (consulta_fts, nombre)).fetchone()
+            if fila and fila[0]:
+                plano = " ".join(fila[1].split())
+                tope = 2600 if extendido else 1800
+                if len(plano) <= tope:
+                    return plano
+        except sqlite3.OperationalError:
+            pass
         """Pasaje alrededor de la coincidencia; si el acierto vino de la capa
         semantica no hay coincidencia literal, asi que se muestra la apertura."""
         # (El extracto de un indice NO se fuerza al Inventario: empeoraba las preguntas
@@ -887,6 +1135,18 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None) -> FastMC
         se puede invocar."""
         return mcp.tool()(fn) if permitida(fn.__name__) else fn
 
+    # Preguntas por PROPIEDAD (estado, tipo, fecha) que la búsqueda por significado
+    # contesta mal por diseño: devuelve lo más parecido, no todo lo que cumple. En vez
+    # de confiar en que quien consulte se acuerde de `listar`, el servidor lo detecta y
+    # lo dice en la respuesta. Que una sesión nueva use bien la base no puede depender
+    # de que haya leído la documentación (decisión de Martín, 2026-07-29).
+    POR_PROPIEDAD = re.compile(
+        r"(qu[eé]\s+(se\s+)?(arregl|resolvi|resuelt|cerr)|"
+        r"qu[eé]\s+(est[aá]|hay|queda|falta)\s+(abierto|pendiente|sin\s+resolver)|"
+        r"qu[eé]\s+.{0,20}(mostrar|mostrarle|ense[nñ]ar).{0,20}(fundador|direcci[oó]n|project|pm)|"
+        r"qu[eé]\s+(medicion|hallazgo|plan|pedido)e?s\s+hay|"
+        r"lista\s+de\s+(hallazgos|pendientes|resueltos))", re.I)
+
     @registrar
     @con_dominio(dominio)
     def consultar(pregunta: str, ambito: str | None = None,
@@ -955,9 +1215,26 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None) -> FastMC
         try:
             # El indice lexico es compartido entre niveles (se construye una vez), asi
             # que se filtra por las entradas visibles de ESTE nivel.
-            lexico = [f[0] for f in idx.db.execute(
-                f"SELECT nombre FROM docs WHERE docs MATCH ? {' '.join(filtros)} "
-                f"ORDER BY rank LIMIT {tope_lex}", args).fetchall() if f[0] in idx.nodos]
+            # Sobre SUB-ENTRADAS, quedándose con la mejor posición de cada entrada. Es la
+            # cara léxica de lo que la capa semántica ya hacía: decidir en la unidad
+            # atómica y devolver el padre. Sobre el índice por entrada, una nota corta y
+            # exacta perdía contra la dilución de una entrada de 40.000 caracteres.
+            vistos: dict[str, None] = {}
+            for fila in idx.db.execute(
+                    f"SELECT nombre FROM subdocs WHERE subdocs MATCH ? "
+                    f"{' '.join(f.replace('docs.', 'subdocs.') for f in filtros)} "
+                    f"ORDER BY rank LIMIT {tope_lex * 4}", args).fetchall():
+                if fila[0] in idx.nodos and fila[0] not in vistos:
+                    vistos[fila[0]] = None
+                    if len(vistos) >= tope_lex:
+                        break
+            lexico = list(vistos)
+            if not lexico:
+                # Respaldo: el índice por entrada. Una consulta cuyos términos se reparten
+                # entre varias sub-entradas puede no calzar en ninguna y sí en la entrada.
+                lexico = [f[0] for f in idx.db.execute(
+                    f"SELECT nombre FROM docs WHERE docs MATCH ? {' '.join(filtros)} "
+                    f"ORDER BY rank LIMIT {tope_lex}", args).fetchall() if f[0] in idx.nodos]
         except sqlite3.OperationalError as e:
             return f"No pude interpretar esa consulta ({e}). Prueba con palabras sueltas."
 
@@ -1230,6 +1507,27 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None) -> FastMC
                            in zip(F[nom], _mu, _sg, _w)) + _b
             ganadores = sorted(cabeza, key=lambda x: (-_score(x), -puntaje[x]))[:n]
 
+        # Un índice no contiene respuestas: enumera lo que existe. Preguntar «¿cómo
+        # funciona el cobro?» y recibir la tabla de contenidos es la peor respuesta
+        # posible, porque parece correcta. Medido el 2026-07-29: tres de cuatro
+        # preguntas de la forma «¿cómo funciona X en okos?» devolvían el nodo hub
+        # OKOS en primer lugar, y «¿qué hay pendiente?» devolvía el índice del polo.
+        #
+        # Un hub no es solo el nodo cuyo nombre es el del directorio (`es_indice`):
+        # OKOS no lo era por esa regla y era el peor infractor. Lo que lo delata es
+        # estructural — es el padre declarado de casi todas las entradas, así que su
+        # texto menciona todos los sujetos y calza con cualquier pregunta.
+        #
+        # `panorama` existe justo para las preguntas panorámicas. Así que acá salen del
+        # lote, salvo que dejarían la respuesta vacía o que la pregunta los nombre.
+        hubs = {nom for nom, nd in idx.nodos.items()
+                if nd.es_indice or sum(1 for x in idx.nodos.values()
+                                       if nom in links_de_padre(x)) >= 4}
+        if hubs and not exacto:
+            sin_hub = [g for g in ganadores if g not in hubs]
+            if sin_hub:
+                ganadores = sin_hub
+
         # Un problema no viaja solo (regla de escalamiento, servida). Si un ganador trae
         # un hallazgo, su respondedor VIVO —el compromiso de en-curso que lo cita— entra
         # al lote aunque no haya puntuado: quien pregunta por el problema recibe el plan
@@ -1256,7 +1554,39 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None) -> FastMC
             return (f"Nada sobre «{pregunta}». Busqué por palabras y por significado. "
                     "Prueba otras palabras, o usa panorama() para ver qué cubre.")
 
-        partes = [aviso + f"{len(ganadores)} entrada(s) sobre «{pregunta}»\n"]
+        redirigir = ""
+        if POR_PROPIEDAD.search(pregunta):
+            # Decirle al lector «usá otra herramienta» es peor que usarla por él: en una
+            # pregunta por propiedad la respuesta exacta ya se puede calcular acá, y hacerlo
+            # ahorra un viaje y evita que se quede con el resultado aproximado, que es
+            # justamente el que engaña. Si el filtro no se puede deducir o la llamada falla,
+            # queda el aviso solo — nunca menos que antes.
+            q = pregunta.lower()
+            filtro = None
+            if re.search(r"resuelt|arregl|cerr", q):
+                filtro = "resuelto"
+            elif re.search(r"abierto|pendiente|sin\s+resolver|falta|queda", q):
+                filtro = "abierto"
+            exacto_txt = ""
+            if filtro:
+                try:
+                    exacto_txt = listar(estado=filtro)
+                except Exception:
+                    exacto_txt = ""
+            if exacto_txt:
+                redirigir = (
+                    "⚠ Preguntaste por una PROPIEDAD (estado, tipo, fecha), no por un tema. La "
+                    "búsqueda por significado devuelve lo más parecido, no todo lo que cumple, "
+                    f"así que acá va primero la respuesta EXACTA —listar(estado=\"{filtro}\")— y "
+                    "después lo que encontró la búsqueda.\n\n"
+                    f"{exacto_txt}\n\n── y esto encontró la búsqueda por significado ──\n\n")
+            else:
+                redirigir = ("⚠ Esta pregunta es por una PROPIEDAD (estado, tipo, fecha), no por un "
+                             "tema. La búsqueda por significado devuelve lo más parecido, no todo lo "
+                             "que cumple, así que puede faltarte algo. Para la respuesta exacta y "
+                             "completa usa `listar` — por ejemplo listar(estado=\"resuelto\") o "
+                             "listar(estado=\"abierto\"). Abajo va lo que encontró la búsqueda.\n\n")
+        partes = [redirigir + aviso + f"{len(ganadores)} entrada(s) sobre «{pregunta}»\n"]
         for nom in ganadores:
             partes.append(
                 f"### {idx.fuente(idx.nodos[nom])}\n{idx.extracto(nom, args[0], extendido)}")
@@ -1314,6 +1644,72 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None) -> FastMC
         if otras:
             salida += ["", f"*También existen variantes: {', '.join(otras)} "
                        "— pídelas por su nombre si quieres alguna.*"]
+        return "\n".join(salida)
+
+    @registrar
+    @con_dominio(dominio)
+    def listar(estado: str | None = None, tipo: str | None = None,
+               desde: str | None = None, mostrable: bool | None = None) -> str:
+        """Lista sub-entradas filtrando por sus campos. Exacto, no por parecido.
+
+        `consultar` busca por significado y devuelve lo más cercano. Esto es lo otro:
+        recorre las fichas de campos y devuelve TODAS las que cumplen, sin ranking y sin
+        omitir ninguna. Úsala cuando la pregunta es por una propiedad y no por un tema.
+
+        Para qué sirve, en concreto:
+          · «¿qué se arregló esta semana?» → listar(estado="resuelto", desde="2026-07-27")
+          · «¿qué le puedo mostrar al fundador?» → listar(estado="resuelto", mostrable=True)
+          · «¿qué está abierto?» → listar(estado="abierto")
+          · «¿qué mediciones hay?» → listar(tipo="medicion")
+
+        Parámetros:
+          estado:    vigente · resuelto · abierto · aceptado · registrado
+          tipo:      hallazgo · funcionamiento · medicion · contexto
+          desde:     fecha ISO; solo lo verificado en esa fecha o después
+          mostrable: True devuelve solo lo que puede verse fuera del equipo técnico;
+                     False, solo lo interno. Se omite para no filtrar por eso.
+        """
+        filas = []
+        for nombre, nd in idx.nodos.items():
+            for bloque in re.split(r"(?m)^### ", nd.cuerpo)[1:]:
+                titulo = bloque.split("\n", 1)[0].strip()
+                ficha = re.match(r"[^\n]*\n\n((?:- \*\*[^\n]+\n)+)", bloque)
+                if not ficha:
+                    continue
+                campos = {}
+                for linea in ficha.group(1).splitlines():
+                    mm = re.match(r"-\s+\*\*([^:*]+):\*\*\s*(.+?)\s*$", linea)
+                    if mm:
+                        campos[mm.group(1).strip()] = mm.group(2).strip()
+                if estado and campos.get("Estado", "").lower() != estado.lower():
+                    continue
+                if tipo and campos.get("Tipo", "").lower() != tipo.lower():
+                    continue
+                if mostrable is not None:
+                    pub = campos.get("Publicable", "").lower() in ("sí", "si", "true")
+                    if pub != mostrable:
+                        continue
+                fecha = campos.get("Verificado") or campos.get("Checkpoint") or ""
+                if desde and fecha < desde:
+                    continue
+                filas.append((fecha, nombre, titulo, campos))
+        if not filas:
+            return "Nada cumple ese filtro. Prueba aflojando alguno, o usa panorama()."
+        filas.sort(key=lambda x: (x[0], x[1]), reverse=True)
+        criterio = " · ".join(x for x in [
+            f"estado={estado}" if estado else None,
+            f"tipo={tipo}" if tipo else None,
+            f"desde={desde}" if desde else None,
+            ("mostrable" if mostrable else "solo interno") if mostrable is not None else None,
+        ] if x) or "sin filtro"
+        salida = [f"{len(filas)} sub-entrada(s) — {criterio}\n"]
+        actual = None
+        for fecha, nombre, titulo, campos in filas:
+            if nombre != actual:
+                salida.append(f"\n**{nombre}**")
+                actual = nombre
+            marca = campos.get("Tipo", "")
+            salida.append(f"  · {fecha or 'sin fecha'} — {titulo}" + (f"  ({marca})" if marca else ""))
         return "\n".join(salida)
 
     @registrar
@@ -1386,13 +1782,31 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None) -> FastMC
 # --- arranque ----------------------------------------------------------------
 
 def cargar_modelo():
+    """Carga el modelo de embeddings estáticos: int8, con la dimensión COMPLETA (256).
+
+    Antes se truncaba además a 128 dimensiones, o sea se tiraba la mitad de la
+    representación de un modelo que YA es estático —y por tanto el eslabón más débil de
+    toda la cadena de recuperación—. Elegido por medición sobre las 81 preguntas juzgadas,
+    con la memoria del contenedor como restricción real (límite 1,95 GB, ~855 MB en reposo):
+
+      int8/128 (antes) : tabla  64 MB · 1er lugar 52% · fuera 19 · nota 29%
+      int8/256 (ahora) : tabla 128 MB · 1er lugar 54% · fuera 17 · nota 30%
+      float32/256      : tabla 512 MB · 1er lugar 56% · fuera 18 · nota 30%
+
+    float32 gana dos puntos en primer lugar y cuesta 384 MB más en reposo, que en ese
+    contenedor es pasar de 1,0 a 1,3 GB — y con un límite de 1,2 GB el kernel ya había
+    matado este contenedor antes, así que el margen no es teórico. Las diferencias entre las
+    tres son de una o dos preguntas sobre 81 —ruido— EXCEPTO el recall, donde las 256
+    dimensiones ganan claro. Así que se toman las dimensiones y se deja la cuantización.
+    """
     if StaticModel is None:
         return None
     try:
         if Path(MODELO).is_dir():
-            # Ya viene cuantizado (int8/128). Re-cuantizarlo lo expandiria a float32.
+            # Un modelo ya cuantizado en disco se carga tal cual: re-cuantizarlo lo
+            # expandiría a float32 primero.
             return StaticModel.from_pretrained(MODELO)
-        return StaticModel.from_pretrained(MODELO, quantize_to="int8", dimensionality=128)
+        return StaticModel.from_pretrained(MODELO, quantize_to="int8")
     except Exception:
         return None
 
