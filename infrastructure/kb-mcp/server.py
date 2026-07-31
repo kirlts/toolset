@@ -33,6 +33,7 @@ from pathlib import Path
 
 import yaml
 from mcp.server.fastmcp import FastMCP
+from mcp.types import ToolAnnotations
 from mcp.server.transport_security import TransportSecuritySettings
 
 try:
@@ -69,7 +70,14 @@ su sus tal tambien tan tanto te tiene tienen todo todos tras un una unas uno uno
 FRONTMATTER = re.compile(r"^---\n(.*?)\n---\n?", re.S)
 WIKILINK = re.compile(r"\[\[([^\[\]|#]+?)(?:#[^\[\]|]*)?(?:\|[^\[\]]*)?\]\]")
 PALABRA = re.compile(r"[0-9A-Za-zÁÉÍÓÚÜÑáéíóúüñ]{2,}")
-OPERADORES = re.compile(r'["*:()]|\b(AND|OR|NOT|NEAR)\b')
+# Sintaxis de busqueda ESCRITA A PROPOSITO por quien pregunta: comillas, comodin,
+# parentesis, booleanos. Los dos puntos estuvieron en esta lista hasta el 2026-07-30 y
+# eran un error: en FTS5 `:` filtra por columna, pero en castellano es puntuacion
+# corriente, asi que cualquier pregunta con dos puntos se pasaba cruda al indice —con
+# sus `¿`, sus comillas angulares y sus tildes— y FTS5 la rechazaba por sintaxis. La
+# capa lexica devolvia CERO resultados y nadie se enteraba, porque el error se tragaba
+# rio abajo. Medido: 5 de 79 preguntas de la bateria de pertinencia caian por esto.
+OPERADORES = re.compile(r'["*()]|\b(AND|OR|NOT|NEAR)\b')
 # Marcadores de intencion enumerativa: la respuesta es un indice, no un nodo suelto.
 LISTADO = re.compile(r"\b(lista|listar|listado|cuales|cuáles|todos|todas|enumera|"
                      r"que proyectos|qué proyectos|que hay|qué hay|inventario)\b")
@@ -495,7 +503,14 @@ class Indice:
             grupos.append("(" + " OR ".join(f'"{f}"' for f in sorted(formas)) + ")")
         # OR + BM25: los terminos raros pesan por su IDF. Con AND, una pregunta larga
         # solo sobrevivia en los textos legales extensos, que no responden nada.
-        return " OR ".join(grupos) if grupos else consulta
+        if grupos:
+            return " OR ".join(grupos)
+        # Sin grupos no se devuelve la consulta cruda: llevaria `¿`, `«`, `?` y demas
+        # puntuacion que FTS5 rechaza. Se entrecomillan sus palabras, que es siempre
+        # sintaxis valida; si no hay ninguna, se devuelve una consulta valida que no
+        # calza con nada, para que la capa lexica aporte cero en vez de reventar.
+        palabras = [normalizar(t) for t in PALABRA.findall(consulta)]
+        return " OR ".join(f'"{p}"' for p in palabras) if palabras else '""'
 
     def _fts(self) -> None:
         db = self.db
@@ -845,7 +860,7 @@ class Indice:
             fuera.append(f"«{m.group(1)}»" + (f" ({ficha})" if ficha else ""))
         if not fuera:
             return ""
-        return "\n*También en esta entrada:* " + " · ".join(fuera[:8])
+        return "\n*Otras secciones de este documento:* " + " · ".join(fuera[:8])
 
     def extracto(self, nombre: str, consulta_fts: str, extendido: bool = False) -> str:
         """Sirve el pasaje, y garantiza que el límite declarado viaje con él."""
@@ -1055,20 +1070,41 @@ def temas_centrales(idx: Indice, tope: int = 10) -> list[str]:
             and not nom.startswith("00-")][:tope]
 
 
-def con_dominio(cabecera: str):
-    """Antepone la cabecera de dominio al docstring, antes de que FastMCP lo lea.
+def con_dominio(base: str, nucleo: str):
+    """Mete el dominio DENTRO del primer parrafo del docstring, no antes ni despues.
 
-    Se aplica por dentro de @mcp.tool() —el decorador de mas abajo corre primero—,
-    asi que el registro ya ve la descripcion completa. Evita duplicar el texto o
-    tocar la API privada del gestor de herramientas.
+    Dos intentos anteriores fallaron por el mismo motivo de fondo —suponer que el
+    cliente entrega el texto entero— y cada uno lo pago en un extremo distinto:
+
+      · Anteponer el parrafo de dominio completo (hasta el 2026-07-30): las tres
+        herramientas empezaban con los MISMOS 1.100 caracteres, y como lo visible
+        eran los primeros, el modelo no podia distinguir `consultar` de `leer`.
+      · Ponerlo al final, «donde ser recortado no cuesta nada» (ese mismo dia):
+        costaba todo. Medido contra claude.ai el 2026-07-30 por la tarde, el modelo
+        reprodujo EXACTAMENTE el primer parrafo de cada herramienta y declaro no
+        saber «el dominio tematico exacto, ni cuantos documentos contiene» —los dos
+        datos que estaban en la cola—. Y declaro no tener descripcion del servidor:
+        las instrucciones, 1.871 caracteres, no le llegaron. Que en Claude Code SI
+        lleguen no las salva; el fundador entra por claude.ai.
+
+    De ahi la regla: **el primer parrafo tiene que bastarse solo**, y no puede
+    delegar nada en las instrucciones del servidor. Asi que el primer parrafo lleva
+    (1) el verbo propio de la herramienta al inicio, que es lo unico que la
+    distingue, con el nombre de la base incrustado, y (2) el nucleo del dominio,
+    inmediatamente despues. Lo demas —parametros, matices— va detras, y si se
+    recorta se pierde detalle, no el sentido.
     """
     def decorar(fn):
-        fn.__doc__ = f"{cabecera}\n\n{textwrap.dedent(fn.__doc__ or '').strip()}"
+        propio = textwrap.dedent(fn.__doc__ or '').strip()
+        primera, _, resto = propio.partition("\n")
+        fn.__doc__ = f"{primera.format(base=base)} {nucleo}" + (f"\n{resto}" if resto else "")
         return fn
     return decorar
 
 
-def crear_servidor(idx: Indice, herramientas: list[str] | None = None) -> FastMCP:
+def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
+                   descripcion: str | None = None, cierre: str | None = None,
+                   ambitos_texto: str | None = None) -> FastMCP:
     """Un servidor MCP por KB. Las tres herramientas se cierran sobre su indice.
 
     `herramientas` acota cuales se registran (None = todas). Se usa para servir la
@@ -1104,8 +1140,20 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None) -> FastMC
     # el agente lo infiera del nombre del conector, que lo elige quien lo instala.
     centrales = temas_centrales(idx)
     dominio = (
-        f"Base de conocimiento «{cfg.nombre}» ({len(idx.nodos)} entradas)"
-        + (f" sobre {cfg.descripcion}" if cfg.descripcion else "")
+        f"«{cfg.nombre}» — colección de {len(idx.nodos)} documentos"
+        # `split()`+`join`: el texto viene de un bloque YAML plegado, que deja un salto
+        # de línea al final. Ese salto quedaba ANTES del punto —«…decisiones)\n.»— y el
+        # cliente cortaba ahí la descripción, dejándola partida a media frase. Visto el
+        # 2026-07-30 en el conector de claude.ai: llegaba hasta «como líder…».
+        #
+        # `descripcion` puede venir del NIVEL. Un nivel no es la misma base con menos
+        # filas: es otra cosa para otro lector. La recortada la lee quien financia el
+        # trabajo, y describirla con las palabras del nivel completo —«compromisos
+        # vivos de Martín», «madurez desigual»— le habla de la cocina en vez de del
+        # plato. Peor: cualquier insinuación de que hay una versión con más contenido
+        # convierte una herramienta que debía dar alivio en una que da sospecha.
+        + (f" sobre {' '.join(str(descripcion or cfg.descripcion).split())}"
+           if (descripcion or cfg.descripcion) else "")
         + ". "
         + (f"Cubre, entre otros: {', '.join(centrales)}. " if centrales else "")
         + "Es la fuente propia del equipo sobre ese dominio, con su vocabulario y sus "
@@ -1113,27 +1161,75 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None) -> FastMC
           "saber la respuesta, porque aquí está la versión vigente y contrastable. "
           "No la uses para preguntas ajenas a ese dominio: no contiene conocimiento "
           "general ni el contenido de otras bases, y no devuelve nada que no esté "
-          f"escrito en ella. Ámbitos para acotar la búsqueda: {ambitos}. "
+          f"escrito en ella. Ámbitos para acotar la búsqueda: {ambitos_texto or ambitos}. "
           "Es de solo lectura: ninguna de sus herramientas modifica la base."
     )
 
+    # El parrafo de herramientas se ARMA con las que este nivel declara de verdad.
+    # Estuvo escrito a mano hasta el 2026-07-30 y decia siempre «Tres herramientas:
+    # consultar, leer, panorama». En el nivel recortado eso era falso por los dos
+    # lados: `panorama` no se declara ahi, y `listar` —que si se declara, y es la que
+    # contesta «que esta esperando de mi»— no se nombraba. Es decir, la unica
+    # instruccion que el cliente lee le prometia una herramienta inexistente y le
+    # escondia una util. Un texto fijo describiendo algo variable envejece solo.
+    COMO_SE_USA = {
+        "consultar": "`consultar` para preguntar sin saber dónde está la respuesta",
+        "leer": "`leer` para el texto íntegro de un documento que ya sabes cómo se llama",
+        "listar": "`listar` para filtrar por propiedades —qué está abierto, qué se "
+                  "resolvió, de qué tipo— en vez de por tema",
+        "panorama": "`panorama` para ver qué cubre la base o el mapa de un tema",
+    }
+    disponibles = [t for t in COMO_SE_USA if permitida(t)]
+    CUANTAS = {1: "Una herramienta", 2: "Dos herramientas", 3: "Tres herramientas",
+               4: "Cuatro herramientas"}
+    parrafo_herramientas = (
+        f"{CUANTAS.get(len(disponibles), f'{len(disponibles)} herramientas')}, en orden "
+        f"de uso habitual: {'; '.join(COMO_SE_USA[t] for t in disponibles)}. "
+    ) if disponibles else ""
+
+    # Lo que se incrusta en el PRIMER párrafo de cada herramienta: el nombre de la base
+    # y el núcleo de su dominio, en dos frases. No puede ser el párrafo largo —no cabe—
+    # ni puede faltar —el cliente puede no entregar las instrucciones del servidor—.
+    # El núcleo se saca de la descripción cortándola en su primera raya: la descripción
+    # está escrita como «núcleo — desglose», así que lo de antes de la raya es el
+    # resumen que ya existe, sin pedir un campo nuevo que alguien tendría que mantener
+    # al día aparte (y que envejecería sin que nada avise).
+    etiqueta = f"«{cfg.nombre}»"
+    resumen = " ".join(str(descripcion or cfg.descripcion or "").split())
+    resumen = re.split(r"\s+[—–]\s+", resumen)[0]
+    if len(resumen) > 110:
+        resumen = resumen[:107].rsplit(" ", 1)[0] + "…"
+    contexto = (f"Son {len(idx.nodos)} documentos"
+                + (f" sobre {resumen}" if resumen else "")
+                + ". Solo lectura; no devuelve nada que no esté escrito ahí.")
+
     mcp = FastMCP(cfg.slug, instructions=(
         f"{dominio}\n\n"
-        "Tres herramientas, en orden de uso habitual: `consultar` para preguntar sin "
-        "saber dónde está la respuesta; `leer` para el texto íntegro de una entrada "
-        "que ya sabes cómo se llama; `panorama` para ver qué cubre la base o el mapa "
-        "de un tema. Cada resultado trae su fecha de última actualización y las "
-        "entradas conectadas, para seguir el hilo sin volver a buscar. Es de solo "
-        "lectura: no hay forma de modificar la base desde aquí. El contenido es una "
-        "obra en curso de madurez desigual; cita las fuentes que cada entrada declara "
-        "cuando la respuesta vaya a sostener una decisión."
+        f"{parrafo_herramientas}"
+        + (cierre or
+           "Cada resultado trae su fecha de última actualización y los documentos "
+           "relacionados, para seguir el hilo sin volver a buscar. Es de solo "
+           "lectura: no hay forma de modificar esta colección desde aquí. El contenido es "
+           "una obra en curso de madurez desigual; cita las fuentes que cada documento "
+           "declara cuando la respuesta vaya a sostener una decisión.")
     ))
 
     def registrar(fn):
         """Registra la herramienta solo si este nivel la incluye. Si no, la funcion
         queda definida pero nunca se declara al cliente: no aparece en el listado ni
         se puede invocar."""
-        return mcp.tool()(fn) if permitida(fn.__name__) else fn
+        # Anotaciones: el protocolo tiene campos para declarar que una herramienta no
+        # modifica nada y no sale al mundo. Decirlo así es más fuerte que prometerlo en
+        # la prosa —un cliente puede mostrarlo o actuar sobre ello, y no depende de que
+        # el modelo lea la descripción hasta el final, que es justo lo que no pasa
+        # cuando el texto se recorta. Recomendación de la guía de Anthropic sobre
+        # escribir herramientas para agentes (2026).
+        return mcp.tool(annotations=ToolAnnotations(
+            readOnlyHint=True,      # ninguna de las cuatro escribe en la base
+            destructiveHint=False,
+            idempotentHint=True,    # la misma llamada devuelve lo mismo
+            openWorldHint=False,    # el universo es esta base y nada más
+        ))(fn) if permitida(fn.__name__) else fn
 
     # Preguntas por PROPIEDAD (estado, tipo, fecha) que la búsqueda por significado
     # contesta mal por diseño: devuelve lo más parecido, no todo lo que cumple. En vez
@@ -1148,49 +1244,37 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None) -> FastMC
         r"lista\s+de\s+(hallazgos|pendientes|resueltos))", re.I)
 
     @registrar
-    @con_dominio(dominio)
+    @con_dominio(etiqueta, contexto)
     def consultar(pregunta: str, ambito: str | None = None,
                   orden: str = "relevancia", limite: int = 6,
                   detalle: str = "normal") -> str:
-        """Busca en esta base de conocimiento y devuelve los pasajes más relevantes.
+        """Busca en {base} y devuelve los fragmentos que responden a la pregunta.
 
-        Esta es la herramienta de entrada: úsala siempre que tengas una pregunta y no
-        sepas de antemano en qué entrada está la respuesta. Si ya conoces el nombre de
-        la entrada que quieres, usa `leer` en su lugar; si quieres un mapa del terreno
-        antes de preguntar, usa `panorama`.
+        Empieza siempre por acá cuando tengas una pregunta y no sepas en qué documento
+        está la respuesta. Si ya sabes el título del documento, usa `leer`; si quieres
+        ver qué hay antes de preguntar, usa `panorama`.
 
-        Escribe la pregunta en lenguaje natural, como se la harías a una persona.
-        Singular y plural, género y tildes son indiferentes ("residuo" halla
-        "residuos", "gestion" halla "Gestión"), y encuentra por significado aunque tu
-        pregunta no comparta ninguna palabra con el texto. Para exigir una frase
-        textual, enciérrala en comillas dobles.
+        Escribe la pregunta en lenguaje natural. Singular y plural, género y tildes
+        son indiferentes ("gestion" halla "Gestión"), y encuentra por significado
+        aunque tu pregunta no comparta ninguna palabra con el texto; para exigir una
+        frase textual, enciérrala en comillas dobles.
 
-        Devuelve una lista de entradas; por cada una: su título, su ámbito, su fecha de
-        última actualización, un extracto del pasaje pertinente, y los títulos de las
-        entradas conectadas a ella (para seguir el hilo con `leer` sin volver a
-        buscar). El contenido es una obra en curso con entradas de madurez desigual:
-        cada una cita sus fuentes y conviene contrastar lo importante contra ellas.
-
-        No devuelve el texto completo de las entradas, solo el extracto pertinente de
-        cada una: para el contenido íntegro, llama después a `leer` con el título que
-        esta herramienta te devolvió. Tampoco completa con conocimiento externo — si la
-        base no dice nada del tema, responde que no encontró nada, y esa respuesta es
-        informativa: significa que la base no lo cubre.
+        Devuelve, por documento: su título, su categoría, la fecha en que se actualizó
+        por última vez, el fragmento que responde, y los títulos de los documentos
+        relacionados (para seguir el hilo con `leer` sin volver a buscar). NO devuelve
+        el texto completo —para eso llama a `leer` con el título que esta te dio— ni
+        completa con conocimiento externo: si no encuentra nada, esa respuesta es
+        informativa.
 
         Parámetros:
           pregunta: la consulta en lenguaje natural (obligatoria).
-          ambito: acota a un área de la base (los valores dependen de cada base; si
-                  te equivocas, la herramienta te devuelve los disponibles). Omítelo
-                  para buscar en toda la base.
-          orden: 'relevancia' (por defecto) o 'reciente'. Usa 'reciente' cuando la
-                 intención es temporal —«¿qué bitácoras hay?», «lo último sobre X»—:
-                 la pregunta acota el tema y la fecha de git decide el orden.
-          limite: número de entradas a devolver (1–20, por defecto 6).
-          detalle: 'normal' (por defecto) o 'extendido'. Con 'extendido' cada
-                 entrada trae un pasaje ~3× más largo alrededor de la coincidencia
-                 y el doble de entradas conectadas. Úsalo cuando necesites que una
-                 sola llamada rinda el máximo contexto; los extractos siguen siendo
-                 parciales — para el texto íntegro la vía sigue siendo `leer`.
+          ambito: acota la búsqueda a una categoría; si te equivocas, te devuelve las
+                  disponibles. Omítelo para buscar en todo.
+          orden: 'relevancia' (por defecto) o 'reciente'. 'reciente' cuando la
+                 intención es temporal —«lo último sobre X»—.
+          limite: documentos a devolver (1–20, por defecto 6).
+          detalle: 'normal' (por defecto) o 'extendido' —fragmento ~3× más largo y el
+                 doble de documentos relacionados, para que una sola llamada rinda más—.
         """
         extendido = normalizar(detalle).startswith("extend")
         polo, aviso = None, ""
@@ -1235,8 +1319,13 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None) -> FastMC
                 lexico = [f[0] for f in idx.db.execute(
                     f"SELECT nombre FROM docs WHERE docs MATCH ? {' '.join(filtros)} "
                     f"ORDER BY rank LIMIT {tope_lex}", args).fetchall() if f[0] in idx.nodos]
-        except sqlite3.OperationalError as e:
-            return f"No pude interpretar esa consulta ({e}). Prueba con palabras sueltas."
+        except sqlite3.OperationalError:
+            # Antes esto abortaba la consulta entera con «no pude interpretar». Pero la
+            # capa semantica no depende de la sintaxis de FTS5 y sigue sirviendo: se
+            # degrada a ella en vez de dejar al que pregunta sin nada. La causa habitual
+            # —puntuacion castellana confundida con operadores— se corrigio en
+            # OPERADORES el 2026-07-30; esto es la red por si aparece otra.
+            lexico = []
 
         semantico = [s for s in idx.semejantes(pregunta)
                      if not polo or idx.nodos[s].polo == polo]
@@ -1523,8 +1612,19 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None) -> FastMC
         hubs = {nom for nom, nd in idx.nodos.items()
                 if nd.es_indice or sum(1 for x in idx.nodos.values()
                                        if nom in links_de_padre(x)) >= 4}
+        # Excepcion que esta poda no heredo. La penalizacion BLANDA de hub (mas arriba) ya
+        # exime a las preguntas definicionales, y su comentario dice por que: "que es esta
+        # plataforma" tiene al nodo panoramico como respuesta correcta. Esta poda DURA se
+        # agrego despues y solo miraba `exacto`, que exige que la pregunta sea el titulo
+        # entero. "que es OKOS" no lo es, asi que OKOS quedaba fuera de su propia respuesta:
+        # la consulta devolvia cuatro entradas y ninguna era la que se preguntaba.
+        # Se exige que la pregunta lo NOMBRE ademas de ser definicional: sin esa segunda
+        # condicion, "como funciona el cobro en okos" volveria a devolver el hub, que es
+        # justo el caso medido el 2026-07-29 que motivo esta poda.
+        nombrado_definicional = ({g for g in ganadores if normalizar(g) in objetivo}
+                                 if DEFINICIONAL.search(objetivo) else set())
         if hubs and not exacto:
-            sin_hub = [g for g in ganadores if g not in hubs]
+            sin_hub = [g for g in ganadores if g not in hubs or g in nombrado_definicional]
             if sin_hub:
                 ganadores = sin_hub
 
@@ -1586,7 +1686,7 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None) -> FastMC
                              "que cumple, así que puede faltarte algo. Para la respuesta exacta y "
                              "completa usa `listar` — por ejemplo listar(estado=\"resuelto\") o "
                              "listar(estado=\"abierto\"). Abajo va lo que encontró la búsqueda.\n\n")
-        partes = [redirigir + aviso + f"{len(ganadores)} entrada(s) sobre «{pregunta}»\n"]
+        partes = [redirigir + aviso + f"{len(ganadores)} documento(s) sobre «{pregunta}»\n"]
         for nom in ganadores:
             partes.append(
                 f"### {idx.fuente(idx.nodos[nom])}\n{idx.extracto(nom, args[0], extendido)}")
@@ -1597,30 +1697,30 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None) -> FastMC
         return "\n".join(partes)
 
     @registrar
-    @con_dominio(dominio)
+    @con_dominio(etiqueta, contexto)
     def leer(tema: str) -> str:
-        """Devuelve el texto íntegro y verbatim de una entrada, por su nombre.
+        """Devuelve de {base} el texto completo de un documento, por su título, íntegro.
 
-        Úsala cuando ya sabes qué entrada quieres —normalmente porque `consultar` te
-        la mostró, o el usuario la nombró— y necesitas su contenido completo, no un
-        extracto. Si no sabes el nombre exacto, usa `consultar` primero.
+        Úsala cuando ya sabes qué documento quieres —normalmente porque `consultar` te
+        lo mostró, o el usuario lo nombró— y necesitas todo su contenido, no un
+        fragmento. Si no sabes el título exacto, usa `consultar` primero.
 
         Acepta el nombre aproximado: resuelve tildes, mayúsculas y coincidencias
-        parciales, y prefiere la entrada base sobre sus variantes. Devuelve el título,
-        el ámbito, la fecha de última actualización, el cuerpo Markdown completo tal
-        como está escrito, y al final las entradas conectadas más las variantes de
+        parciales, y prefiere el documento base sobre sus variantes. Devuelve el título,
+        la categoría, la fecha de última actualización, el cuerpo Markdown completo tal
+        como está escrito, y al final los documentos enlazados más las variantes de
         nombre que existan, si las hay.
 
         No busca por tema ni por significado: solo resuelve nombres. Si el nombre que
-        pasas no identifica con claridad a una entrada, no devuelve contenido —nunca
-        adivina entre homónimos— sino la lista de candidatas para que elijas.
+        pasas no identifica con claridad a un documento, no devuelve contenido —nunca
+        adivina entre homónimos— sino la lista de opciones para que elijas.
 
         Parámetros:
-          tema: el nombre (o una aproximación) de la entrada a leer.
+          tema: el título (o una aproximación) del documento a leer.
         """
         candidatos, confianza = idx.resolver(tema)
         if not candidatos:
-            return f"No encontré una entrada llamada «{tema}». Prueba con consultar()."
+            return f"No encontré un documento llamado «{tema}». Prueba con consultar()."
         # Match debil (solo raices compartidas): NO se entrega contenido, porque puede
         # ser un homonimo. Se ofrecen candidatos —por raiz Y por significado, para
         # captar sinonimos y siglas: "responsabilidad extendida" sugiere "Ley 20.920
@@ -1628,7 +1728,7 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None) -> FastMC
         if confianza == "debil":
             sugeridos = list(dict.fromkeys(candidatos[:4] + idx.semejantes(tema, tope=5)))[:8]
             lista = "\n".join(f"  - {c}" for c in sugeridos)
-            return (f"No hay una entrada que se llame exactamente «{tema}». Puede que "
+            return (f"No hay un documento que se llame exactamente «{tema}». Puede que "
                     f"busques una de estas:\n{lista}\n\nO usa consultar(«{tema}») para "
                     "buscar por significado en vez de por nombre.")
         # Antes se pedia desambiguar apenas habia dos candidatas, lo que fricciona
@@ -1647,14 +1747,15 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None) -> FastMC
         return "\n".join(salida)
 
     @registrar
-    @con_dominio(dominio)
+    @con_dominio(etiqueta, contexto)
     def listar(estado: str | None = None, tipo: str | None = None,
                desde: str | None = None, mostrable: bool | None = None) -> str:
-        """Lista sub-entradas filtrando por sus campos. Exacto, no por parecido.
+        """Filtra secciones de {base} por sus campos: estado, tipo, fecha. Exacto, no por parecido.
 
-        `consultar` busca por significado y devuelve lo más cercano. Esto es lo otro:
-        recorre las fichas de campos y devuelve TODAS las que cumplen, sin ranking y sin
-        omitir ninguna. Úsala cuando la pregunta es por una propiedad y no por un tema.
+        `consultar` busca por significado y devuelve lo más parecido. Esto es lo otro:
+        revisa los campos de cada sección y devuelve TODAS las que cumplen, sin ranking
+        y sin omitir ninguna. Úsala cuando la pregunta es por una propiedad —en qué
+        estado está, de qué tipo es, desde qué fecha— y no por un tema.
 
         Para qué sirve, en concreto:
           · «¿qué se arregló esta semana?» → listar(estado="resuelto", desde="2026-07-27")
@@ -1702,7 +1803,7 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None) -> FastMC
             f"desde={desde}" if desde else None,
             ("mostrable" if mostrable else "solo interno") if mostrable is not None else None,
         ] if x) or "sin filtro"
-        salida = [f"{len(filas)} sub-entrada(s) — {criterio}\n"]
+        salida = [f"{len(filas)} sección(es) — {criterio}\n"]
         actual = None
         for fecha, nombre, titulo, campos in filas:
             if nombre != actual:
@@ -1713,25 +1814,25 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None) -> FastMC
         return "\n".join(salida)
 
     @registrar
-    @con_dominio(dominio)
+    @con_dominio(etiqueta, contexto)
     def panorama(tema: str | None = None) -> str:
-        """Da una vista de conjunto: el inventario de la base, o el mapa de un tema.
+        """Vista de conjunto de {base}: qué documentos hay, o cómo se relacionan por tema.
 
         Úsala para orientarte antes de preguntar, o cuando la intención del usuario es
         panorámica y no puntual: «¿qué hay acá?», «¿de qué trata esto?», «¿qué se
         conecta con X?». Para responder una pregunta concreta, usa `consultar`.
 
-        Sin argumentos: devuelve cuántas entradas hay, cómo se reparten por área, y las
-        entradas más conectadas de cada una (los nodos centrales de la base). Con un
-        tema: devuelve las entradas vecinas a ese tema en el grafo, cada una con una
+        Sin argumentos: devuelve cuántos documentos hay, cómo se reparten por categoría,
+        y los más relacionados de cada una (los centrales). Con un
+        tema: devuelve los documentos vecinos a ese tema en el grafo, cada uno con una
         línea de resumen — la forma rápida de entender un área sin leerla completa.
 
-        No responde preguntas de contenido ni devuelve el texto de las entradas: sirve
+        No responde preguntas de contenido ni devuelve el texto de los documentos: sirve
         para saber qué existe y cómo se relaciona, no qué dice. Para lo segundo, usa
         `consultar` o `leer`.
 
         Parámetros:
-          tema: opcional. El nombre de una entrada para ver su vecindario; si se omite,
+          tema: opcional. El título de un documento para ver su vecindario; si se omite,
                 se devuelve el inventario general de la base.
         """
         if tema:
@@ -1745,7 +1846,7 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None) -> FastMC
             if nodo.es_indice and (inv := nodo.seccion("Inventario")):
                 return f"**{nodo.nombre}** — índice del área. Contiene:\n\n{inv[:1200]}"
             if not vecinos:
-                return f"«{nodo.nombre}» no está conectada a otras entradas todavía."
+                return f"«{nodo.nombre}» no está conectado a otros documentos todavía."
             lineas = [f"Mapa alrededor de **{nodo.nombre}** ({len(vecinos)} conectadas)\n"]
             for v in vecinos:
                 lineas.append(f"- **{v}** — {' '.join(idx.nodos[v].cuerpo.split())[:110]}…")
@@ -1757,7 +1858,7 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None) -> FastMC
         por_polo: dict[str, list[str]] = {}
         for nombre, nodo in idx.nodos.items():
             por_polo.setdefault(nodo.polo, []).append(nombre)
-        lineas = [f"**{cfg.nombre}** — {len(idx.nodos)} entradas"
+        lineas = [f"**{cfg.nombre}** — {len(idx.nodos)} documentos"
                   + (f" sobre {cfg.descripcion}" if cfg.descripcion else "") + ".\n"]
         for d, etiqueta in cfg.polos.items():
             nombres = por_polo.get(d)
@@ -1860,8 +1961,10 @@ def main() -> None:
     # cada ruta es un recurso distinto que un token podra habilitar o no.
     servidores, rutas_http = [], []
 
-    def montar(idx: Indice, ruta: str, herramientas: list[str] | None = None) -> FastMCP:
-        mcp = crear_servidor(idx, herramientas)
+    def montar(idx: Indice, ruta: str, herramientas: list[str] | None = None,
+               descripcion: str | None = None, cierre: str | None = None,
+               ambitos_texto: str | None = None) -> FastMCP:
+        mcp = crear_servidor(idx, herramientas, descripcion, cierre, ambitos_texto)
         mcp.settings.stateless_http = True  # el RC 2026-07-28 elimina las sesiones
         if seguridad:
             mcp.settings.transport_security = seguridad
@@ -1882,7 +1985,10 @@ def main() -> None:
                 continue
             vista = idx.restringir(cfg_nivel["campo"], cfg_nivel.get("valor", True))
             servidores.append(montar(vista, f"/{idx.cfg.slug}-{nombre}",
-                                     cfg_nivel.get("herramientas")))
+                                     cfg_nivel.get("herramientas"),
+                                     cfg_nivel.get("descripcion"),
+                                     cfg_nivel.get("cierre"),
+                                     cfg_nivel.get("ambitos")))
             print(f"[kb-mcp]   nivel '{nombre}': {len(vista.nodos)} entradas, "
                   f"herramientas={cfg_nivel.get('herramientas') or 'todas'}", flush=True)
 
