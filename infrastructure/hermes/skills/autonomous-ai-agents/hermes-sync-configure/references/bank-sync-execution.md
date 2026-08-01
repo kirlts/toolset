@@ -246,6 +246,8 @@ for cmd in [["git", "pull", "--rebase", "origin", "main"],
 
 Run as three sequential `terminal()` calls in the same assistant turn.
 
+**⚠️ Observed 2026-08-01 — the 3-batch plan is TOO OPTIMISTIC.** Real per-bank time with reflect budget=high is ~1.5-2.5 min (export is fast; reflect+retain dominate). A 6-bank foreground call timed out at 420s mid-retain; a 4-bank call timed out at 300s. **Preferred approach: run the whole remaining list as ONE background process** (`terminal(background=true, notify_on_complete=true)`) — the script prints per-bank progress with flush=True and survives foreground timeouts. Total wall-clock for 16 banks: ~25-30 min. When a foreground call is killed mid-retain: the retain often still lands server-side (async=False completes server-side even if the client dies) — verify with `curl "http://127.0.0.1:8888/v1/default/banks/<bid>/memories/list?limit=3&tags=daily-summary"` and check `mentioned_at` timestamps before reprocessing that bank.
+
 **Python helpers (for ad-hoc per-bank operations via execute_code or terminal):**
 ```python
 BASE = "http://127.0.0.1:8888"
