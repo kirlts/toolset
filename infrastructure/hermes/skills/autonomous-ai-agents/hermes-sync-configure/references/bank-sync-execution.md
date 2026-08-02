@@ -125,6 +125,13 @@ wait
 
 The Hindsight Docker container exposes a REST API on `http://127.0.0.1:8888` (not to be confused with the MCP SSE endpoint at the tailscale URL — that one does NOT accept standard HTTP POST). This approach is simpler, faster, and more reliable than MCP JSON-RPC: standard HTTP POST/GET, no SSE parsing, no double-encoded JSON, no Content-Type issues.
 
+**⚠️ Port mapping can break while the container is healthy (observed 2026-08-02).** `127.0.0.1:8888` returned connection refused from the host even though `docker ps` showed `hindsight Up (healthy)` and the API responded fine inside the container (`docker exec hindsight curl http://localhost:8888/v1/default/banks`). Fix: query the container IP directly from the host:
+```bash
+HIP=$(docker inspect hindsight --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}')
+curl "http://$HIP:8888/v1/default/banks"   # works when the mapped port refuses
+```
+Then point the sync script at it: `HINDSIGHT_API=http://$HIP:8888 python3 /tmp/hindsight-sync.py` (the script reads `HINDSIGHT_API`, default `http://127.0.0.1:8888`). The canonical script lives at `scripts/hindsight-sync.py` in this skill — copy to /tmp each run rather than hand-writing it.
+
 **Key endpoints:**
 
 | Endpoint | Method | Purpose |
@@ -386,6 +393,7 @@ git log --oneline -3
 
 | **REST API reflect returns empty `text` for busy banks** | Observed on some banks when reflect times out internally. Retry with `budget="low"` and a shorter query, or fall back to manual summary from list_memories output. |
 | **MCP JSON-RPC via curl returns `Invalid Content-Type header`** | The MCP SSE endpoint does not accept standard HTTP POST with JSON body. Use the REST API at `http://127.0.0.1:8888` instead. |
+| **REST API `127.0.0.1:8888` connection refused but container healthy** | docker-proxy port mapping can fail while the container is fine (2026-08-02). Use container IP: `HIP=$(docker inspect hindsight --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}')` then `HINDSIGHT_API=http://$HIP:8888`. See Method D section. |
 
 ## Appendix: Bank Inventory (as of 2026-07-30)
 

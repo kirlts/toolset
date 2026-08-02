@@ -42,7 +42,11 @@ Adds to `~/.hermes/SOUL.md`:
 Adds restoration of config.yaml, memory files, and scripts from repo to `~/.hermes/` during CI/CD.
 
 ### 5. Reference: bank-sync-execution
-See `references/bank-sync-execution.md` for the detailed step-by-step procedure used by the `hermes-sync-banks` cron job, including cron-mode constraints and data extraction techniques.
+See `references/bank-sync-execution.md` for the detailed step-by-step procedure used by the `hermes-sync-banks` cron job, including cron-mode constraints and data extraction techniques. The ready-to-run sync script is at `scripts/hindsight-sync.py` — copy to /tmp and run with `python3` (it reads `HINDSIGHT_API` env var, defaults to `http://127.0.0.1:8888`).
+
+## Troubleshooting
+
+- **REST API not reachable on `127.0.0.1:8888` but container is healthy**: the docker-proxy port mapping can fail while the container itself runs fine. Get the container IP with `docker inspect hindsight --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'` and set `HINDSIGHT_API=http://<ip>:8888` (observed 2026-08-02: `172.18.0.7:8888` worked when `127.0.0.1:8888` refused connections). Do NOT fall back to MCP JSON-RPC via curl — that endpoint rejects plain HTTP POST.
 
 ## Troubleshooting
 
