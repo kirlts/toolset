@@ -46,7 +46,7 @@ See `references/bank-sync-execution.md` for the detailed step-by-step procedure 
 
 ## Troubleshooting
 
-- **REST API not reachable on `127.0.0.1:8888` but container is healthy**: the docker-proxy port mapping can fail while the container itself runs fine. Get the container IP with `docker inspect hindsight --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'` and set `HINDSIGHT_API=http://<ip>:8888` (observed 2026-08-02: `172.18.0.7:8888` worked when `127.0.0.1:8888` refused connections). Do NOT fall back to MCP JSON-RPC via curl — that endpoint rejects plain HTTP POST.
+- **REST API not reachable on `127.0.0.1:8888` but container is healthy**: the docker-proxy port mapping can fail while the container itself runs fine. Get the container IP with `docker inspect hindsight --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'` and set `HINDSIGHT_API=http://<ip>:8888` (observed 2026-08-02 AND 2026-08-03 (consecutive daily runs): `172.18.0.7:8888` worked when `127.0.0.1:8888` refused connections. As of early Aug 2026 treat the mapped port as likely-broken: if a quick `curl -m 5 http://127.0.0.1:8888/v1/default/banks` fails, skip straight to the container IP (`docker inspect hindsight --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'`)). Do NOT fall back to MCP JSON-RPC via curl — that endpoint rejects plain HTTP POST.
 
 ## Troubleshooting
 

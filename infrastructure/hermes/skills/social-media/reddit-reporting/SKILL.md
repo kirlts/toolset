@@ -459,6 +459,12 @@ When the user returns ~24 hours after an event and asks for an update:
 
 12. **Composio Reddit connection expires between cron runs.** OAuth tokens can become stale. COMPOSIO_SEARCH_TOOLS reveals the status at the start of each run. If inactive in cron mode, you CANNOT re-establish it — the COMPOSIO_MANAGE_CONNECTIONS flow returns an OAuth link that requires interactive browser use and expires in 10 minutes. Use the web_search fallback instead (see above). Do NOT attempt to call Reddit tools on a dead connection — they will fail silently or return errors.
 
+14. **"invalid client id" error during Composio Reddit OAuth is often transient (live mode).** When the user opens the Composio auth link and Reddit responds "bad request / invalid client id", the Composio-side Reddit app may be temporarily misconfigured/revoked. Do NOT burn time regenerating links repeatedly: it is a provider-side issue. In live mode (user present), retry the flow once or twice — it usually resolves on its own (observed 02-Aug-2026: after several failed attempts the connection became Active and verified with a real read). If it persists, pivot to the user-owned script app (create at reddit.com/prefs/apps, type "script", use OAuth password grant from host) or stay on the web_search fallback.
+
+15. **Direct anonymous reddit.com JSON is login-walled from the OCI host.** `curl https://www.reddit.com/...json` (also old.reddit.com, api.reddit.com) returns an HTML login/block page, not JSON. Never rely on raw curl for Reddit data on this host — use Composio Reddit tools (when connected) or the Exa web_search fallback (minutes of indexing delay, acceptable for non-live sentiment).
+
+14. **Composio Reddit OAuth can be broken at the app level ("invalid client id").** If the Reddit OAuth flow returns `bad request — invalid client id`, the Composio-side Reddit app has invalid/revoked credentials. Regenerating the connection link does NOT fix it — every new link re-uses the same broken app. Even after the user completes the browser flow, COMPOSIO_SEARCH_TOOLS keeps reporting "No Active connection". Options: (a) keep using the web_search fallback (works, minutes of indexing delay), or (b) have the user create a personal Reddit "script" app (reddit.com/prefs/apps) and call the Reddit API directly with OAuth password grant, bypassing Composio entirely. Verified 2026-08-02 on Toolset Personal (wwe-profile): 3 regenerated links + user re-auth all failed.
+
 ## Verification Checklist
 
 - [ ] Composio Reddit connection verified as active (or fallback activated if inactive)

@@ -125,7 +125,7 @@ wait
 
 The Hindsight Docker container exposes a REST API on `http://127.0.0.1:8888` (not to be confused with the MCP SSE endpoint at the tailscale URL — that one does NOT accept standard HTTP POST). This approach is simpler, faster, and more reliable than MCP JSON-RPC: standard HTTP POST/GET, no SSE parsing, no double-encoded JSON, no Content-Type issues.
 
-**⚠️ Port mapping can break while the container is healthy (observed 2026-08-02).** `127.0.0.1:8888` returned connection refused from the host even though `docker ps` showed `hindsight Up (healthy)` and the API responded fine inside the container (`docker exec hindsight curl http://localhost:8888/v1/default/banks`). Fix: query the container IP directly from the host:
+**⚠️ Port mapping can break while the container is healthy (observed 2026-08-02 AND 2026-08-03 — recurring, treat as likely-broken).** `127.0.0.1:8888` returned connection refused from the host even though `docker ps` showed `hindsight Up (healthy)` and the API responded fine inside the container (`docker exec hindsight curl http://localhost:8888/v1/default/banks`). Fix: query the container IP directly from the host:
 ```bash
 HIP=$(docker inspect hindsight --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}')
 curl "http://$HIP:8888/v1/default/banks"   # works when the mapped port refuses
@@ -253,13 +253,19 @@ for cmd in [["git", "pull", "--rebase", "origin", "main"],
 
 Run as three sequential `terminal()` calls in the same assistant turn.
 
-**⚠️ Observed 2026-08-01 — the 3-batch plan is TOO OPTIMISTIC.** Real per-bank time with reflect budget=high is ~1.5-2.5 min (export is fast; reflect+retain dominate). A 6-bank foreground call timed out at 420s mid-retain; a 4-bank call timed out at 300s. **Preferred approach: run the whole remaining list as ONE background process** (`terminal(background=true, notify_on_complete=true)`) — the script prints per-bank progress with flush=True and survives foreground timeouts. Total wall-clock for 16 banks: ~25-30 min. When a foreground call is killed mid-retain: the retain often still lands server-side (async=False completes server-side even if the client dies) — verify with `curl "http://127.0.0.1:8888/v1/default/banks/<bid>/memories/list?limit=3&tags=daily-summary"` and check `mentioned_at` timestamps before reprocessing that bank.
+**⚠️ Observed 2026-08-01 — the 3-batch plan is TOO OPTIMISTIC.** Real per-bank time with reflect budget=high is ~1.5-2.5 min (export is fast; reflect+retain dominate). A 6-bank foreground call timed out at 420s mid-retain; a 4-bank call timed out at 300s. **Preferred approach: run the whole remaining list as ONE background process** (`terminal(background=true, notify_on_complete=true)`) — the script prints per-bank progress with flush=True and survives foreground timeouts. Total wall-clock for 16 banks: ~25-30 min — but the 2026-08-03 full run took ~43 min; per-bank reflect can spike to 5+ min even on mid-size banks (toolset-profile 314s, wwe-profile 290s, both ~480-615 facts), so treat 1.5-2.5 min as the floor, not the ceiling. When a foreground call is killed mid-retain: the retain often still lands server-side (async=False completes server-side even if the client dies) — verify with `curl "http://127.0.0.1:8888/v1/default/banks/<bid>/memories/list?limit=3&tags=daily-summary"` and check `mentioned_at` timestamps before reprocessing that bank.
 
 **Python helpers (for ad-hoc per-bank operations via execute_code or terminal):**
 ```python
 BASE = "http://127.0.0.1:8888"
 # Actually define these inline before each use — session vars don't persist across terminal() calls
 ```
+
+**Monitoring a background sync run (2026-08-03):** `process(action='poll')` often returns an EMPTY `output_preview` while the run is in progress — even minutes in, despite the script using `flush=True`. Per-bank log lines only surface in `wait`/`log` output and may arrive in bursts. Ground truth for progress: count exported files on disk:
+```bash
+ls /home/opc/workspace/toolset/infrastructure/hermes/banks/*/<TODAY>.json | wc -l   # 16 = exports done; reflect+retain may still be running
+```
+The final `SYNC SUMMARY` block plus the `GIT ...` lines (pull/add/commit/push) in the process output confirm the full pipeline incl. git push. Expected cadence on 2026-08-03: ~1 bank per 2-3 min early, slower on the two giant banks (hermes 2.6K facts, personal-buffer 5.4K facts), faster on small ones.
 
 ### Method B (legacy): MCP tool output → persisted temp file
 
@@ -372,6 +378,11 @@ git push origin main
 ```bash
 git log --oneline -3
 # Should show: <hash> hermes-sync: banks YYYY-MM-DD
+
+# Per-bank file presence — do NOT trust `git show --stat | grep` (rename detection
+# undercounts: showed 15/16 files on 2026-08-03 while all 16 were committed).
+# Check each bank explicitly:
+git ls-tree --name-only HEAD infrastructure/hermes/banks/<bank>/YYYY-MM-DD.json
 ```
 
 ## Known pitfalls
@@ -393,7 +404,7 @@ git log --oneline -3
 
 | **REST API reflect returns empty `text` for busy banks** | Observed on some banks when reflect times out internally. Retry with `budget="low"` and a shorter query, or fall back to manual summary from list_memories output. |
 | **MCP JSON-RPC via curl returns `Invalid Content-Type header`** | The MCP SSE endpoint does not accept standard HTTP POST with JSON body. Use the REST API at `http://127.0.0.1:8888` instead. |
-| **REST API `127.0.0.1:8888` connection refused but container healthy** | docker-proxy port mapping can fail while the container is fine (2026-08-02). Use container IP: `HIP=$(docker inspect hindsight --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}')` then `HINDSIGHT_API=http://$HIP:8888`. See Method D section. |
+| **REST API `127.0.0.1:8888` connection refused but container healthy** | docker-proxy port mapping can fail while the container is fine (observed 2026-08-02 AND 2026-08-03 — recurring). Use container IP: `HIP=$(docker inspect hindsight --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}')` then `HINDSIGHT_API=http://$HIP:8888`. See Method D section. |
 
 ## Appendix: Bank Inventory (as of 2026-07-30)
 
