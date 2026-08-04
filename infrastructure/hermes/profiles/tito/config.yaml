@@ -30,7 +30,10 @@ model:
   default: deepseek-v4-flash
   provider: opencode-go
 fallback_providers:
-- opencode-go/qwen3.7-plus
+- provider: opencode-go
+  model: qwen3.7-plus
+- provider: opencode-go
+  model: minimax-m3
 tts:
   edge:
     voice: es-CL-LorenzoNeural
@@ -70,3 +73,6 @@ onboarding:
     profile_build_offered: true
 credential_pool_strategies:
   opencode-go: fill_first
+providers:
+  opencode-go:
+    stale_timeout_seconds: 90

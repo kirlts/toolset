@@ -281,7 +281,10 @@ example:
   api_keys: {}
   enabled: false
 fallback_providers:
-- opencodego/qwen3.7-plus
+- provider: opencode-go
+  model: qwen3.7-plus
+- provider: opencode-go
+  model: minimax-m3
 feishu:
   app_id: ''
   app_secret: ''
@@ -411,7 +414,9 @@ personalities: {}
 platform_hints: {}
 prompt_caching:
   cache_ttl: 5m
-providers: {}
+providers:
+  opencode-go:
+    stale_timeout_seconds: 90
 quick_commands: {}
 secrets:
   bitwarden:
