@@ -20,6 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Las KB son repos privados y git no traía credenciales: el clon inicial y el cron de sync fallaban con «could not read Username». `deploy.sh` corre `gh auth setup-git` (idempotente).
 
 ### Fixed
+- **El fallback de modelo anunciado en 0.6.0 nunca estuvo activo**: `fallback_providers` se escribió como cadena (`opencodego/qwen3.7-plus`) y `hermes_cli/fallback_config.py` sólo acepta entradas `{provider, model}`, así que la descartaba en silencio — `hermes fallback list` respondía «No fallback providers configured» en el perfil principal y en el tenant `tito`. Corregido al formato dict, con cadena `qwen3.7-plus → minimax-m3`, y verificado con el propio CLI.
+- **Tito cortaba conversaciones con «No response from provider for 180s» y «Broken pipe»**: el proveedor `opencode-go` tiene episodios de latencia al primer token muy alta (medido: 43 s en 1 de 3 llamadas idénticas, a veces >180 s). Sin fallback efectivo, el vigilante de stream esperaba 180 s × 3 intentos = 9 minutos antes de rendirse. Ahora `providers.opencode-go.stale_timeout_seconds: 90` en ambos perfiles.
+- **La credencial `fallback-key` del pool de `opencode-go` estaba muerta**: responde `CreditsError` (saldo insuficiente) en todos los modelos y `RegionError` en `deepseek-v4-flash`. El pool rotaba a ella ante cualquier error transitorio y sumaba 403s (`marking fallback-key exhausted (status=403)` en los logs desde el 31 de julio). Removida de los dos pools con `hermes auth remove`.
 - **La sesión de WhatsApp del tenant `tito` quedó deslogueada y su bridge en crashloop**: arrancaba en `:3001`, WhatsApp respondía `Logged out`, moría, y el gateway lo respawneaba. Como el monitor muestrea cada 5 minutos un punto cualquiera de ese ciclo, la caída permanente se veía intermitente. Sesión re-vinculada por QR con `--pair-only`; bridge estable y monitor en `EXIT=0`.
 
 ### Documentation
