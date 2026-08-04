@@ -1766,12 +1766,15 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
         Parámetros:
           estado:    vigente · resuelto · abierto · aceptado · registrado
           tipo:      hallazgo · funcionamiento · medicion · contexto
-          desde:     fecha ISO; solo lo verificado en esa fecha o después
+          desde:     fecha ISO; solo lo verificado o declarado en esa fecha o después
           mostrable: True devuelve solo lo que puede verse fuera del equipo técnico;
                      False, solo lo interno. Se omite para no filtrar por eso.
         """
         filas = []
         for nombre, nd in idx.nodos.items():
+            if nd.es_indice:
+                continue
+            secciones: list[tuple[str, dict]] = []
             for bloque in re.split(r"(?m)^### ", nd.cuerpo)[1:]:
                 titulo = bloque.split("\n", 1)[0].strip()
                 ficha = re.match(r"[^\n]*\n\n((?:- \*\*[^\n]+\n)+)", bloque)
@@ -1782,6 +1785,25 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
                     mm = re.match(r"-\s+\*\*([^:*]+):\*\*\s*(.+?)\s*$", linea)
                     if mm:
                         campos[mm.group(1).strip()] = mm.group(2).strip()
+                secciones.append((titulo, campos))
+            # Entrada SIN sub-entradas: su ficha vive en el frontmatter. Son los planes y
+            # las preguntas de `en-curso` (uno por archivo, sin `###`). Sin esto quedaban
+            # invisibles a `listar` —medido el 2026-07-30: `listar(estado="abierto")` solo
+            # veía «Accesos requeridos», la única con sub-entradas—, y son justo los planes
+            # abiertos y las preguntas al negocio que el informe semanal pide por propiedad.
+            if not secciones:
+                m = nd.meta
+                campos = {"Estado": str(m.get("estado", "")),
+                          "Tipo": str(m.get("tipo", "")),
+                          "Publicable": "sí" if m.get("publicable") else "no"}
+                if m.get("verificado"):
+                    campos["Verificado"] = str(m.get("verificado"))
+                if m.get("declarado"):
+                    campos["Declarado"] = str(m.get("declarado"))
+                if m.get("checkpoint"):
+                    campos["Checkpoint"] = str(m.get("checkpoint"))
+                secciones.append((nd.nombre, campos))
+            for titulo, campos in secciones:
                 if estado and campos.get("Estado", "").lower() != estado.lower():
                     continue
                 if tipo and campos.get("Tipo", "").lower() != tipo.lower():
@@ -1790,7 +1812,12 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
                     pub = campos.get("Publicable", "").lower() in ("sí", "si", "true")
                     if pub != mostrable:
                         continue
-                fecha = campos.get("Verificado") or campos.get("Checkpoint") or ""
+                # `Declarado` es la otra mitad del par de procedencia (2026-08-03): un hecho que
+                # alguien dijo lleva su fecha ahí. Sin esto, `desde=` los dejaba fuera del
+                # filtro, que es justo lo contrario de lo que el par busca —hacer visible de
+                # dónde salió cada hecho, no esconderlo.
+                fecha = (campos.get("Verificado") or campos.get("Declarado")
+                         or campos.get("Checkpoint") or "")
                 if desde and fecha < desde:
                     continue
                 filas.append((fecha, nombre, titulo, campos))
