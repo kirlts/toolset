@@ -146,3 +146,11 @@
 - 🔲 `[DEV.CR.29.LLM]` El monitor de tenants no repite indefinidamente una alerta ya emitida.
   - *Resultado esperado:* ante una condicion persistente, `monitor-tenants.sh` alerta una vez y luego agrupa o silencia hasta que el estado cambie o se supere un umbral de escalamiento.
   - *Verificacion:* 🔲 Pendiente. Hoy emite la misma alerta cada 5 minutos sin dedupe: el incidente de `tito` produjo seis mensajes identicos antes de que el usuario interviniera (ver [DT-013]).
+
+- ✅ `[DEV.CR.30.LLM]` La cadena de respaldo de modelo declarada en configuracion esta efectivamente activa, no solo escrita.
+  - *Resultado esperado:* `hermes [--profile X] fallback list` enumera la cadena, y ante un fallo del modelo primario el agente responde igual usando el respaldo.
+  - *Verificacion:* ✅ Ambos perfiles enumeran `qwen3.7-plus → minimax-m3`. Forzado el fallo del primario con un modelo inexistente (el proveedor responde 401 `ModelError`), el agente respondio igual. El contraste importa: el YAML declaraba un respaldo desde 0.6.0 y el CLI respondia «No fallback providers configured», porque una cadena suelta no es una entrada `{provider, model}` valida. (🤖 Verified by hermes fallback list + corrida forzada; 2026-08-04 19:05)
+
+- ✅ `[DEV.CR.31.LLM]` Las tareas auxiliares resuelven al proveedor principal sin cascadear a proveedores sin credencial.
+  - *Resultado esperado:* `call_llm(task=...)` registra el proveedor resuelto y responde 200 sin pasar por OpenRouter ni Nous Portal.
+  - *Verificacion:* ✅ En ambos perfiles, `title_generation`, `compression` y `curator` registran `using opencode-go (deepseek-v4-flash)` y responden 200 en 3,8 s / 3,8 s / 6,2 s. Con `provider: auto` cada fallo del primario costaba ~90 s por proveedor muerto antes de rendirse. (🤖 Verified by call_llm + logs del cliente auxiliar; 2026-08-04 19:24)

@@ -230,6 +230,15 @@
 
 - [ ] 🔲 Por definir — sesión de diseño pendiente. Martín definirá cómo Kairós se aplica a su vida diaria usando Hermes como enforcement layer.
 
+### [TASK-025] Purga de raya de diálogo en el eje documental
+
+> Ref: `.agents/workflows/document.md` (Slop Detection)
+
+**Covered checks:** `Transversal governance`
+
+- [ ] 🔲 El lint de `/document` declara tolerancia cero al carácter de raya larga y el eje documental acumula 57 apariciones heredadas: TODO 24, TECHNICAL-DEBT 10, CHANGELOG 8, RULES 5, USER-DECISIONS 5, VERIFICATION 4, MEMORY 1. Reemplazarlas por puntuación equivalente sin alterar el sentido de las entradas históricas. `REPOMAP.md` ya quedó limpio al regenerarse el 2026-08-04
+- [ ] 🔲 Dejar la comprobación en el ciclo de cierre para que no vuelva a acumularse
+
 |---
 
 ## [EPIC-009] Karate Sensei Digital
@@ -377,6 +386,20 @@
 - [ ] 🔲 Distinguir en el monitor «bridge caído» de «sesión deslogueada», que exige acción humana y no se arregla reiniciando
 - [ ] 🔲 Acotar el respawn del bridge de tenant con backoff y tope de reintentos (ver [DT-014])
 
+### [TASK-024] Resiliencia ante un proveedor de modelos que no responde
+
+> Ref: MASTER-SPEC §7.1
+
+**Covered checks:** `[DEV.CR.30.LLM]`, `[DEV.CR.31.LLM]`
+
+- [x] Diagnóstico del corte de `tito`: no es WhatsApp ni la credencial, sino latencia errática del proveedor `opencode-go` al primer token, medida en 43 s sobre 1 de 3 llamadas idénticas y a veces por encima de los 180 s del vigilante `2026-08-04 18:30`
+- [x] Cadena de respaldo `qwen3.7-plus → minimax-m3` en formato `{provider, model}` en el perfil principal y en `tito`; el formato de cadena suelta que traía 0.6.0 se descartaba en silencio `2026-08-04 18:42`
+- [x] `providers.opencode-go.stale_timeout_seconds: 90` en ambos perfiles, contra los 180 s × 3 intentos que dejaban al usuario nueve minutos esperando `2026-08-04 18:42`
+- [x] Credencial `fallback-key` removida de los dos pools: sin saldo, el pool rotaba a ella y sumaba 403s `2026-08-04 18:47`
+- [x] Las 13 tareas auxiliares de texto fijadas a `opencode-go/deepseek-v4-flash` en ambos perfiles; `tito` no tenía sección `auxiliary` y se le agregó completa `2026-08-04 19:20`
+- [x] Verificado en vivo: el cron `B12 Recordatorio diario` de las 19:00 UTC se entregó por WhatsApp sin errores `2026-08-04 19:01`
+- [ ] 🔲 Vigilar durante una semana si `stale_timeout_seconds: 90` corta llamadas legítimas de prefill largo; el código ya eleva el umbral a 240 s por encima de 50k tokens de contexto
+
 ---
 
 ## Overall Coverage Summary
@@ -390,7 +413,7 @@
 | EPIC-005 | TASK-007 | Completed | 0 | 0 | 1 | 1 |
 | EPIC-006 | TASK-008 a TASK-011 | In Progress | 4 | 0 | 0 | 4 |
 | EPIC-007 | TASK-012 | Completed | 7 | 0 | 0 | 7 |
-| EPIC-008 | TASK-013 | Por definir | 0 | 0 | 0 | 0 |
+| EPIC-008 | TASK-013, TASK-025 | Por definir | 0 | 0 | 0 | 0 |
 | EPIC-009 | TASK-014 | Por definir | 0 | 0 | 0 | 0 |
 | EPIC-010 | TASK-015 | Por definir | 0 | 0 | 0 | 0 |
 | EPIC-011 | TASK-016 | Por definir | 0 | 0 | 0 | 0 |
@@ -399,5 +422,5 @@
 | EPIC-014 | TASK-019 | Por definir | 0 | 0 | 0 | 0 |
 | EPIC-015 | TASK-020 | Por definir | 0 | 0 | 0 | 0 |
 | EPIC-016 | TASK-021 a TASK-022 | In Progress | 6 | 0 | 1 | 7 |
-| EPIC-017 | TASK-023 | In Progress | 2 | 0 | 0 | 2 |
-| **TOTAL** | | | **28** | **3** | **2** | **33** |
+| EPIC-017 | TASK-023 a TASK-024 | In Progress | 4 | 0 | 0 | 4 |
+| **TOTAL** | | | **30** | **3** | **2** | **35** |

@@ -138,6 +138,7 @@
 **Memory bank:** hermes (Hindsight, ~0 facts canonical v1). Por perfil: `{profile}-profile`.
 **Bank discovery:** deploy.sh descubre banks desde `infrastructure/hermes/banks/` y los crea en Hindsight si no existen.
 **Modelo default:** deepseek-v4-flash via OpenCode Go.
+**Resiliencia de proveedor:** `fallback_providers` declara la cadena `qwen3.7-plus → minimax-m3` en formato `{provider, model}` (una cadena suelta se descarta en silencio; el estado efectivo se lee con `hermes fallback list`, no del YAML). `providers.opencode-go.stale_timeout_seconds: 90` acota la espera del vigilante de stream cuando el proveedor no entrega el primer token. Las tareas auxiliares (títulos, compresión, curador, aprobaciones, vision) apuntan explícitamente a `opencode-go` para no cascadear a proveedores sin credencial. Cada tenant repite esta configuración en su propio `config.yaml`.
 **SOUL.md:** RULE 0 en inglés para procesamiento de `[ROUTING]`. Default identity solo para DM/grupos sin perfil.
 **context.md (AGENTS.md):** Contexto operacional del proyecto. Cargado como context file de Hermes via auto-descubrimiento.
 **External skills:** Dos directorios vía `external_skills_dirs`: `/opt/toolset-repo/infrastructure/hermes-skills/` y `/opt/toolset-repo/.agents/skills/`.

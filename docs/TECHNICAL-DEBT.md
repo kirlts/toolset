@@ -174,3 +174,16 @@ Consecuencia operativa: la falla permanente se disfraza de falla intermitente. U
 
 **Remediation plan:** aplicar backoff exponencial entre relanzamientos y un tope tras el cual el gateway deja de intentar y marca el estado como degradado, que es lo que hacen los orquestadores maduros ante el mismo patrón. Un `Logged out` es condición terminal y debería reconocerse como tal en vez de reintentarse.
 **Status:** ☐ Pending
+
+---
+
+## [DT-015] Nada verifica que la configuración declarada de Hermes quede efectivamente activa
+
+**Severity:** Medium
+**Origin:** session 2026-08-04 (cortes de `tito` por el proveedor de modelos)
+**Description:** `fallback_providers` estaba declarado en `config.yaml` desde 0.6.0 con formato de cadena suelta (`opencodego/qwen3.7-plus`). El parser sólo acepta entradas `{provider, model}` y descartaba la línea sin emitir advertencia alguna: ni en el arranque del gateway, ni en el log, ni en `hermes config check`. Durante más de un mes el CHANGELOG afirmaba tener respaldo de modelo y `hermes fallback list` respondía «No fallback providers configured» en los dos perfiles. La ausencia se descubrió leyendo el código del parser, no por ninguna señal del sistema.
+
+El patrón es más amplio que este caso: `preflight.sh` verifica que los servicios respondan y que los archivos existan, pero no que la semántica declarada en la configuración haya sido aceptada. Cualquier clave que el parser rechace en silencio produce el mismo tipo de defensa fantasma, y la documentación queda afirmando una garantía que el sistema no tiene.
+
+**Remediation plan:** agregar a `preflight.sh` invariantes que interroguen al propio sistema por el estado efectivo, en vez de por la presencia del archivo: `hermes fallback list` debe enumerar la cadena esperada en cada perfil, incluidos los tenants, y el proveedor auxiliar resuelto debe ser el declarado. La regla general: toda garantía escrita en la configuración se verifica con el comando que la lee.
+**Status:** ☐ Pending
