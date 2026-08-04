@@ -27,88 +27,88 @@ approvals:
 auxiliary:
   approval:
     api_key: ''
-    base_url: ''
+    base_url: https://opencode.ai/zen/go/v1
     extra_body: {}
-    model: ''
-    provider: auto
+    model: deepseek-v4-flash
+    provider: opencode-go
     timeout: 30
   background_review:
     api_key: ''
-    base_url: ''
+    base_url: https://opencode.ai/zen/go/v1
     extra_body: {}
-    model: ''
-    provider: auto
+    model: deepseek-v4-flash
+    provider: opencode-go
     timeout: 120
   compression:
     api_key: ''
-    base_url: ''
+    base_url: https://opencode.ai/zen/go/v1
     extra_body: {}
-    model: ''
-    provider: auto
+    model: deepseek-v4-flash
+    provider: opencode-go
     timeout: 120
   curator:
     api_key: ''
-    base_url: ''
+    base_url: https://opencode.ai/zen/go/v1
     extra_body: {}
-    model: ''
-    provider: auto
+    model: deepseek-v4-flash
+    provider: opencode-go
     timeout: 600
   kanban_decomposer:
     api_key: ''
-    base_url: ''
+    base_url: https://opencode.ai/zen/go/v1
     extra_body: {}
-    model: ''
-    provider: auto
+    model: deepseek-v4-flash
+    provider: opencode-go
     timeout: 180
   mcp:
     api_key: ''
-    base_url: ''
+    base_url: https://opencode.ai/zen/go/v1
     extra_body: {}
-    model: ''
-    provider: auto
+    model: deepseek-v4-flash
+    provider: opencode-go
     timeout: 30
   monitor:
     api_key: ''
-    base_url: ''
+    base_url: https://opencode.ai/zen/go/v1
     extra_body: {}
-    model: ''
-    provider: auto
+    model: deepseek-v4-flash
+    provider: opencode-go
     timeout: 60
   profile_describer:
     api_key: ''
-    base_url: ''
+    base_url: https://opencode.ai/zen/go/v1
     extra_body: {}
-    model: ''
-    provider: auto
+    model: deepseek-v4-flash
+    provider: opencode-go
     timeout: 60
   skills_hub:
     api_key: ''
-    base_url: ''
+    base_url: https://opencode.ai/zen/go/v1
     extra_body: {}
-    model: ''
-    provider: auto
+    model: deepseek-v4-flash
+    provider: opencode-go
     timeout: 30
   title_generation:
     api_key: ''
-    base_url: ''
+    base_url: https://opencode.ai/zen/go/v1
     extra_body: {}
     language: ''
-    model: ''
-    provider: auto
+    model: deepseek-v4-flash
+    provider: opencode-go
     timeout: 30
   triage_specifier:
     api_key: ''
-    base_url: ''
+    base_url: https://opencode.ai/zen/go/v1
     extra_body: {}
-    model: ''
-    provider: auto
+    model: deepseek-v4-flash
+    provider: opencode-go
     timeout: 120
   tts_audio_tags:
     api_key: ''
-    base_url: ''
+    base_url: https://opencode.ai/zen/go/v1
     extra_body: {}
-    model: ''
-    provider: auto
+    model: deepseek-v4-flash
+    provider: opencode-go
     timeout: 30
   vision:
     api_key: ''
@@ -120,10 +120,10 @@ auxiliary:
     timeout: 120
   web_extract:
     api_key: ''
-    base_url: ''
+    base_url: https://opencode.ai/zen/go/v1
     extra_body: {}
-    model: ''
-    provider: auto
+    model: deepseek-v4-flash
+    provider: opencode-go
     timeout: 360
 bedrock:
   discovery:

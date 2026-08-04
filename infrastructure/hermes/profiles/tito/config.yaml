@@ -10,6 +10,63 @@ agent:
   max_turns: 90
   reasoning_effort: medium
   tool_use_enforcement: auto
+auxiliary:
+  approval:
+    provider: opencode-go
+    model: deepseek-v4-flash
+    base_url: https://opencode.ai/zen/go/v1
+  background_review:
+    provider: opencode-go
+    model: deepseek-v4-flash
+    base_url: https://opencode.ai/zen/go/v1
+  compression:
+    provider: opencode-go
+    model: deepseek-v4-flash
+    base_url: https://opencode.ai/zen/go/v1
+  curator:
+    provider: opencode-go
+    model: deepseek-v4-flash
+    base_url: https://opencode.ai/zen/go/v1
+  kanban_decomposer:
+    provider: opencode-go
+    model: deepseek-v4-flash
+    base_url: https://opencode.ai/zen/go/v1
+  mcp:
+    provider: opencode-go
+    model: deepseek-v4-flash
+    base_url: https://opencode.ai/zen/go/v1
+  monitor:
+    provider: opencode-go
+    model: deepseek-v4-flash
+    base_url: https://opencode.ai/zen/go/v1
+  profile_describer:
+    provider: opencode-go
+    model: deepseek-v4-flash
+    base_url: https://opencode.ai/zen/go/v1
+  skills_hub:
+    provider: opencode-go
+    model: deepseek-v4-flash
+    base_url: https://opencode.ai/zen/go/v1
+  title_generation:
+    provider: opencode-go
+    model: deepseek-v4-flash
+    base_url: https://opencode.ai/zen/go/v1
+  triage_specifier:
+    provider: opencode-go
+    model: deepseek-v4-flash
+    base_url: https://opencode.ai/zen/go/v1
+  tts_audio_tags:
+    provider: opencode-go
+    model: deepseek-v4-flash
+    base_url: https://opencode.ai/zen/go/v1
+  vision:
+    provider: opencode-go
+    model: mimo-v2-omni
+    base_url: https://opencode.ai/zen/go/v1
+  web_extract:
+    provider: opencode-go
+    model: deepseek-v4-flash
+    base_url: https://opencode.ai/zen/go/v1
 approvals:
   cron_mode: approve
   mode: false
