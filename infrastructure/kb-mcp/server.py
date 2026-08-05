@@ -324,8 +324,24 @@ def fechas_git(raiz: Path, base: Path) -> dict[str, tuple[int, int]]:
     recorre todo: O(commits), no O(archivos*commits). Devuelve {} si no hay historial
     (p.ej. clon shallow) para degradar a orden alfabetico sin fallar."""
     try:
+        # `core.quotepath=false` NO es cosmético: sin él git entrecomilla y escapa toda ruta con un
+        # carácter no ASCII —`"knowledge-base/comprobado/Autenticaci\303\263n….md"`—, el filtro por
+        # sufijo `.md` de más abajo la descarta, y esa entrada queda sin fecha. Medido el 2026-08-05
+        # en esta base: 38 de 70 archivos sin fecha, y eran EXACTAMENTE los 38 con tilde o ñ en el
+        # nombre. En castellano eso no es un caso borde: es más de la mitad del corpus. Y con la
+        # fecha se apaga todo lo que cuelga de ella —la ficha que dice cuándo se actualizó una
+        # entrada, el orden por reciente y el multiplicador de recencia del ranking—, que es
+        # justamente lo que haría que un hecho de hoy le gane a un plan de anteayer.
+        # `safe.directory=*` previene el modo de falla que seguiría al instalar git en el contenedor:
+        # git se niega a operar en un repositorio cuyo dueño es otro usuario —«detected dubious
+        # ownership»— y en un contenedor eso es lo normal, no la excepción. Va en la invocación y no
+        # en un archivo de configuración a propósito: así no depende de qué usuario corre el proceso
+        # ni de que alguien se acuerde de configurar la imagen. El degradado de esta función es
+        # silencioso, así que un rechazo de git acá se vería igual que no tener historial: nada.
         salida = subprocess.run(
-            ["git", "-C", str(raiz), "log", "--format=%at", "--name-only",
+            ["git", "-C", str(raiz), "-c", "core.quotepath=false",
+             "-c", "safe.directory=*",
+             "log", "--format=%at", "--name-only",
              "--no-renames", "--", "knowledge-base"],
             capture_output=True, text=True, timeout=30, check=True,
         ).stdout

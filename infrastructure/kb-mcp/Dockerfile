@@ -2,6 +2,21 @@
 # Multi-arch: se construye en el VPS (ARM64 / Ampere A1). Sin torch ni GPU.
 FROM python:3.12-slim
 
+# GIT, y no es una dependencia de desarrollo: el servidor lee la FECHA de cada entrada del historial
+# de versiones (`fechas_git()`), porque la temporalidad de un grafo que crece vive en su historial y
+# no en el encabezado de los archivos. La imagen `slim` no trae git, asi que en el contenedor esa
+# funcion caia por su propio degradado —devuelve vacio y no falla— y el servidor real NO LE DECIA A
+# NADIE cuando se actualizo ninguna entrada: cero fichas con fecha, el orden «reciente» sin operar, y
+# el multiplicador de recencia del ranking apagado. O sea que en produccion un hecho de hoy no le
+# ganaba a un plan de anteayer, que es exactamente lo que la recencia existe para lograr.
+#
+# COMO SE SUPO, y por que la causa NO era la que se penso primero: una evaluacion del 2026-08-05
+# midio que el remoto no traia fechas y lo atribuyo a que el contenedor no tenia historial. El clon
+# SI trae historial completo —`--filter=blob:none` se eligio a proposito para eso—; lo que faltaba
+# era el programa para leerlo. Comprobado dentro del contenedor: `command -v git` no devuelve nada.
+RUN apt-get update && apt-get install -y --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/*
+
 # numpy y model2vec dan la capa semantica (embeddings estaticos, tabla de consulta
 # token->vector). snowballstemmer da la morfologia espanola de la capa lexica.
 # Versiones FIJAS a proposito: con tokenizers sin fijar, la 0.23 tokeniza distinto que
