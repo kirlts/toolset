@@ -125,7 +125,18 @@ def ficha_pendiente(nodo) -> str:
     if actual:
         bloques.append(actual)
     if not bloques:
-        return ""
+        # Una entrada SIN ficha en el cuerpo la tiene en el encabezado del archivo: son los planes
+        # y las preguntas de `en-curso`, un archivo cada uno, escritos por el conducto. Antes esto
+        # devolvia vacio y el extracto salia sin un solo campo, asi que quien preguntaba «que esta
+        # abierto» recibia prosa sin estado y «que problemas hay» recibia prosa sin tipo. Medido el
+        # 2026-08-05: es la causa de los dos casos de la familia INTENCION en rojo, que se venian
+        # diagnosticando como un problema de vocabulario o de ventana del extracto.
+        m = nodo.meta or {}
+        pares = [("Estado", m.get("estado")), ("Tipo", m.get("tipo")),
+                 ("Impacto", m.get("impacto")), ("Checkpoint", m.get("checkpoint")),
+                 ("Espera a", m.get("espera_a"))]
+        campos = [f"- **{k}:** {v}" for k, v in pares if v]
+        return " ".join(campos)
     abiertos = [b for b in bloques
                 if any("**Estado:**" in x and "abierto" in x.lower() for x in b)]
     elegido = (abiertos or bloques)[0]
@@ -880,6 +891,53 @@ class Indice:
                 texto = f"{ficha} […] {texto}"
         return texto
 
+    def _recortar_sub(self, crudo: str, consulta_fts: str, tope: int) -> str:
+        """Una sub-entrada que excede el tope, recortada en vez de descartada.
+
+        Se conservan las DOS cosas por las que se sirve una sub-entrada, y en este orden:
+
+          1. Su CABECERA —el título y la ficha de campos—, porque ahí viven «Estado»,
+             «Espera a» y «Checkpoint». Quien pregunta qué está abierto necesita el campo,
+             no la prosa: servir el pasaje sin la ficha repite el defecto que
+             `ficha_pendiente` vino a cerrar.
+          2. El PASAJE donde cae la coincidencia, que es lo que responde la pregunta.
+
+        Si no se puede localizar la coincidencia, se sirve la cabecera más el comienzo de la
+        prosa: sigue siendo la sub-entrada correcta, que es más de lo que daba el descarte.
+        """
+        lineas = crudo.split("\n")
+        cabecera: list[str] = []
+        for i, l in enumerate(lineas):
+            if i == 0 or l.strip().startswith("#") or FICHA_CAMPO.match(l) or not l.strip():
+                cabecera.append(l)
+                continue
+            break
+        cab = " ".join(" ".join(cabecera).split())
+        resto = " ".join(" ".join(lineas[len(cabecera):]).split())
+        if not resto:
+            return cab[:tope]
+        SEP = " […] "
+        margen = tope - len(cab) - len(SEP) * 2
+        # Una cabecera que ya se come el presupuesto: se sirve sola, recortada al tope. No se
+        # devuelve "" —eso reabriría el descarte por la ventana de atrás.
+        if margen < 200:
+            return (cab[:tope - len(SEP)] + SEP) if len(cab) > tope else cab
+        # Dónde cae la coincidencia. Las formas del FTS vienen entrecomilladas por expandir(),
+        # así que se buscan sobre el resto normalizado — sin acentos y en minúsculas, igual que
+        # las indexó el índice.
+        formas = re.findall(r'"([^"]+)"', consulta_fts) or []
+        plano_norm = normalizar(resto)
+        pos = min((p for p in (plano_norm.find(normalizar(f)) for f in formas if f) if p >= 0),
+                  default=-1)
+        if pos < 0:
+            return cab + SEP + resto[:margen] + (SEP.rstrip() if len(resto) > margen else "")
+        ini = max(0, pos - margen // 3)
+        fin = min(len(resto), ini + margen)
+        ini = max(0, fin - margen)          # si la coincidencia está al final, se usa todo el ancho
+        pasaje = resto[ini:fin]
+        return (cab + SEP + ("" if ini == 0 else "") + pasaje
+                + (SEP.rstrip() if fin < len(resto) else ""))
+
     def _extracto_bruto(self, nombre: str, consulta_fts: str, extendido: bool = False) -> str:
         # Primero: la SUB-ENTRADA que mejor calza, servida entera. Es la unidad atómica de
         # esta base —título, ficha de campos y evidencia— así que servirla completa entrega
@@ -896,6 +954,17 @@ class Indice:
                 tope = 2600 if extendido else 1800
                 if len(plano) <= tope:
                     return plano
+                # Y SI NO CABE, SE RECORTA — no se descarta. Descartarla y caer a la ventana
+                # adivinada era el defecto repetido de tres evaluaciones seguidas («entrada
+                # correcta, sección equivocada»), y tenía tamaño medido: 220 de las 341
+                # sub-entradas de esta base (64 %) exceden el tope, así que la «unidad atómica»
+                # que celebra el comentario de arriba estaba apagada para dos tercios del corpus.
+                # Casos medidos el 2026-08-05: se descartaba por 270 caracteres, por 272 y por
+                # 2.441. Perder una sub-entrada por 270 caracteres no es una decisión, es un
+                # accidente del umbral.
+                recortada = self._recortar_sub(fila[1], consulta_fts, tope)
+                if recortada:
+                    return recortada
         except sqlite3.OperationalError:
             pass
         """Pasaje alrededor de la coincidencia; si el acierto vino de la capa
@@ -1102,6 +1171,65 @@ def con_dominio(base: str, nucleo: str):
     return decorar
 
 
+# ── Preguntas por PROPIEDAD, y el filtro que las contesta exacto ─────────────────
+# Viven ACÁ, a nivel de módulo, y no dentro de `crear_servidor`, por una razón que se pagó: dentro
+# de la clausura no hay forma de ejercitarlas sin levantar el servidor entero, así que cada arreglo
+# de esta zona se venía verificando por lectura. Dos de ellos resultaron incoherentes entre sí —el
+# detector aceptaba «resolvió» y la deducción no—, y eso es exactamente lo que una prueba de tres
+# líneas habría cazado. Acá se pueden importar y probar: `tools/test_por_propiedad.py`.
+_POR_PROPIEDAD = re.compile(
+    # El sustantivo del medio vale también acá: «qué PROBLEMAS se resolvieron» se preguntaba igual
+    # que «qué se resolvió» y solo la segunda calzaba.
+    r"(qu[eé]\s+((\w+|\w+\s+\w+)\s+)?(se\s+)?(arregl|resolvi|resuelt|cerr)|"
+    # Y el orden inverso —el estado ANTES del verbo—: «qué trabajo pendiente queda» es la misma
+    # pregunta que «qué queda pendiente», y el español admite las dos sin preferencia.
+    r"qu[eé]\s+((\w+|\w+\s+\w+)\s+)?(abierto|pendiente|trabado|frenado|detenido)s?\s+"
+    r"(queda|hay|est[aá]|falta|sigue)|"
+    # El sustantivo del medio: «qué TRABAJO está abierto» es la primera pregunta de toda corrida de
+    # delegación, y no calzaba porque el patrón exigía «qué está abierto» pegado. Medido el
+    # 2026-08-05 sobre el servidor real: no disparaba, así que se servía lo más parecido en vez de
+    # la lista completa. Se admiten hasta dos palabras —«qué trabajo pendiente queda»—.
+    r"qu[eé]\s+((\w+|\w+\s+\w+)\s+)?(est[aá]|hay|queda|falta)\s+"
+    r"(abierto|pendiente|sin\s+resolver|trabado|frenado|detenido|esperando)|"
+    # «Qué está trabado esperando» y sus variantes: el bloqueo es una propiedad, no un tema.
+    r"qu[eé]\s+.{0,24}(trabado|frenado|bloqueado|esperando|a\s+la\s+espera)|"
+    r"qu[eé]\s+.{0,20}(mostrar|mostrarle|ense[nñ]ar).{0,20}(fundador|direcci[oó]n|project|pm)|"
+    r"qu[eé]\s+(medicion|hallazgo|plan|pedido)e?s\s+hay|"
+    # Las palabras del LECTOR, que no son las de la base. Quien pregunta dice «problemas»,
+    # «riesgos» o «fallas»; la base llama a eso `hallazgo` y prohibe la jerga en la prosa, asi
+    # que el detector solo reconocia un vocabulario que nadie usa al preguntar. Medido el
+    # 2026-08-05: «que problemas hay hoy en la plataforma» —la pregunta de direccion— no
+    # activaba la respuesta exacta, y el defecto se venia declarando «por diseno del
+    # escalamiento» desde tres evaluaciones atras. No lo era: el recorte por nivel ya protege a
+    # direccion, y esto solo decide si se le sirve la lista completa o lo mas parecido.
+    r"qu[eé]\s+(problema|riesgo|falla|defecto|pendiente)s?\s+(hay|existe|tiene|queda)|"
+    r"(problema|riesgo|falla)s?\s+(abierto|vigente|sin\s+resolver)|"
+    r"lista\s+de\s+(hallazgos|pendientes|resueltos))", re.I)
+
+
+def deducir_filtro(pregunta: str) -> tuple[str | None, str | None]:
+    """De una pregunta por propiedad, el `(estado, tipo)` con que se contesta exacta.
+
+    El estado manda sobre el tipo cuando la pregunta dice las dos cosas —«qué problemas quedan
+    abiertos»— porque es el filtro más restrictivo.
+
+    Y CUANDO LA PALABRA DEL LECTOR IMPLICA VIGENCIA, el estado va JUNTO con el tipo. Preguntar «qué
+    problemas hay» y recibir los hallazgos resueltos mezclados con los vivos no es una respuesta
+    exacta: es una lista donde hay que filtrar a mano lo que el filtro tenía que filtrar. Medido el
+    2026-08-05 contra el servidor real: `tipo=hallazgo` solo devuelve 153 secciones; sumando
+    `estado=vigente`, 97 — las que de verdad están abiertas.
+    """
+    q = pregunta.lower()
+    if re.search(r"resuelt|resolvi|arregl|cerr", q):
+        return "resuelto", None
+    if re.search(r"abierto|pendiente|sin\s+resolver|falta|queda|trabado|frenado|"
+                 r"detenido|esperando|bloqueado", q):
+        return "abierto", None
+    if re.search(r"problema|riesgo|falla|defecto|hallazgo", q):
+        return "vigente", "hallazgo"
+    return None, None
+
+
 def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
                    descripcion: str | None = None, cierre: str | None = None,
                    ambitos_texto: str | None = None) -> FastMCP:
@@ -1236,12 +1364,7 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
     # de confiar en que quien consulte se acuerde de `listar`, el servidor lo detecta y
     # lo dice en la respuesta. Que una sesión nueva use bien la base no puede depender
     # de que haya leído la documentación (decisión de Martín, 2026-07-29).
-    POR_PROPIEDAD = re.compile(
-        r"(qu[eé]\s+(se\s+)?(arregl|resolvi|resuelt|cerr)|"
-        r"qu[eé]\s+(est[aá]|hay|queda|falta)\s+(abierto|pendiente|sin\s+resolver)|"
-        r"qu[eé]\s+.{0,20}(mostrar|mostrarle|ense[nñ]ar).{0,20}(fundador|direcci[oó]n|project|pm)|"
-        r"qu[eé]\s+(medicion|hallazgo|plan|pedido)e?s\s+hay|"
-        r"lista\s+de\s+(hallazgos|pendientes|resueltos))", re.I)
+    POR_PROPIEDAD = _POR_PROPIEDAD
 
     @registrar
     @con_dominio(etiqueta, contexto)
@@ -1661,23 +1784,23 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
             # ahorra un viaje y evita que se quede con el resultado aproximado, que es
             # justamente el que engaña. Si el filtro no se puede deducir o la llamada falla,
             # queda el aviso solo — nunca menos que antes.
-            q = pregunta.lower()
-            filtro = None
-            if re.search(r"resuelt|arregl|cerr", q):
-                filtro = "resuelto"
-            elif re.search(r"abierto|pendiente|sin\s+resolver|falta|queda", q):
-                filtro = "abierto"
-            exacto_txt = ""
-            if filtro:
+            # La deducción vive a nivel de módulo —`deducir_filtro`— para que se pueda probar sin
+            # levantar el servidor. Antes estaba acá dentro, y por eso el detector y la deducción
+            # llegaron a contradecirse: uno aceptaba «resolvió» y la otra no.
+            filtro, tipo_f = deducir_filtro(pregunta)
+            exacto_txt, etiqueta_filtro = "", ""
+            if filtro or tipo_f:
+                kw = {k: v for k, v in (("estado", filtro), ("tipo", tipo_f)) if v}
                 try:
-                    exacto_txt = listar(estado=filtro)
+                    exacto_txt = listar(**kw)
+                    etiqueta_filtro = " · ".join(f'{k}="{v}"' for k, v in kw.items())
                 except Exception:
                     exacto_txt = ""
             if exacto_txt:
                 redirigir = (
                     "⚠ Preguntaste por una PROPIEDAD (estado, tipo, fecha), no por un tema. La "
                     "búsqueda por significado devuelve lo más parecido, no todo lo que cumple, "
-                    f"así que acá va primero la respuesta EXACTA —listar(estado=\"{filtro}\")— y "
+                    f"así que acá va primero la respuesta EXACTA —listar({etiqueta_filtro})— y "
                     "después lo que encontró la búsqueda.\n\n"
                     f"{exacto_txt}\n\n── y esto encontró la búsqueda por significado ──\n\n")
             else:
@@ -1836,8 +1959,15 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
             if nombre != actual:
                 salida.append(f"\n**{nombre}**")
                 actual = nombre
-            marca = campos.get("Tipo", "")
-            salida.append(f"  · {fecha or 'sin fecha'} — {titulo}" + (f"  ({marca})" if marca else ""))
+            # Los campos se escriben en la MISMA forma en toda la base —`- **Campo:** valor`— y no
+            # en una abreviatura propia de esta herramienta. Antes el tipo salia entre parentesis,
+            # asi que la respuesta le llevaba el dato al lector y ningun consumidor podia leerlo con
+            # la forma que el resto del sistema usa. Y de paso se declara el campo por el que se
+            # filtro: quien recibe una lista tiene que poder saber por que esa lista es esa.
+            partes_f = [f"- **{k}:** {v}" for k, v in
+                        (("Tipo", campos.get("Tipo")), ("Estado", campos.get("Estado"))) if v]
+            salida.append(f"  · {fecha or 'sin fecha'} — {titulo}"
+                          + ("  " + " ".join(partes_f) if partes_f else ""))
         return "\n".join(salida)
 
     @registrar
