@@ -8,7 +8,13 @@ FROM python:3.12-slim
 # la 0.22 y el mismo texto produce otro vector. El contenedor devolvia resultados
 # semanticos incorrectos pese a cargar el mismo modelo. Reproducibilidad, no capricho.
 RUN pip install --no-cache-dir \
-        "mcp>=1.2" pyyaml \
+# TECHO DE VERSION, y es obligatorio: `mcp` 2.0.0 salio el 2026-08-05 y movio
+# `mcp.server.fastmcp`, que es lo que este servidor importa en su linea 35. La imagen se
+# reconstruyo ese dia por otro motivo, pip trajo la version nueva sin preguntar, y el
+# contenedor entro en reinicio perpetuo con la base entera sin conector. La dependencia
+# estaba declarada sin techo desde el principio: cualquier reconstruccion de ese dia lo
+# habria roto igual, sin que nadie hubiera cambiado una linea del servidor.
+        "mcp>=1.2,<2" pyyaml \
         "snowballstemmer==3.0.1" \
         "numpy==2.4.6" \
         "tokenizers==0.22.2" \
