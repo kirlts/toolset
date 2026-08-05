@@ -2,6 +2,15 @@
 
 Used by the `hermes-sync-banks` cron job (02:00 UTC daily). This doc captures the step-by-step procedure and known pitfalls.
 
+## Decision flow (DO NOT go MCP-first)
+
+**The MCP-tools path cannot complete the full 16-bank sync inside one cron run.** Observed 2026-08-05: exporting via MCP `list_memories` pagination cost ~40+ tool calls (personal-buffer 6 pages at 5995 facts, hermes 3 pages at 2622, etc.), and the run was killed by the tool-calling iteration cap at 1/16 through the reflect+retain phase. Even when exports succeed, reflect+retain for 16 banks is 32+ more calls. MCP tools are conversational, not batch.
+
+**Correct order of attack when the sync must run:**
+1. **REST API script first** — `scripts/hindsight-sync.py` (background `terminal(background=true, notify_on_complete=true)`). It does export + reflect + retain + git in one process.
+2. **If `127.0.0.1:8888` is refused**, use the container IP: `HIP=$(docker inspect hindsight --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}')` then `HINDSIGHT_API=http://$HIP:8888 python3 hindsight-sync.py`. This has been the fix on 2026-08-02, 08-03 AND 08-05 — treat the mapped port as likely-broken and jump to the container IP early, before burning iterations on MCP.
+3. **MCP tools as LAST resort only** for a few small banks (<100 facts) when the REST API is genuinely unreachable. Never attempt the full 16-bank export+reflect+retain via MCP tools in one turn — budget the iteration cap (you have roughly 40-50 tool calls per cron run total, including this pre-flight recall).
+
 ## Pre-flight
 
 ### Memory cycle at cron start
@@ -401,6 +410,8 @@ git ls-tree --name-only HEAD infrastructure/hermes/banks/<bank>/YYYY-MM-DD.json
 | Export script missing at `/tmp/hindsight-sync.py` or `/tmp/export_bank.py` | The script is ephemeral by nature. Re-create from the script block in this reference doc. Consider making it persistent if it's used 3+ times. |
 | `default` bank exists and has facts | Skip it — it's an internal Hindsight bank, not a project bank. |
 | Banks file grows with each daily dump | This is intentional — dumps are versioned by date for audit trail. |
+| **Paginated MCP pages can collide / duplicate** | When paginating `list_memories` via MCP with persisted temp files, the LAST page often comes back INLINE (not persisted to `/tmp/hermes-results/`) because it is small (e.g. 12 items at offset=500 of 512 total). If you then read the previous page's file path again, you get page 1 twice (1000 items, 500 duplicated). Observed 2026-08-05 with toolset-profile. **Mitigation:** after combining pages, dedupe by `id` (`seen=set(); [it for it in items if not (it['id'] in seen or seen.add(it['id']))]`) and verify the count matches the `total` field from the last response (`500 + 12 == 512`). Never assume a file exists for every page — check the tool output header for a persisted-path marker on each call. |
+| **Export script reused instead of canonical** | The canonical script is `scripts/hindsight-sync.py` in this skill — copy it to /tmp each run. Do not hand-write a fresh `sync_banks.py` per run (observed 2026-08-05: a hand-written script hung on HTTP calls to the MCP endpoint); use Method D + `HINDSIGHT_API` env var. |
 
 | **REST API reflect returns empty `text` for busy banks** | Observed on some banks when reflect times out internally. Retry with `budget="low"` and a shorter query, or fall back to manual summary from list_memories output. |
 | **MCP JSON-RPC via curl returns `Invalid Content-Type header`** | The MCP SSE endpoint does not accept standard HTTP POST with JSON body. Use the REST API at `http://127.0.0.1:8888` instead. |
