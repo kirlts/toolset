@@ -248,6 +248,11 @@ class ConfigKB:
     # frescura sin que nadie tenga que editar el archivo. Comparacion de fechas pura:
     # el juicio de si la entrada SIGUE siendo verdad es de la calibracion, no de aqui.
     retencion: dict[str, int] = field(default_factory=dict)
+    # Tipos cuyo archivo es un CONTENEDOR: su contenido son las sub-entradas, y cada una es una
+    # instancia del tipo. Los demas tipos SON la unidad, y sus secciones son partes de ella. El
+    # servidor no sabe que significa ninguno de estos nombres: solo compara. Vacio = ningun tipo
+    # se hereda a las secciones, que es el comportamiento de toda KB que no declare esto.
+    tipos_contenedores: list[str] = field(default_factory=list)
 
     @classmethod
     def desde(cls, ruta: Path) -> "ConfigKB":
@@ -289,6 +294,8 @@ class ConfigKB:
             alias=alias,
             niveles=niveles,
             retencion=retencion,
+            tipos_contenedores=[str(t).strip().lower()
+                                for t in (cfg.get("tipos_contenedores") or [])],
         )
 
 
@@ -305,6 +312,7 @@ class Nodo:
     enlaces: dict[str, list[str]] = field(default_factory=dict)
     menciona: list[str] = field(default_factory=list)
     modificado: int = 0   # timestamp del ultimo commit que toco el archivo (git)
+    modificado_iso: str = ""   # su fecha EN LA ZONA DEL AUTOR: la que el autor vio al commitear
     creado: int = 0       # timestamp del primer commit
     es_indice: bool = False  # Directory Index Node (§R3): stem == nombre del directorio
 
@@ -341,19 +349,28 @@ def fechas_git(raiz: Path, base: Path) -> dict[str, tuple[int, int]]:
         salida = subprocess.run(
             ["git", "-C", str(raiz), "-c", "core.quotepath=false",
              "-c", "safe.directory=*",
-             "log", "--format=%at", "--name-only",
+             # `%ad --date=short` es la fecha QUE EL AUTOR VIO, ya en su zona. El epoch de `%at` es
+             # UTC y sirve para ordenar, pero formatearlo con la zona del proceso corre el día: el
+             # contenedor corre en UTC y Martín commitea en UTC−4, así que a 19 de 75 entradas el
+             # servidor les mostraba la fecha del día SIGUIENTE —todo lo escrito después de las ocho
+             # de la tarde—. Medido el 2026-08-06. Se traen las dos: una para ordenar y otra para
+             # decir. Separadas por tabulación porque ningún nombre de archivo la lleva.
+             "log", "--format=%at%x09%ad", "--date=short", "--name-only",
              "--no-renames", "--", "knowledge-base"],
             capture_output=True, text=True, timeout=30, check=True,
         ).stdout
     except (subprocess.SubprocessError, OSError):
         return {}
 
-    fechas: dict[str, tuple[int, int]] = {}
-    ts = 0
+    fechas: dict[str, tuple[int, int, str]] = {}
+    ts, iso = 0, ""
     for linea in salida.splitlines():
         linea = linea.strip()
-        if linea.isdigit():
-            ts = int(linea)
+        if "\t" in linea and linea.split("\t", 1)[0].isdigit():
+            crudo, _, iso = linea.partition("\t")
+            ts, iso = int(crudo), iso.strip()
+        elif linea.isdigit():          # historial sin la fecha (formato viejo): se sigue ordenando
+            ts, iso = int(linea), ""
         elif linea.endswith(".md") and ts:
             try:
                 rel = str(Path(linea).relative_to("knowledge-base"))
@@ -362,9 +379,9 @@ def fechas_git(raiz: Path, base: Path) -> dict[str, tuple[int, int]]:
             prev = fechas.get(rel)
             # Se recorre de mas nuevo a mas viejo: primer avistamiento = ultimo commit.
             if prev is None:
-                fechas[rel] = (ts, ts)
+                fechas[rel] = (ts, ts, iso)
             else:
-                fechas[rel] = (ts, prev[1])
+                fechas[rel] = (ts, prev[1], prev[2])
     return fechas
 
 
@@ -464,7 +481,7 @@ class Indice:
                 # final del ciclo de curaduria, no un borrado.
                 continue
             rel = ruta.relative_to(self.base)
-            creado, modificado = fechas.get(str(rel), (0, 0))
+            creado, modificado, modificado_iso = fechas.get(str(rel), (0, 0, ""))
             # Directory Index Node: el nodo que representa una carpeta y enumera a sus
             # hijos. Dos convenciones validas, ambas presentes en KB reales:
             #  (a) dentro de la carpeta —motor/Motor.md (§R3 estricto);
@@ -481,6 +498,7 @@ class Indice:
                 menciona=sorted({n.strip() for n in WIKILINK.findall(cuerpo)}),
                 creado=creado,
                 modificado=modificado,
+                modificado_iso=modificado_iso,
                 es_indice=es_indice,
             )
             self.nodos[nodo.nombre] = nodo
@@ -832,7 +850,11 @@ class Indice:
         etiqueta = self.cfg.polos.get(n.polo, n.polo)
         partes = [n.nombre, etiqueta]
         if n.modificado:
-            partes.append(f"actualizada {datetime.date.fromtimestamp(n.modificado).isoformat()}")
+            # La fecha del AUTOR, no la del proceso que sirve: `date.fromtimestamp` usa la zona
+            # local, y el contenedor corre en UTC mientras se commitea en UTC−4. Se conserva el
+            # cálculo por epoch como respaldo para un historial que no traiga la fecha.
+            partes.append("actualizada " + (n.modificado_iso
+                          or datetime.date.fromtimestamp(n.modificado).isoformat()))
         # Frescura declarada al lector en cada resultado. Comparacion de fechas pura
         # (calendario por tipo, kb/mcp.yaml `retencion`); el juicio de si la entrada
         # sigue siendo verdad pertenece a la calibracion, no al servidor.
@@ -1212,9 +1234,15 @@ def con_dominio(base: str, nucleo: str):
 # detector aceptaba «resolvió» y la deducción no—, y eso es exactamente lo que una prueba de tres
 # líneas habría cazado. Acá se pueden importar y probar: `tools/test_por_propiedad.py`.
 _POR_PROPIEDAD = re.compile(
+    # LA FORMA NEGATIVA, con su propia alternativa y bien holgada. «Qué está mal y todavía no se
+    # arregló» tiene seis palabras entre el «qué» y el verbo, así que ninguna de las formas de abajo
+    # la reconocía — y no reconocerla es peor que en los otros casos: la deducción SÍ la entiende,
+    # así que lo único que faltaba para contestar bien era que el detector la dejara pasar.
+    r"(qu[eé]\s+.{0,44}\bno\s+.{0,14}(arregl|resolvi|resuelt|cerr|solucion)|"
+    r"qu[eé]\s+.{0,44}\bsin\s+(arreglar|resolver|cerrar|solucionar)|"
     # El sustantivo del medio vale también acá: «qué PROBLEMAS se resolvieron» se preguntaba igual
     # que «qué se resolvió» y solo la segunda calzaba.
-    r"(qu[eé]\s+((\w+|\w+\s+\w+)\s+)?(se\s+)?(arregl|resolvi|resuelt|cerr)|"
+    r"qu[eé]\s+((\w+|\w+\s+\w+)\s+)?(se\s+)?(arregl|resolvi|resuelt|cerr)|"
     # Y el orden inverso —el estado ANTES del verbo—: «qué trabajo pendiente queda» es la misma
     # pregunta que «qué queda pendiente», y el español admite las dos sin preferencia.
     r"qu[eé]\s+((\w+|\w+\s+\w+)\s+)?(abierto|pendiente|trabado|frenado|detenido)s?\s+"
@@ -1254,6 +1282,15 @@ def deducir_filtro(pregunta: str) -> tuple[str | None, str | None]:
     `estado=vigente`, 97 — las que de verdad están abiertas.
     """
     q = pregunta.lower()
+    # LA NEGACIÓN INVIERTE LA PREGUNTA, y sin mirarla la respuesta era la opuesta a la pedida.
+    # «Qué está mal y todavía NO se arregló» disparaba con «arregló» y devolvía las 103 secciones
+    # RESUELTAS: exactamente lo contrario, servido como respuesta exacta y con el aire de autoridad
+    # que tiene una lista completa. Tres corridas seguidas lo pidieron. Es el peor error posible en
+    # esta función, porque no falla ni se queda corta: contesta lo inverso.
+    if re.search(r"\bno\s+(se\s+|se\s+ha\s+|ha\s+|han\s+|est[aá]n?\s+|fueron\s+)?"
+                 r"(resuelt|resolvi|arregl|cerr|solucion)", q) or \
+       re.search(r"(todav[ií]a|aun|a[úu]n)\s+no\b", q) or "sin arreglar" in q:
+        return "abierto", None
     if re.search(r"resuelt|resolvi|arregl|cerr", q):
         return "resuelto", None
     if re.search(r"abierto|pendiente|sin\s+resolver|falta|queda|trabado|frenado|"
@@ -1962,30 +1999,40 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
             # invisibles a `listar` —medido el 2026-07-30: `listar(estado="abierto")` solo
             # veía «Accesos requeridos», la única con sub-entradas—, y son justo los planes
             # abiertos y las preguntas al negocio que el informe semanal pide por propiedad.
+            m = nd.meta
+            unidad = {"Estado": str(m.get("estado", "")),
+                      "Tipo": str(m.get("tipo", "")),
+                      "Publicable": "sí" if m.get("publicable") else "no"}
+            for campo, clave in (("Verificado", "verificado"), ("Declarado", "declarado"),
+                                 ("Checkpoint", "checkpoint")):
+                if m.get(clave):
+                    unidad[campo] = str(m.get(clave))
             if not secciones:
-                m = nd.meta
-                campos = {"Estado": str(m.get("estado", "")),
-                          "Tipo": str(m.get("tipo", "")),
-                          "Publicable": "sí" if m.get("publicable") else "no"}
-                if m.get("verificado"):
-                    campos["Verificado"] = str(m.get("verificado"))
-                if m.get("declarado"):
-                    campos["Declarado"] = str(m.get("declarado"))
-                if m.get("checkpoint"):
-                    campos["Checkpoint"] = str(m.get("checkpoint"))
-                secciones.append((nd.nombre, campos))
-            # EL TIPO DEL ARCHIVO CUENTA TAMBIÉN, no solo cuando la entrada no tiene secciones. El
-            # respaldo por encabezado de arriba actúa solo si `secciones` quedó vacío, así que **una
-            # entrada CON secciones nunca era recuperable por su propio tipo**: `listar(tipo=
-            # "requerido")` contestaba «nada cumple ese filtro» teniendo la base una entrada
-            # declarada así, y es una de las cinco secciones que el informe semanal necesita.
-            # Medido el 2026-08-05. No mete ruido: los nodos-sujeto son de tipo `sistema`, que no
-            # calza con ninguno de los tipos por los que se filtra de verdad.
-            tipo_archivo = str(nd.meta.get("tipo", "") or "").lower()
+                secciones.append((nd.nombre, unidad))
+            tipo_archivo = str(m.get("tipo", "") or "").lower()
+            # QUÉ ES UNA UNIDAD LISTABLE, que es la pregunta que este filtro tiene que contestar
+            # bien. La KB declara en su config qué tipos son CONTENEDORES —un conjunto de pedidos de
+            # acceso: el archivo agrupa y cada sub-entrada es un pedido con su estado—. Los demás
+            # tipos SON la unidad: un plan o una pregunta de negocio es una cosa, y sus secciones son
+            # partes de ella, no instancias.
+            #
+            # Sin esa distinción el filtro se equivoca en las DOS direcciones, y las dos se midieron:
+            #   · 2026-08-05 — una entrada con secciones no era recuperable por su propio tipo:
+            #     `listar(tipo="requerido")` contestaba «nada cumple ese filtro» teniendo la base una
+            #     entrada declarada así, y es una de las cinco secciones del informe semanal.
+            #   · 2026-08-06 — al arreglar eso heredando el tipo a TODA sección, preguntar por las
+            #     preguntas de negocio devolvía 12 resultados con 8 de ruido: las secciones internas
+            #     de una pregunta se hacían pasar por preguntas. El arreglo devolvió una capacidad y
+            #     rompió otra, que es lo que pasa cuando se arregla el caso sin mirar a los vecinos.
+            es_contenedor = tipo_archivo in (idx.cfg.tipos_contenedores or [])
+            if secciones and tipo and not es_contenedor and tipo.lower() == tipo_archivo:
+                # El archivo ES la unidad de su tipo: se entrega él, no sus partes.
+                secciones = [(nd.nombre, unidad)]
             for titulo, campos in secciones:
                 if estado and campos.get("Estado", "").lower() != estado.lower():
                     continue
-                if tipo and tipo.lower() not in (campos.get("Tipo", "").lower(), tipo_archivo):
+                heredable = tipo_archivo if es_contenedor else ""
+                if tipo and tipo.lower() not in (campos.get("Tipo", "").lower(), heredable):
                     continue
                 if mostrable is not None:
                     pub = campos.get("Publicable", "").lower() in ("sí", "si", "true")
