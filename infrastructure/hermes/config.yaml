@@ -281,10 +281,10 @@ example:
   api_keys: {}
   enabled: false
 fallback_providers:
-- provider: opencode-go
-  model: qwen3.7-plus
-- provider: opencode-go
-  model: minimax-m3
+- model: qwen3.7-plus
+  provider: opencode-go
+- model: minimax-m3
+  provider: opencode-go
 feishu:
   app_id: ''
   app_secret: ''

@@ -6,6 +6,8 @@ Used by the `hermes-sync-banks` cron job (02:00 UTC daily). This doc captures th
 
 **The MCP-tools path cannot complete the full 16-bank sync inside one cron run.** Observed 2026-08-05: exporting via MCP `list_memories` pagination cost ~40+ tool calls (personal-buffer 6 pages at 5995 facts, hermes 3 pages at 2622, etc.), and the run was killed by the tool-calling iteration cap at 1/16 through the reflect+retain phase. Even when exports succeed, reflect+retain for 16 banks is 32+ more calls. MCP tools are conversational, not batch.
 
+**UPDATE 2026-08-06 — the MCP path CAN complete when the iteration budget allows.** A full 16-bank sync via MCP tools finished in one cron turn (~15 min wall clock, 13,412 facts: personal-buffer 7 pages, hermes 3 pages, rest 1 page each, using `execute_code` to merge/persist page dumps instead of reading every page inline). The 08-05 failure was the iteration cap, not the MCP path itself. REST script (Method D) remains the lower-risk default, but if the run has budget for ~50-70 tool calls, MCP is viable and produces the final report content directly. When doing so: use `execute_code`/`terminal` to merge page outputs into the dated JSON (dedupe by `id`, verify count == `total`), and delete `_pageN.json` intermediates before `git add`.
+
 **Correct order of attack when the sync must run:**
 1. **REST API script first** — `scripts/hindsight-sync.py` (background `terminal(background=true, notify_on_complete=true)`). It does export + reflect + retain + git in one process.
 2. **If `127.0.0.1:8888` is refused**, use the container IP: `HIP=$(docker inspect hindsight --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}')` then `HINDSIGHT_API=http://$HIP:8888 python3 hindsight-sync.py`. This has been the fix on 2026-08-02, 08-03 AND 08-05 — treat the mapped port as likely-broken and jump to the container IP early, before burning iterations on MCP.
@@ -342,6 +344,13 @@ Keep the retain content concise (3-8 sentences, not the full reflect text). Focu
 
 ### Pre-push: resolve repo state
 
+**Active rebase with real conflict (observed 2026-08-06)**: The 01:00 file-artifacts cron and 02:00 banks cron both commit into `infrastructure/hermes/`, so `git pull --rebase` can hit a genuine conflict (this run: `both modified: infrastructure/hermes/config.yaml`). First check `git status` for `interactive rebase in progress`. If conflicted:
+1. `grep -n "<<<<<<\|======\|>>>>>>" infrastructure/hermes/config.yaml` to locate markers.
+2. Trivial conflicts (same YAML content, different key ordering) → keep HEAD's side via `patch` (replace-mode on the marker block).
+3. `git add` the resolved file, then continue with **`GIT_EDITOR=true git rebase --continue`** — plain `git rebase --continue` fails in cron/terminal mode with `error: Terminal is dumb, but EDITOR unset`.
+4. Do `git pull --rebase origin main` AGAIN after the rebase completes to catch any commits pushed since; then add banks, commit, push.
+If the conflict is non-trivial, prefer the repo copy as source of truth (deploy.sh restores from repo).
+
 **Stale rebase-merge directory**: The previous cron run may have left `.git/rebase-merge/` on the filesystem if it crashed mid-rebase:
 ```bash
 rm -fr ".git/rebase-merge" && git pull --rebase origin main
@@ -411,6 +420,9 @@ git ls-tree --name-only HEAD infrastructure/hermes/banks/<bank>/YYYY-MM-DD.json
 | `default` bank exists and has facts | Skip it — it's an internal Hindsight bank, not a project bank. |
 | Banks file grows with each daily dump | This is intentional — dumps are versioned by date for audit trail. |
 | **Paginated MCP pages can collide / duplicate** | When paginating `list_memories` via MCP with persisted temp files, the LAST page often comes back INLINE (not persisted to `/tmp/hermes-results/`) because it is small (e.g. 12 items at offset=500 of 512 total). If you then read the previous page's file path again, you get page 1 twice (1000 items, 500 duplicated). Observed 2026-08-05 with toolset-profile. **Mitigation:** after combining pages, dedupe by `id` (`seen=set(); [it for it in items if not (it['id'] in seen or seen.add(it['id']))]`) and verify the count matches the `total` field from the last response (`500 + 12 == 512`). Never assume a file exists for every page — check the tool output header for a persisted-path marker on each call. |
+| **`_pageN.json` intermediates committed by mistake** | When paginating via MCP (multi-page banks like personal-buffer 7 pages, hermes 3 pages), the merge step produces `YYYY-MM-DD_pageN.json` scratch files. Delete them before `git add`: `rm -f infrastructure/hermes/banks/<bank>/<date>_page*.json` (observed 2026-08-06: `2026-08-06_page1.json` was cleaned up; commit contains only the merged `2026-08-06.json` per bank). |
+| **`git rebase --continue` fails: "Terminal is dumb, but EDITOR unset"** | Cron/terminal has no editor configured. Run `GIT_EDITOR=true git rebase --continue` (observed 2026-08-06 after resolving config.yaml conflict). Without it the rebase stalls with "could not commit staged changes". |
+| **Rebase conflict on `infrastructure/hermes/config.yaml`** | The 01:00 files cron and 02:00 banks cron both touch this file; conflicts are expected. Usually trivial YAML key-order (e.g. `provider` vs `model` line order). Resolve keeping HEAD's side, `git add`, continue with `GIT_EDITOR=true`. See Pre-push section. |
 | **Export script reused instead of canonical** | The canonical script is `scripts/hindsight-sync.py` in this skill — copy it to /tmp each run. Do not hand-write a fresh `sync_banks.py` per run (observed 2026-08-05: a hand-written script hung on HTTP calls to the MCP endpoint); use Method D + `HINDSIGHT_API` env var. |
 
 | **REST API reflect returns empty `text` for busy banks** | Observed on some banks when reflect times out internally. Retry with `budget="low"` and a shorter query, or fall back to manual summary from list_memories output. |
