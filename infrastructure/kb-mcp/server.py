@@ -143,6 +143,26 @@ def ficha_pendiente(nodo) -> str:
     return " ".join(" ".join(elegido).split())
 
 
+def _subentradas_con_campos(cuerpo: str) -> list[tuple[str, dict]]:
+    """(título, campos de su ficha) por cada sub-entrada. Mismo criterio que el portón.
+
+    Existe porque la frescura y el filtrado necesitan los CAMPOS de cada sub-entrada, no solo su
+    texto: la retención se declara por tipo de sub-entrada, y ese tipo vive en su ficha.
+    """
+    fuera = []
+    for bloque in re.split(r"(?m)^###\s+", cuerpo)[1:]:
+        titulo = bloque.split("\n", 1)[0].strip()
+        campos = {}
+        for linea in bloque.splitlines()[1:]:
+            m = re.match(r"-\s+\*\*([^:*]+):\*\*\s*(.+?)\s*$", linea)
+            if m:
+                campos[m.group(1).strip()] = m.group(2).strip()
+            elif campos and linea.strip():
+                break          # la ficha es el bloque contiguo que sigue al título
+        fuera.append((titulo, campos))
+    return fuera
+
+
 def subentradas(cuerpo: str) -> list[tuple[str, str]]:
     """Parte una entrada en sus unidades atómicas: (título, texto).
 
@@ -858,19 +878,40 @@ class Indice:
         # Frescura declarada al lector en cada resultado. Comparacion de fechas pura
         # (calendario por tipo, kb/mcp.yaml `retencion`); el juicio de si la entrada
         # sigue siendo verdad pertenece a la calibracion, no al servidor.
-        plazo = self.cfg.retencion.get(str(n.meta.get("tipo")))
-        if plazo:
-            sello = n.meta.get("verificado")
+        # LA RETENCIÓN SE DECLARA POR TIPO DE SUB-ENTRADA Y ACÁ SE CONSULTABA POR EL TIPO DEL
+        # ARCHIVO. Los dos vocabularios no se cruzan en un solo valor: los archivos son `plan`,
+        # `sistema`, `pregunta`, `requerido`; la retención está declarada para `hallazgo`,
+        # `funcionamiento`, `medicion`, `contexto`. Así que el plazo salía vacío SIEMPRE y el aviso
+        # nunca disparaba: cubría 2 de 61 entradas, por coincidencia. Cuarta corrida pidiéndolo, y la
+        # palabra «re-verificación» no aparecía en ninguna de las 54 respuestas de la última.
+        #
+        # Todavía no se nota —la base tiene doce días y los plazos son de 90 a 180— y es justamente
+        # por eso que había que arreglarlo ahora: el mecanismo que protege al consumidor autónomo de
+        # actuar sobre un hecho vencido estaba apagado ANTES de estrenarse, y el día que importe nadie
+        # va a estar mirando. Se cuenta por sub-entrada y se dice cuántas, porque un nodo-sujeto puede
+        # tener una sola afirmación vencida entre veinte frescas.
+        hoy = datetime.date.today()
+        vencidas, sin_sello = [], []
+        for titulo, campos in _subentradas_con_campos(n.cuerpo):
+            plazo = self.cfg.retencion.get(str(campos.get("Tipo", "")).lower())
+            if not plazo:
+                continue
+            crudo = campos.get("Verificado") or campos.get("Declarado")
             try:
-                fecha_sello = (sello if isinstance(sello, datetime.date)
-                               else datetime.date.fromisoformat(str(sello)))
+                sello = datetime.date.fromisoformat(str(crudo).strip())
             except (TypeError, ValueError):
-                fecha_sello = None
-            if fecha_sello is None:
-                partes.append("sin fecha de verificación — tratar como no confirmada")
-            elif (datetime.date.today() - fecha_sello).days > plazo:
-                partes.append(f"re-verificación VENCIDA (sellada {fecha_sello.isoformat()}) "
-                              "— tratar como no confirmada")
+                sin_sello.append(titulo)
+                continue
+            if (hoy - sello).days > plazo:
+                vencidas.append((titulo, sello))
+        if vencidas:
+            mas = f" y {len(vencidas) - 1} más" if len(vencidas) > 1 else ""
+            t0, f0 = vencidas[0]
+            partes.append(f"re-verificación VENCIDA en «{t0[:40]}» (sellada {f0.isoformat()}){mas}"
+                          " — tratar esa afirmación como no confirmada")
+        elif sin_sello:
+            partes.append(f"{len(sin_sello)} sección(es) sin fecha de comprobación — tratarlas como "
+                          "no confirmadas")
         return " · ".join(partes)
 
     def recientes(self, polo: str | None = None, tope: int = 12) -> list[str]:
@@ -1267,6 +1308,34 @@ _POR_PROPIEDAD = re.compile(
     r"qu[eé]\s+(problema|riesgo|falla|defecto|pendiente)s?\s+(hay|existe|tiene|queda)|"
     r"(problema|riesgo|falla)s?\s+(abierto|vigente|sin\s+resolver)|"
     r"lista\s+de\s+(hallazgos|pendientes|resueltos))", re.I)
+
+
+def deducir_desde(pregunta: str, hoy: str) -> str | None:
+    """La ventana temporal que la pregunta pide, como fecha ISO desde la cual mirar.
+
+    POR QUÉ HACE FALTA. `listar` acepta `desde` y funciona, pero la deducción no lo componía nunca:
+    «qué se cerró HOY» devolvía las 106 secciones resueltas de toda la vida de la base y 26.854
+    caracteres. La respuesta era correcta y perfectamente inútil — quien pregunta por hoy y recibe
+    todo tiene que filtrar a mano lo que el filtro tenía que filtrar. Tercera corrida pidiéndolo.
+
+    Se deducen solo ventanas que el castellano dice sin ambigüedad. «Últimamente» o «hace poco» no
+    entran a propósito: inventarles un número sería ponerle al lector un corte que no pidió.
+    """
+    import datetime as _dt
+    q = pregunta.lower()
+    base = _dt.date.fromisoformat(hoy)
+    if re.search(r"\bhoy\b", q):
+        return hoy
+    if re.search(r"\bayer\b", q):
+        return (base - _dt.timedelta(days=1)).isoformat()
+    m = re.search(r"[uú]ltim[oa]s?\s+(\d+)\s+d[ií]as?", q)
+    if m:
+        return (base - _dt.timedelta(days=int(m.group(1)))).isoformat()
+    if re.search(r"(esta|[uú]ltima)\s+semana|[uú]ltimos\s+siete\s+d[ií]as", q):
+        return (base - _dt.timedelta(days=7)).isoformat()
+    if re.search(r"(este|[uú]ltimo)\s+mes|[uú]ltimos\s+treinta\s+d[ií]as", q):
+        return (base - _dt.timedelta(days=30)).isoformat()
+    return None
 
 
 def deducir_filtro(pregunta: str) -> tuple[str | None, str | None]:
@@ -1733,36 +1802,33 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
                     if len(idx.relacionados(nom)) > umbral_hub:
                         puntaje[nom] = sc * 0.55
 
+        # LA RECENCIA COMO MULTIPLICADOR SE APLICA SIEMPRE, y esto es lo que faltaba. El bloque
+        # entero vivía dentro de `if reciente:`, así que el multiplicador solo operaba cuando alguien
+        # pedía explícitamente ese orden — o sea casi nunca. Medido el 2026-08-06: por eso derivar la
+        # media vida del corpus el día anterior no movió la pertinencia ni un punto. Se estaba afinando
+        # un factor que en el orden normal no se aplicaba.
+        #
+        # La distinción la hace el propio comentario de abajo y no se respetaba: SEMBRAR el pozo con
+        # lo más nuevo es propio de «lo último sobre X» —cambia qué entra—, pero PONDERAR por recencia
+        # es parte de la relevancia en toda consulta: es lo que hace que un hecho de hoy le gane a un
+        # plan de anteayer cuando los dos calzan parecido. Sigue siendo multiplicador y no orden: un
+        # nodo irrelevante pero nuevo no domina.
+        ahora = max((nd.modificado for nd in idx.nodos.values()), default=0)
+        _fechados = [nd.modificado for nd in idx.nodos.values() if nd.modificado]
+        _rango = (ahora - min(_fechados)) if _fechados else 0
+        HALF_LIFE = max(3 * 86400, _rango // 3) or (45 * 86400)
+        for nom in list(puntaje):
+            mod = idx.nodos[nom].modificado
+            if mod:
+                puntaje[nom] *= 1 + 5.0 * math.exp(-(ahora - mod) / HALF_LIFE)
+
         if reciente:
-            # Dos partes. (a) Sembrar el pozo con lo MAS NUEVO del corpus aunque no sea
-            # tematicamente top: "¿qué es lo último?" debe poder traer el commit mas
-            # reciente aunque no matchee la consulta. (b) Recencia como MULTIPLICADOR de
-            # la relevancia, no como orden que la reemplaza (el hard-sort por fecha es el
-            # error que la practica de 2026 desaconseja: un nodo irrelevante pero nuevo
-            # no debe dominar). "Ahora" es el commit mas nuevo, sin depender del reloj.
+            # Sembrar el pozo con lo MÁS NUEVO del corpus aunque no calce temáticamente: «¿qué es lo
+            # último?» debe poder traer el commit más reciente aunque no matchee la consulta. Esto sí
+            # es propio de este orden, porque cambia QUÉ entra y no solo en qué posición queda.
             recientes = idx.recientes(polo, tope=n * 2)
             for pos, nom in enumerate(recientes):
                 puntaje[nom] = puntaje.get(nom, 0.0) + 0.5 / (5 + pos)
-            ahora = max((nd.modificado for nd in idx.nodos.values()), default=0)
-            # LA MEDIA VIDA SE DERIVA DEL CORPUS, no se fija en 45 días. Una base cuyo contenido
-            # entero tiene dos semanas cabe completa en la parte plana de una exponencial de 45
-            # días: lo de hoy y lo de hace diez pesan casi igual, así que la recencia estaba
-            # declarada y no operaba. Medido el 2026-08-05, cuando el arreglo de las fechas la
-            # encendió y la pertinencia no se movió ni un punto: la fecha ya llegaba, pero no
-            # cambiaba ningún orden.
-            #
-            # Un tercio del rango es la escala que hace que los extremos se distingan sin que lo
-            # viejo desaparezca —a un rango de distancia el multiplicador cae a ~5% de su tope—, y
-            # el piso de tres días evita que una base de un día vuelva la recencia un desempate
-            # entre horas. Con el corpus creciendo, la escala crece sola: no hay número que
-            # actualizar cuando la base tenga un año.
-            _fechados = [nd.modificado for nd in idx.nodos.values() if nd.modificado]
-            _rango = (ahora - min(_fechados)) if _fechados else 0
-            HALF_LIFE = max(3 * 86400, _rango // 3) or (45 * 86400)
-            for nom in list(puntaje):
-                mod = idx.nodos[nom].modificado
-                if mod:
-                    puntaje[nom] *= 1 + 5.0 * math.exp(-(ahora - mod) / HALF_LIFE)
         # Pedir algo por su nombre EXACTO lo devuelve primero, sin excepcion. Sin esta regla,
         # dos entradas cuyos titulos se contienen entre si se tapaban mutuamente: preguntar
         # "Pruebas automaticas" devolvia "Conectar las pruebas automaticas a la publicacion",
@@ -1873,9 +1939,13 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
             # levantar el servidor. Antes estaba acá dentro, y por eso el detector y la deducción
             # llegaron a contradecirse: uno aceptaba «resolvió» y la otra no.
             filtro, tipo_f = deducir_filtro(pregunta)
+            # La ventana temporal se compone con el resto: «qué se cerró hoy» son las dos cosas —lo
+            # resuelto Y desde hoy—, y servir solo la primera mitad devuelve toda la historia.
+            desde_f = deducir_desde(pregunta, datetime.date.today().isoformat())
             exacto_txt, etiqueta_filtro = "", ""
-            if filtro or tipo_f:
-                kw = {k: v for k, v in (("estado", filtro), ("tipo", tipo_f)) if v}
+            if filtro or tipo_f or desde_f:
+                kw = {k: v for k, v in (("estado", filtro), ("tipo", tipo_f),
+                                        ("desde", desde_f)) if v}
                 try:
                     exacto_txt = listar(**kw)
                     etiqueta_filtro = " · ".join(f'{k}="{v}"' for k, v in kw.items())
@@ -2046,7 +2116,7 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
                          or campos.get("Checkpoint") or "")
                 if desde and fecha < desde:
                     continue
-                filas.append((fecha, nombre, titulo, campos))
+                filas.append((fecha, nombre, titulo, campos, tipo_archivo))
         if not filas:
             return "Nada cumple ese filtro. Prueba aflojando alguno, o usa panorama()."
         filas.sort(key=lambda x: (x[0], x[1]), reverse=True)
@@ -2058,7 +2128,7 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
         ] if x) or "sin filtro"
         salida = [f"{len(filas)} sección(es) — {criterio}\n"]
         actual = None
-        for fecha, nombre, titulo, campos in filas:
+        for fecha, nombre, titulo, campos, tipo_archivo in filas:
             if nombre != actual:
                 salida.append(f"\n**{nombre}**")
                 actual = nombre
@@ -2067,9 +2137,26 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
             # asi que la respuesta le llevaba el dato al lector y ningun consumidor podia leerlo con
             # la forma que el resto del sistema usa. Y de paso se declara el campo por el que se
             # filtro: quien recibe una lista tiene que poder saber por que esa lista es esa.
+            # LA FICHA DICE DE DÓNDE SALE LA FECHA Y DE DÓNDE SALE EL TIPO, porque las dos cosas
+            # cambian lo que el dato significa:
+            #  · `Verificado` contra `Declarado` es la distinción sobre la que descansa toda la
+            #    doctrina de esta base —lo comprobado contra lo que alguien dijo—, y esta herramienta
+            #    imprimía la fecha pelada. Medido el 2026-08-06: de las 63 fichas que alimentan las
+            #    cinco secciones del informe semanal, CERO declaraban su método.
+            #  · Y cuando el tipo se heredó del archivo contenedor, la sección no lo declara en su
+            #    propia ficha: `listar(tipo="decision")` devolvía nueve renglones y ninguno decía por
+            #    qué estaba ahí. Se marca como heredado en vez de inventarle un campo que no tiene.
+            campo_fecha = ("Verificado" if campos.get("Verificado") else
+                           "Declarado" if campos.get("Declarado") else
+                           "Checkpoint" if campos.get("Checkpoint") else "")
+            tipo_mostrado = campos.get("Tipo")
+            if not tipo_mostrado and tipo_archivo:
+                tipo_mostrado = f"{tipo_archivo} (del documento)"
             partes_f = [f"- **{k}:** {v}" for k, v in
-                        (("Tipo", campos.get("Tipo")), ("Estado", campos.get("Estado"))) if v]
-            salida.append(f"  · {fecha or 'sin fecha'} — {titulo}"
+                        (("Tipo", tipo_mostrado), ("Estado", campos.get("Estado"))) if v]
+            sello = (f"{campo_fecha} {fecha}" if campo_fecha and fecha
+                     else (fecha or "sin fecha"))
+            salida.append(f"  · {sello} — {titulo}"
                           + ("  " + " ".join(partes_f) if partes_f else ""))
         return "\n".join(salida)
 
