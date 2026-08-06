@@ -1363,6 +1363,30 @@ _PRETERITO = re.compile(
 # «nada cumple» es la peor forma de la promesa incumplida, y distinguirla es comparar una cadena.
 SIN_RESULTADOS_LISTAR = "Nada cumple ese filtro. Prueba aflojando alguno, o usa panorama()."
 
+# Cuántos renglones del listado exacto se pegan dentro de una respuesta de `consultar`. NO limita a
+# `listar` llamada directamente —ahí la completitud ES el producto—: limita la copia que viaja
+# incrustada en otra respuesta, que además trae debajo la búsqueda por significado.
+TOPE_LISTADO_INCRUSTADO = 30
+
+
+def _recortar_listado(txt: str, etiqueta: str) -> str:
+    """Recorta el listado a `TOPE_LISTADO_INCRUSTADO` renglones y DECLARA lo que dejó fuera.
+
+    Se corta en el límite de un renglón —nunca a mitad— y se conservan los encabezados de documento
+    de los renglones que sobreviven, para que lo servido siga siendo legible como lo que es.
+    """
+    lineas = txt.splitlines()
+    filas = [i for i, l in enumerate(lineas) if l.lstrip().startswith("· ")]
+    if len(filas) <= TOPE_LISTADO_INCRUSTADO:
+        return txt
+    corte = filas[TOPE_LISTADO_INCRUSTADO]
+    fuera = len(filas) - TOPE_LISTADO_INCRUSTADO
+    orden = f"listar({etiqueta.replace(' · ', ', ')})" if etiqueta else "listar(...)"
+    return ("\n".join(lineas[:corte]).rstrip()
+            + f"\n\n… y {fuera} más que cumplen el mismo filtro, recortados acá para que la "
+              f"respuesta sea legible.\nPedí la lista completa con `{orden}`: ahí salen todos, sin "
+              f"recorte.")
+
 
 def deducir_desde(pregunta: str, hoy: str) -> str | None:
     """La ventana temporal que la pregunta pide, como fecha ISO desde la cual mirar.
@@ -2034,6 +2058,16 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
                 # genérico, que es lo que había antes de que existiera la deducción: nunca menos.
                 if exacto_txt.startswith(SIN_RESULTADOS_LISTAR):
                     exacto_txt = ""
+                # NI SIN TOPE. El arreglo de arriba cubrió el extremo vacío y dejó vivo el opuesto:
+                # esta rama pegaba la salida ENTERA de `listar`, y «qué se logró esta semana» —la
+                # consulta más natural de dirección— devolvía 166 renglones y ~47.000 caracteres.
+                # La rama que elige QUÉ servir no miraba el TAMAÑO de lo que sirve.
+                #
+                # Se recorta declarando: el que pregunta ve cuántos quedaron fuera y con qué orden
+                # exacto pedirlos. Un recorte declarado es información; uno callado es una
+                # afirmación falsa sobre la completitud, que es justo lo que este bloque promete.
+                elif exacto_txt:
+                    exacto_txt = _recortar_listado(exacto_txt, etiqueta_filtro)
             if exacto_txt:
                 # «EXACTA SOBRE ESA PROPIEDAD», y no «exacta» a secas. El filtro es exacto sobre lo
                 # que filtra y CIEGO AL TEMA: «riesgo con los datos personales» sirve los 19
