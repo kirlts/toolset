@@ -1017,6 +1017,31 @@ class Indice:
         return (cab + SEP + ("" if ini == 0 else "") + pasaje
                 + (SEP.rstrip() if fin < len(resto) else ""))
 
+    def _hermanas_de(self, nombre: str, titulo_servido: str) -> str:
+        """Las OTRAS sub-entradas del nodo, para que el lector sepa qué más hay y cómo se llama.
+
+        Es la misma línea que `_indice_subentradas` produce para los caminos de ventana, pero
+        anclada en el título servido en vez de en un rango de caracteres: acá se sabe exactamente
+        cuál se entregó, así que enumerar el resto es exacto y no aproximado.
+        """
+        cuerpo = self.nodos[nombre].cuerpo
+        objetivo = " ".join(str(titulo_servido).split()).lower()
+        fuera = []
+        for m in re.finditer(r"^###\s+(.+?)\s*$", cuerpo, re.M):
+            titulo = m.group(1).strip()
+            if " ".join(titulo.split()).lower() == objetivo:
+                continue
+            fin = cuerpo.find("\n### ", m.end())
+            bloque = cuerpo[m.end():fin if fin > 0 else len(cuerpo)]
+            campos = dict(re.findall(r"^-\s+\*\*([^:*]+):\*\*\s*(.+?)\s*$", bloque, re.M))
+            ficha = " · ".join(x for x in (campos.get("Tipo"), campos.get("Estado")) if x)
+            if espera := campos.get("Espera a"):
+                ficha += f", espera a {espera}"
+            fuera.append(f"«{titulo}»" + (f" ({ficha})" if ficha else ""))
+        if not fuera:
+            return ""
+        return "\n\n*Otras secciones de este documento:* " + " · ".join(fuera[:12])
+
     def _extracto_bruto(self, nombre: str, consulta_fts: str, extendido: bool = False) -> str:
         # Primero: la SUB-ENTRADA que mejor calza, servida entera. Es la unidad atómica de
         # esta base —título, ficha de campos y evidencia— así que servirla completa entrega
@@ -1049,8 +1074,14 @@ class Indice:
             if fila and fila[0]:
                 plano = " ".join(fila[1].split())
                 tope = 2600 if extendido else 1800
+                # LAS HERMANAS SE ENUMERAN TAMBIÉN ACÁ. Esta línea existe porque un nodo-sujeto
+                # agrupa muchas afirmaciones y servir una sola deja al lector sin saber que hay más
+                # —tercera evaluación, 2026-07-27—, pero solo se anexaba en los caminos de ventana
+                # adivinada. Cuando el camino de sub-entrada pasó a ser el habitual, la venda dejó de
+                # aplicarse: medido el 2026-08-06, 15 de 160 tarjetas (9,4 %) la traían. Cuarta
+                # corrida pidiéndolo.
                 if len(plano) <= tope:
-                    return plano
+                    return plano + self._hermanas_de(nombre, fila[0])
                 # Y SI NO CABE, SE RECORTA — no se descarta. Descartarla y caer a la ventana
                 # adivinada era el defecto repetido de tres evaluaciones seguidas («entrada
                 # correcta, sección equivocada»), y tenía tamaño medido: 220 de las 341
@@ -1061,7 +1092,7 @@ class Indice:
                 # accidente del umbral.
                 recortada = self._recortar_sub(fila[1], consulta_fts, tope)
                 if recortada:
-                    return recortada
+                    return recortada + self._hermanas_de(nombre, fila[0])
         except sqlite3.OperationalError:
             pass
         """Pasaje alrededor de la coincidencia; si el acierto vino de la capa
@@ -1310,6 +1341,29 @@ _POR_PROPIEDAD = re.compile(
     r"lista\s+de\s+(hallazgos|pendientes|resueltos))", re.I)
 
 
+# EL PRETÉRITO, POR SU MORFOLOGÍA Y NO POR UNA LISTA DE VERBOS. Es lo que distingue «hoy» fecha de
+# «hoy» adverbio de actualidad: «qué se HIZO hoy» pregunta por un tramo de tiempo, «qué problemas
+# HAY hoy» pregunta por el estado presente y contestarla con las últimas horas esconde el resto.
+#
+# Se probó primero al revés —una lista de verbos de estado: hay, está, existe, queda, sigue— y se
+# descartó midiéndola: mataba «qué se abrió AYER y SIGUE abierto» y «qué se cerró HOY y ya no HAY
+# que hacer», que son temporales de verdad con un verbo de estado en la otra mitad de la oración.
+# Cualquier arreglo por adyacencia era una regla sobre el orden de las palabras, y la lista seguía
+# abierta: «corren hoy», «se puede cobrar hoy» y «existen hoy» habrían pedido tres parches más.
+#
+# El pretérito, en cambio, es una regla CERRADA: `-ó`, `-aron`, `-ieron`, más los nueve irregulares
+# que el castellano tiene y no va a tener más. No hay verbo nuevo que agregarle.
+_PRETERITO = re.compile(
+    r"\b\w+(ó|aron|ieron|eron)\b"
+    r"|\b(hizo|hicieron|fue|fueron|hubo|dijo|dijeron|puso|pusieron|vino|vinieron"
+    r"|tuvo|tuvieron|estuvo|estuvieron|supo|supieron|quiso|quisieron)\b")
+
+# El texto con que `listar` dice que no encontró nada. ES UNA CONSTANTE Y NO UN LITERAL SUELTO
+# porque `consultar` tiene que reconocerlo: una respuesta anunciada como EXACTA que llega diciendo
+# «nada cumple» es la peor forma de la promesa incumplida, y distinguirla es comparar una cadena.
+SIN_RESULTADOS_LISTAR = "Nada cumple ese filtro. Prueba aflojando alguno, o usa panorama()."
+
+
 def deducir_desde(pregunta: str, hoy: str) -> str | None:
     """La ventana temporal que la pregunta pide, como fecha ISO desde la cual mirar.
 
@@ -1320,18 +1374,33 @@ def deducir_desde(pregunta: str, hoy: str) -> str | None:
 
     Se deducen solo ventanas que el castellano dice sin ambigüedad. «Últimamente» o «hace poco» no
     entran a propósito: inventarles un número sería ponerle al lector un corte que no pidió.
+
+    LA ASIMETRÍA QUE GOBIERNA LAS DOS DECISIONES DE ABAJO. Una ventana que no se aplica sale
+    verbosa: el lector recibe más de lo que pidió y filtra a ojo. Una ventana que se aplica de más
+    ESCONDE, y lo que esconde no deja rastro en la respuesta. Ante la duda, no se recorta.
     """
     import datetime as _dt
     q = pregunta.lower()
     base = _dt.date.fromisoformat(hoy)
-    if re.search(r"\bhoy\b", q):
-        return hoy
-    if re.search(r"\bayer\b", q):
-        return (base - _dt.timedelta(days=1)).isoformat()
+    # «HOY» Y «AYER» SON TAMBIÉN ADVERBIOS DE ACTUALIDAD, no solo de fecha: «qué problemas hay HOY
+    # en la plataforma» pregunta por el estado presente, y contestarla con lo capturado en las
+    # últimas horas es esconder el resto. Medido el 2026-08-06: esa consulta fue la ÚNICA de 54
+    # repetidas que bajó de nota, porque el filtro se estrechó hasta vaciarse y la respuesta
+    # prometida como exacta llegó vacía. Sin el pretérito, «hoy» no acota nada: enuncia el presente.
+    if re.search(r"\b(hoy|ayer)\b", q) and _PRETERITO.search(q):
+        return hoy if "hoy" in q else (base - _dt.timedelta(days=1)).isoformat()
     m = re.search(r"[uú]ltim[oa]s?\s+(\d+)\s+d[ií]as?", q)
     if m:
         return (base - _dt.timedelta(days=int(m.group(1)))).isoformat()
-    if re.search(r"(esta|[uú]ltima)\s+semana|[uú]ltimos\s+siete\s+d[ií]as", q):
+    # «LOS ÚLTIMOS DÍAS», SIN NÚMERO. El patrón de arriba exige un dígito, así que «qué se resolvió
+    # en los últimos días» no traía ventana: devolvía 110 secciones y 33.693 caracteres, la
+    # respuesta más larga de las 72 de la tanda del 2026-08-06, y creciendo corrida a corrida.
+    # Entra —a diferencia de «últimamente»— porque nombra la unidad, «días», y solo le falta el
+    # número; y la ventana elegida no queda escondida: `listar` imprime `desde=<fecha>` en su
+    # criterio y la respuesta exacta la trae en su etiqueta, así que el lector ve el corte y puede
+    # pedir otro. Siete días, el mismo valor que «esta semana», por no inventar una tercera unidad.
+    if re.search(r"(esta|[uú]ltima)\s+semana|[uú]ltimos\s+siete\s+d[ií]as"
+                 r"|(los\s+[uú]ltimos|estos)\s+d[ií]as", q):
         return (base - _dt.timedelta(days=7)).isoformat()
     if re.search(r"(este|[uú]ltimo)\s+mes|[uú]ltimos\s+treinta\s+d[ií]as", q):
         return (base - _dt.timedelta(days=30)).isoformat()
@@ -1929,7 +1998,14 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
                     "Prueba otras palabras, o usa panorama() para ver qué cubre.")
 
         redirigir = ""
-        if POR_PROPIEDAD.search(pregunta):
+        # LA VENTANA TEMPORAL SE DEDUCE SIEMPRE, no solo cuando el detector de propiedad dispara.
+        # «Qué se hizo hoy» no nombra ninguna propiedad y sí nombra una fecha; con la deducción
+        # metida dentro del `if`, la fecha se calculaba y se tiraba. Medido el 2026-08-06 con la
+        # función pura: de las 13 consultas temporales de la tanda, `deducir_desde` acertaba en 9 y
+        # solo 2 la usaban. Calcular una ventana y descartarla es peor que no calcularla — el
+        # trabajo está hecho y el que pregunta no lo recibe.
+        desde_f = deducir_desde(pregunta, datetime.date.today().isoformat())
+        if POR_PROPIEDAD.search(pregunta) or desde_f:
             # Decirle al lector «usá otra herramienta» es peor que usarla por él: en una
             # pregunta por propiedad la respuesta exacta ya se puede calcular acá, y hacerlo
             # ahorra un viaje y evita que se quede con el resultado aproximado, que es
@@ -1938,10 +2014,9 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
             # La deducción vive a nivel de módulo —`deducir_filtro`— para que se pueda probar sin
             # levantar el servidor. Antes estaba acá dentro, y por eso el detector y la deducción
             # llegaron a contradecirse: uno aceptaba «resolvió» y la otra no.
-            filtro, tipo_f = deducir_filtro(pregunta)
             # La ventana temporal se compone con el resto: «qué se cerró hoy» son las dos cosas —lo
             # resuelto Y desde hoy—, y servir solo la primera mitad devuelve toda la historia.
-            desde_f = deducir_desde(pregunta, datetime.date.today().isoformat())
+            filtro, tipo_f = deducir_filtro(pregunta)
             exacto_txt, etiqueta_filtro = "", ""
             if filtro or tipo_f or desde_f:
                 kw = {k: v for k, v in (("estado", filtro), ("tipo", tipo_f),
@@ -1951,12 +2026,25 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
                     etiqueta_filtro = " · ".join(f'{k}="{v}"' for k, v in kw.items())
                 except Exception:
                     exacto_txt = ""
+                # UNA LISTA VACÍA NO ES UNA RESPUESTA EXACTA. `listar` no devuelve cadena vacía
+                # cuando no encuentra nada: devuelve la frase que lo explica, y esa frase es cierta
+                # pero no es lo que el encabezado promete. El 2026-08-06, «qué problemas hay hoy en
+                # la plataforma» sirvió bajo «acá va primero la respuesta EXACTA» el texto «Nada
+                # cumple ese filtro», con 19 hallazgos vigentes en la base. Se cae al aviso
+                # genérico, que es lo que había antes de que existiera la deducción: nunca menos.
+                if exacto_txt.startswith(SIN_RESULTADOS_LISTAR):
+                    exacto_txt = ""
             if exacto_txt:
+                # «EXACTA SOBRE ESA PROPIEDAD», y no «exacta» a secas. El filtro es exacto sobre lo
+                # que filtra y CIEGO AL TEMA: «riesgo con los datos personales» sirve los 19
+                # hallazgos vigentes sin ningún recorte temático, y anunciarlo como la respuesta
+                # exacta invita a leer 19 renglones como si los 19 fueran del tema preguntado.
                 redirigir = (
                     "⚠ Preguntaste por una PROPIEDAD (estado, tipo, fecha), no por un tema. La "
-                    "búsqueda por significado devuelve lo más parecido, no todo lo que cumple, "
-                    f"así que acá va primero la respuesta EXACTA —listar({etiqueta_filtro})— y "
-                    "después lo que encontró la búsqueda.\n\n"
+                    "búsqueda por significado devuelve lo más parecido, no todo lo que cumple, así "
+                    f"que acá va primero la respuesta EXACTA SOBRE ESA PROPIEDAD —listar("
+                    f"{etiqueta_filtro})—, exacta sobre el filtro y ciega al tema, y después "
+                    "lo que encontró la búsqueda.\n\n"
                     f"{exacto_txt}\n\n── y esto encontró la búsqueda por significado ──\n\n")
             else:
                 redirigir = ("⚠ Esta pregunta es por una PROPIEDAD (estado, tipo, fecha), no por un "
@@ -2118,7 +2206,7 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
                     continue
                 filas.append((fecha, nombre, titulo, campos, tipo_archivo))
         if not filas:
-            return "Nada cumple ese filtro. Prueba aflojando alguno, o usa panorama()."
+            return SIN_RESULTADOS_LISTAR
         filas.sort(key=lambda x: (x[0], x[1]), reverse=True)
         criterio = " · ".join(x for x in [
             f"estado={estado}" if estado else None,
@@ -2146,6 +2234,11 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
             #  · Y cuando el tipo se heredó del archivo contenedor, la sección no lo declara en su
             #    propia ficha: `listar(tipo="decision")` devolvía nueve renglones y ninguno decía por
             #    qué estaba ahí. Se marca como heredado en vez de inventarle un campo que no tiene.
+            #  · `ESPERA A` ES MEDIA SECCIÓN DEL INFORME SEMANAL y no llegaba por acá. El estándar
+            #    pide, para «Requerido», a quién espera cada pedido y desde cuándo; medido el
+            #    2026-08-06, el campo no aparecía en NINGUNO de los 62 renglones de las cinco
+            #    secciones. `_hermanas_de` sí lo imprime: la información llegaba por un camino y no
+            #    por el otro, que es la peor forma de un hueco porque parece cubierto.
             campo_fecha = ("Verificado" if campos.get("Verificado") else
                            "Declarado" if campos.get("Declarado") else
                            "Checkpoint" if campos.get("Checkpoint") else "")
@@ -2153,7 +2246,8 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
             if not tipo_mostrado and tipo_archivo:
                 tipo_mostrado = f"{tipo_archivo} (del documento)"
             partes_f = [f"- **{k}:** {v}" for k, v in
-                        (("Tipo", tipo_mostrado), ("Estado", campos.get("Estado"))) if v]
+                        (("Tipo", tipo_mostrado), ("Estado", campos.get("Estado")),
+                         ("Espera a", campos.get("Espera a"))) if v]
             sello = (f"{campo_fecha} {fecha}" if campo_fecha and fecha
                      else (fecha or "sin fecha"))
             salida.append(f"  · {sello} — {titulo}"
