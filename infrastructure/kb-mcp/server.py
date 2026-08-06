@@ -962,9 +962,27 @@ class Indice:
         # quedan como respaldo para el acierto puramente semántico, donde no hay coincidencia
         # literal que localizar.
         try:
-            fila = self.db.execute(
+            # EL CALCE DE PALABRAS NO PUEDE SER EL ÚNICO CRITERIO PARA ELEGIR QUÉ SE SIRVE. Cuando
+            # una entrada tiene dos secciones sobre lo mismo —una resuelta y su sucesora vigente—,
+            # elegir solo por rank es una lotería entre ellas, y perderla significa servir como
+            # actual una afirmación que la propia base ya superó. Medido el 2026-08-05: en dos de
+            # tres consultas dirigidas se servía una sección `resuelto` del día anterior mientras la
+            # vigente quedaba en el puesto 2 y en el 6, sin siquiera enumerarse.
+            #
+            # Se traen las cuatro mejores por rank y se prefiere la que NO está cerrada, respetando
+            # el rank dentro de cada grupo. Es un desempate, no un reordenamiento: una sección
+            # vigente solo le gana a una resuelta que ya estaba entre las mejores por relevancia, y
+            # el caso normal —una sola candidata— no cambia en nada.
+            filas = self.db.execute(
                 "SELECT sub, crudo FROM subdocs WHERE subdocs MATCH ? AND nombre = ? "
-                "ORDER BY rank LIMIT 1", (consulta_fts, nombre)).fetchone()
+                "ORDER BY rank LIMIT 4", (consulta_fts, nombre)).fetchall()
+            fila = None
+            if filas:
+                def _cerrada(crudo: str) -> bool:
+                    m = re.search(r"^-\s+\*\*Estado:\*\*\s*(.+?)\s*$", crudo or "", re.M)
+                    return bool(m) and m.group(1).strip().lower() in ("resuelto", "aceptado")
+                fila = min(enumerate(filas),
+                           key=lambda par: (_cerrada(par[1][1]), par[0]))[1]
             if fila and fila[0]:
                 plano = " ".join(fila[1].split())
                 tope = 2600 if extendido else 1800
@@ -1689,7 +1707,21 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
             for pos, nom in enumerate(recientes):
                 puntaje[nom] = puntaje.get(nom, 0.0) + 0.5 / (5 + pos)
             ahora = max((nd.modificado for nd in idx.nodos.values()), default=0)
-            HALF_LIFE = 45 * 86400  # media vida de 45 dias
+            # LA MEDIA VIDA SE DERIVA DEL CORPUS, no se fija en 45 días. Una base cuyo contenido
+            # entero tiene dos semanas cabe completa en la parte plana de una exponencial de 45
+            # días: lo de hoy y lo de hace diez pesan casi igual, así que la recencia estaba
+            # declarada y no operaba. Medido el 2026-08-05, cuando el arreglo de las fechas la
+            # encendió y la pertinencia no se movió ni un punto: la fecha ya llegaba, pero no
+            # cambiaba ningún orden.
+            #
+            # Un tercio del rango es la escala que hace que los extremos se distingan sin que lo
+            # viejo desaparezca —a un rango de distancia el multiplicador cae a ~5% de su tope—, y
+            # el piso de tres días evita que una base de un día vuelva la recencia un desempate
+            # entre horas. Con el corpus creciendo, la escala crece sola: no hay número que
+            # actualizar cuando la base tenga un año.
+            _fechados = [nd.modificado for nd in idx.nodos.values() if nd.modificado]
+            _rango = (ahora - min(_fechados)) if _fechados else 0
+            HALF_LIFE = max(3 * 86400, _rango // 3) or (45 * 86400)
             for nom in list(puntaje):
                 mod = idx.nodos[nom].modificado
                 if mod:
@@ -1942,10 +1974,18 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
                 if m.get("checkpoint"):
                     campos["Checkpoint"] = str(m.get("checkpoint"))
                 secciones.append((nd.nombre, campos))
+            # EL TIPO DEL ARCHIVO CUENTA TAMBIÉN, no solo cuando la entrada no tiene secciones. El
+            # respaldo por encabezado de arriba actúa solo si `secciones` quedó vacío, así que **una
+            # entrada CON secciones nunca era recuperable por su propio tipo**: `listar(tipo=
+            # "requerido")` contestaba «nada cumple ese filtro» teniendo la base una entrada
+            # declarada así, y es una de las cinco secciones que el informe semanal necesita.
+            # Medido el 2026-08-05. No mete ruido: los nodos-sujeto son de tipo `sistema`, que no
+            # calza con ninguno de los tipos por los que se filtra de verdad.
+            tipo_archivo = str(nd.meta.get("tipo", "") or "").lower()
             for titulo, campos in secciones:
                 if estado and campos.get("Estado", "").lower() != estado.lower():
                     continue
-                if tipo and campos.get("Tipo", "").lower() != tipo.lower():
+                if tipo and tipo.lower() not in (campos.get("Tipo", "").lower(), tipo_archivo):
                     continue
                 if mostrable is not None:
                     pub = campos.get("Publicable", "").lower() in ("sí", "si", "true")
