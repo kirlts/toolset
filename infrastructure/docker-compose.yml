@@ -192,9 +192,16 @@ services:
     volumes:
       # Se monta el directorio raiz de KB, no una sola: el servidor sirve todas.
       - /opt/kb:/kb:ro
-      # Modelo de embeddings validado (int8, 256 dims, ~140 MB). Ver Dockerfile: no se
-      # hornea en el build porque en ARM64 sale distinto al validado.
+      # Modelo estatico validado (int8, 256 dims, ~140 MB). YA NO ES EL QUE SE USA —desde el
+      # 2026-08-07 el modelo por omision es un codificador horneado en la imagen— pero el montaje se
+      # CONSERVA porque es la reversion: `KB_MODELO=/modelo` vuelve al anterior sin reconstruir nada.
       - /opt/kb-modelo-256:/modelo:ro
+      # UNICO MONTAJE DE ESCRITURA, y es lo que vuelve desplegable al codificador. El indice se
+      # reconstruye al arrancar y `sync-kb.sh` reinicia este contenedor en cada cambio de contenido
+      # —28 veces el 2026-08-07—, asi que sin cache el arranque costaria 49 s cada vez. Con el, 8,7 s,
+      # y el indice sin ningun modelo ya cuesta 7,9: el codificador agrega 0,8 s. Guarda solo vectores
+      # (1 MB), indexados por hash del texto; borrarlo no pierde nada, se recalcula. Ver HEU-013.
+      - /opt/kb-vectores:/vectores
     healthcheck:
       test: ["CMD", "python", "-c", "import socket,sys; s=socket.create_connection(('127.0.0.1',8765),3); s.close()"]
       interval: 30s

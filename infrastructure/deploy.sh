@@ -762,6 +762,7 @@ okos master https://github.com/kirlts/kb-okos.git"
       "${SSH_HOST}" \
       "export PATH=/usr/local/bin:/home/opc/.local/bin:\$PATH GIT_TERMINAL_PROMPT=0; \
        sudo mkdir -p /opt/kb && sudo chown opc:opc /opt/kb; \
+       sudo mkdir -p /opt/kb-vectores && sudo chown 10001:10001 /opt/kb-vectores; \
        if [ ! -d /opt/kb/${slug}/.git ]; then \
          S=/opt/kb/.stage.\$\$; rm -rf \"\$S\"; \
          git clone --filter=blob:none --branch ${rama} --single-branch \

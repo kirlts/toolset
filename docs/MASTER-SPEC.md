@@ -190,6 +190,17 @@ cabecera de cada herramienta, combinando lo que la KB declara (`kb/mcp.yaml`) co
 conceptos centrales deducidos del grafo. Basta la URL: el agente no necesita que se le
 explique de que trata la base.
 
+**Ciclo de vida del indice — el acoplamiento que decide que modelo se puede usar.** El indice
+semantico se reconstruye **al arrancar el proceso**, y `infrastructure/kb-mcp/sync-kb.sh` (cron cada
+15 min) **reinicia el contenedor cada vez que el contenido de alguna KB cambia**. Las dos decisiones
+viven en archivos distintos y se multiplican: el costo de arranque se paga tantas veces por dia como
+commits haya. Medido el 2026-08-07 sobre `kb-okos`: **28 reinicios en una jornada**. Con la tabla
+estatica el arranque es instantaneo y el acoplamiento es invisible; con un codificador real cuesta
+~30 s por arranque, o sea ~14 min diarios de servicio caido. Por eso el servidor cachea los vectores
+por hash del texto (`KB_VECTORES`): un reinicio recalcula solo lo que cambio. Sin esa variable —o sin
+volumen de escritura, que es el estado de hoy: el contenedor va `read_only`— el comportamiento es el
+de siempre, recalcular todo. Ver [HEU-013](MEMORY.md).
+
 **Autorizacion:** ⚠️ Hoy **sin autenticacion**. La ruta es publica via Funnel y las KB no
 estan aisladas entre si. El enrutamiento por nombre de repo esta diseñado para admitir
 una capa de tokens por KB, que es trabajo pendiente ([DT-011](TECHNICAL-DEBT.md)).

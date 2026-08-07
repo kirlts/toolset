@@ -23,6 +23,8 @@ import copy
 import datetime
 import math
 import textwrap
+import hashlib
+import sys
 import os
 import re
 import sqlite3
@@ -49,7 +51,27 @@ except ImportError:  # sin capa semantica queda solo la lexica, no se cae
     np = None
     StaticModel = None
 
-MODELO = os.environ.get("KB_MODELO", "minishlab/potion-multilingual-128M")
+# EL MODELO POR OMISIÓN PASÓ DE ESTÁTICO A UN CODIFICADOR REAL. Medido el 2026-08-07 sobre las 81
+# preguntas juzgadas, mismo corpus, mismo puntaje, cambiando SOLO la representación:
+#
+#   estático potion-multilingual-128M   1er 35/81 = 43 %   top-3 43   sin traer el documento 28
+#   MiniLM multilingüe (ahora)          1er 37/81 = 45 %   top-3 49   sin traer el documento 20
+#   e5-small                            1er 35/81 = 43 %   top-3 47   sin traer el documento 20
+#   e5-small con sus prefijos           1er 35/81 = 43 %   top-3 46   sin traer el documento 26
+#   e5-base con sus prefijos            1er 34/81 = 41 %   top-3 46   sin traer el documento 28
+#
+# Por qué importa más de lo que dice el «1er lugar»: quien consulta esta base es cada vez más un
+# agente, que puede pedir de nuevo. Medido con esa forma de uso: encuentra el documento en la primera
+# consulta el 75 % de las veces (era 65 %) y el 93 % insistiendo (era 83 %).
+#
+# LO QUE SE PROBÓ Y NO GANÓ, para que nadie lo repita: el modelo más grande (e5-base) es el PEOR de
+# los cinco, y los prefijos que e5 pide para su uso canónico EMPEORAN su número en este corpus.
+#
+# El estático se había elegido por memoria: el contenedor moría a 1,2 GB. Hoy el límite es 2 GB, el
+# VPS tiene 4,2 GB libres, y medido en hardware equivalente (2 núcleos) esto cuesta 48 ms por consulta
+# y ~30 s de arranque para los 519 vectores. `KB_MODELO` revierte a lo anterior sin tocar código.
+MODELO = os.environ.get(
+    "KB_MODELO", "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
 
 # Palabras vacias del castellano. Sin esta lista, una consulta ajena al dominio calzaba por
 # piezas gramaticales: "receta de pan de masa madre" traia entradas porque "mas" aparece en
@@ -227,6 +249,91 @@ NO_POLO = {"assets", ".obsidian", ".trash"}
 # se siguen sirviendo y se sigue filtrando por ellas — lo único que cambia es qué se le da al modelo
 # de embeddings. El resultado de medirlo queda escrito acá abajo cuando esté.
 _LINEA_DE_FICHA = re.compile(r"(?m)^\s*-\s*\*\*[A-Za-zÁÉÍÓÚÜÑáéíóúüñ ]{3,20}:\*\*.*$")
+
+
+def _es_modelo_estatico(nombre: str) -> bool:
+    """¿El modelo configurado es una tabla estática (model2vec) o un codificador?"""
+    return "potion" in nombre or "model2vec" in nombre or nombre.startswith("/")
+
+
+def _umbral_aviso() -> float:
+    """El corte de cercanía del AVISO, ATADO AL MODELO. Ver la calibración abajo.
+
+    UNA ESCALA DE SIMILITUD NO VIAJA ENTRE MODELOS, y esto costó descubrirlo con la batería en la
+    mano: al cambiar el codificador, el 0,32 calibrado para el modelo estático dejó de significar lo
+    mismo y la base pasó a servir seis resultados de relleno ante «qué se le pone al mate para que no
+    amargue» SIN avisar. Medido el 2026-08-07 sobre 9 preguntas ajenas y las 81 juzgadas:
+
+        modelo estático, 0,32   →  avisa 7 de 9 ajenas  ·  3 avisos falsos de 81
+        MiniLM,          0,32   →  avisa 5 de 9         ·  7 falsos
+        MiniLM,          0,42   →  avisa 7 de 9         ·  9 falsos
+        MiniLM,          0,45   →  avisa 7 de 9         ·  10 falsos
+
+    Las dos distribuciones se SOLAPAN con MiniLM —las ajenas llegan a 0,408 y las legítimas bajan a
+    0,162—, así que ningún número las separa solo: lo que separa es la conjunción con la señal
+    léxica. Se elige 0,45 y no 0,42, que da el mismo 7 de 9: los 0,04 de más son margen contra que
+    el corpus mueva la escala, y cuestan un aviso falso. Un aviso falso deja los resultados intactos
+    debajo; una pregunta ajena sin aviso se sirve como si fuera respuesta.
+
+    EL VALOR SE DERIVA DEL MODELO Y NO SE ESCRIBE FIJO, a propósito: `KB_MODELO` es la reversión de
+    todo este cambio, y un umbral que se quedara en 0,45 dejaría el modelo viejo peor calibrado que
+    antes —revertir habría empeorado algo, en silencio—. `KB_AVISO` sigue estando para volver a
+    medirlo cuando el corpus mueva la escala otra vez.
+    """
+    fijo = os.environ.get("KB_AVISO")
+    if fijo:
+        return float(fijo)
+    return 0.32 if _es_modelo_estatico(MODELO) else 0.45
+
+
+def _vectorizar_con_cache(modelo, textos: list[str]):
+    """Calcula los vectores, reusando los que ya se calcularon para un texto idéntico.
+
+    POR QUÉ, con el número que lo hizo obligatorio. El índice se reconstruye AL ARRANCAR, y el
+    contenedor se reinicia cada vez que el contenido cambia —`sync-kb.sh` mira cada 15 minutos y
+    reinicia si hubo commit—. Con la tabla estática eso era instantáneo. Con un codificador de verdad
+    cuesta ~30 s en el hardware del VPS, y el 2026-08-07 hubo **28 reinicios en un día**: serían
+    catorce minutos diarios de servicio caído, en tandas de medio minuto, mientras alguien pregunta.
+
+    Un reinicio típico cambia una o dos sub-entradas de quinientas. Cacheando por el HASH DEL TEXTO,
+    el arranque recalcula solo lo que cambió y vuelve a costar un segundo.
+
+    Degrada bien a propósito: si `KB_VECTORES` no está o no se puede escribir —hoy el contenedor va
+    en modo lectura y no tiene volumen para esto— se comporta exactamente como antes, recalculando
+    todo. O sea que este código es seguro de desplegar ANTES que el volumen, y el volumen es una
+    mejora separada que se puede revisar aparte.
+    """
+    ruta = os.environ.get("KB_VECTORES")
+    clave = lambda t: hashlib.sha256((MODELO + "\x00" + t).encode("utf-8")).hexdigest()
+    previo: dict[str, "np.ndarray"] = {}
+    if ruta:
+        try:
+            with np.load(ruta, allow_pickle=False) as z:
+                previo = {k: z[k] for k in z.files}
+        except Exception:
+            previo = {}
+    claves = [clave(t) for t in textos]
+    faltan = [i for i, k in enumerate(claves) if k not in previo]
+    if faltan:
+        nuevos = modelo.encode([textos[i] for i in faltan])
+        for j, i in enumerate(faltan):
+            previo[claves[i]] = np.asarray(nuevos[j], dtype="float32")
+    V = np.stack([previo[k] for k in claves]).astype("float32")
+    if ruta and faltan:
+        try:
+            # Solo lo que el índice usa hoy: si no, el archivo crece con cada texto que existió
+            # alguna vez y el arranque se lo lee entero para nada.
+            # SE ESCRIBE POR DESCRIPTOR, no por nombre: `np.savez` le agrega «.npz» a un nombre que
+            # no lo tenga, así que el temporal terminaba en otro archivo y el `replace` fallaba —
+            # silenciosamente, porque este bloque traga excepciones. Medido: dos arranques seguidos
+            # costaban lo mismo y el caché no existía.
+            tmp = ruta + ".nuevo"
+            with open(tmp, "wb") as fh:
+                np.savez(fh, **{k: previo[k] for k in claves})
+            os.replace(tmp, ruta)
+        except Exception:
+            pass
+    return V
 
 
 def _para_vector(sub: str) -> str:
@@ -718,7 +825,7 @@ class Indice:
                 textos.append(f"{nombre} — {titulo}\n{_para_vector(sub)[:1500]}")
                 self.orden.append(nombre)
                 self.es_cabecera.append(False)
-        V = self.modelo.encode(textos).astype("float32")
+        V = _vectorizar_con_cache(self.modelo, textos)
         self.vectores = V / np.clip(np.linalg.norm(V, axis=1, keepdims=True), 1e-9, None)
         # Posiciones de todos los vectores de cada entrada, para puntuarla por su MEJOR
         # sub-entrada en vez de por su cabecera (ver `rasgos`).
@@ -1444,7 +1551,13 @@ _POR_PROPIEDAD = re.compile(
     r"(abierto|pendiente|sin\s+resolver|trabado|frenado|detenido|esperando)|"
     # «Qué está trabado esperando» y sus variantes: el bloqueo es una propiedad, no un tema.
     r"qu[eé]\s+.{0,24}(trabado|frenado|bloqueado|esperando|a\s+la\s+espera)|"
-    r"qu[eé]\s+.{0,20}(mostrar|mostrarle|ense[nñ]ar).{0,20}(fundador|direcci[oó]n|project|pm)|"
+    # PREGUNTARLE A ALGUIEN ES LA MISMA FORMA QUE MOSTRARLE, y faltaba. «Qué tengo que
+    # PREGUNTARLE al Project Manager cuando lo vea» es la pregunta canónica antes de una reunión y
+    # no activaba nada: se contestaba por tema, con seis documentos que no declaran a quién espera
+    # nada. Pasaba en verde por casualidad —según qué fragmentos trajera el buscador— y el cambio de
+    # modelo lo destapó: es un caso que medía la suerte, no el mecanismo.
+    r"qu[eé]\s+.{0,20}(mostrar|mostrarle|ense[nñ]ar|preguntar|preguntarle|consultarle|pedirle)"
+    r".{0,20}(fundador|direcci[oó]n|project|pm|jefe)|"
     r"qu[eé]\s+(medicion|hallazgo|plan|pedido)e?s\s+hay|"
     # Las palabras del LECTOR, que no son las de la base. Quien pregunta dice «problemas»,
     # «riesgos» o «fallas»; la base llama a eso `hallazgo` y prohibe la jerga en la prosa, asi
@@ -1701,6 +1814,24 @@ def deducir_filtro(pregunta: str) -> tuple[str | None, str | None]:
     if re.search(r"abierto|pendiente|sin\s+resolver|\bqueda|trabado|frenado|"
                  r"detenido|esperando|bloqueado", q):
         return "abierto", None
+    # LO QUE HAY QUE PREGUNTARLE A ALGUIEN ES, LITERALMENTE, LO QUE ESPERA DE ESA PERSONA. El tipo
+    # `requerido` es el único cuyas sub-entradas declaran `Espera a`, así que la pregunta canónica de
+    # antes de una reunión —«qué tengo que preguntarle al Project Manager cuando lo vea»— tiene un
+    # filtro exacto y no lo deducía: se contestaba por tema, con seis documentos que no dicen a quién
+    # espera nada. El caso que lo vigilaba pasaba en verde por casualidad, según qué fragmentos
+    # trajera el buscador, y al cambiar de modelo se destapó.
+    #
+    # SIN ESTADO A PROPÓSITO: lo pendiente y lo ya resuelto con esa persona son ambos material de una
+    # reunión —«esto quedó cerrado» es tan reportable como «esto sigue trabado»—, y la ficha de cada
+    # sección declara el suyo. Es la misma consulta cuyos siete resultados tres corridas leyeron como
+    # pendientes estando cerrados; por eso `listar` ahora advierte que los estados se cuentan.
+    # Y SOLO LOS VERBOS DE PEDIR, no los de mostrar: «qué le puedo MOSTRAR al fundador» es otra
+    # pregunta —lo presentable, que se filtra por `mostrable`— y «qué tengo que PREGUNTARLE» es lo
+    # que lo espera a él. Meterlas en la misma rama las contesta igual y son distintas; lo cazó el
+    # caso del detector que ya fijaba la primera.
+    if re.search(r"\b(preguntar|preguntarle|pedirle|consultarle|reclamarle)\b"
+                 r".{0,24}\b(fundador|direcci[oó]n|project\s*manager|\bpm\b|jefe)", q):
+        return None, "requerido"
     if re.search(r"problema|riesgo|falla|defecto|hallazgo", q):
         return "vigente", "hallazgo"
     return None, None
@@ -1864,6 +1995,23 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
         el texto completo —para eso llama a `leer` con el título que esta te dio— ni
         completa con conocimiento externo: si no encuentra nada, esa respuesta es
         informativa.
+
+        SI LO QUE LLEGÓ NO RESPONDE, NO TE RINDAS EN EL PRIMER INTENTO: medido sobre 81
+        preguntas reales, la primera consulta trae el documento correcto 3 de cada 4
+        veces, y quien insiste llega a 9 de cada 10. En ese orden, que va de lo barato a
+        lo caro:
+          1. Repetí con `limite=20`. Es lo que más rescata: la mitad de lo que falta
+             aparece ahí, porque pedir más no es solo ver más — cambia qué considera el
+             buscador.
+          2. Si tu pregunta es por una PROPIEDAD y no por un tema —qué está abierto, qué
+             se resolvió, qué espera una decisión, qué hay desde tal fecha— usá `listar`.
+             Esa devuelve TODAS las que cumplen, sin ranking y sin omitir ninguna; acá,
+             en cambio, competís contra el resto por seis lugares.
+          3. Mirá `panorama` sin argumentos para ver qué cubre esta colección, o con un
+             tema para su mapa, y volvé a preguntar con las palabras que usa la casa.
+             Preguntar dos veces con vocabulario distinto rinde más que una pregunta larga.
+          4. Y si tras eso no aparece, decilo así: que esta colección no lo cubre. Es una
+             respuesta útil y verificable, y es preferible a completar con lo más parecido.
 
         Parámetros:
           pregunta: la consulta en lenguaje natural (obligatoria).
@@ -2033,8 +2181,14 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
                     pass
             if grupos_fts and sin_calce:
                 cercania = idx.cercania_maxima(pregunta)
-                if sin_calce == len(grupos_fts) or (cercania is not None
-                                                    and cercania < 0.32):
+                # EL UMBRAL ES DEL MODELO, NO DEL SISTEMA. 0,32 se calibró sobre la escala del
+                # modelo estático, y una escala no viaja entre codificadores: medido el 2026-08-07,
+                # con MiniLM las preguntas ajenas llegan a 0,408 y las legítimas bajan hasta 0,162
+                # —se solapan—, así que ningún número separa las dos por sí solo. Lo que sí separa
+                # es la CONJUNCIÓN con la señal léxica, y por eso el umbral se volvió perilla:
+                # se recalibra por medición cuando cambia el modelo, no a ojo.
+                if sin_calce == len(grupos_fts) or (
+                        cercania is not None and cercania < _umbral_aviso()):
                     aviso += ("⚠ Puede que esta base no cubra lo preguntado: parte "
                               "de la pregunta no calza con nada de lo escrito. Los "
                               "resultados de abajo son lo más cercano, no una "
@@ -2562,6 +2716,22 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
           desde:     fecha ISO; solo lo verificado o declarado en esa fecha o después
           mostrable: True devuelve solo lo que puede verse fuera del equipo técnico;
                      False, solo lo interno. Se omite para no filtrar por eso.
+          fuente:    verificacion · declaracion. Lo comprobado contra el sistema, o lo
+                     que alguien dijo. Es la distinción sobre la que descansa todo acá.
+
+        DOS COSAS QUE HAY QUE LEER EN LO QUE DEVUELVE, y no suponer:
+          · CADA SECCIÓN TRAE SU `Estado`. Que vuelva llena no significa que haya algo
+            pendiente: un filtro por tipo puede devolver siete cosas y estar las siete
+            cerradas. Contá los estados antes de decir «hay siete pendientes» — eso pasó
+            de verdad, tres veces seguidas, y llegó a un informe.
+          · CADA SECCIÓN TRAE SU FECHA Y SI FUE `Verificado` o `Declarado`. Lo que vaya a
+            sostener una decisión se cita con esa fecha, y lo declarado se trata como
+            dicho por alguien, no como comprobado.
+
+        Si no devuelve nada, el filtro es correcto y el conjunto está vacío: eso es una
+        respuesta, no un error. Antes de concluirlo, comprobá que el estado y el tipo que
+        pediste existan en esta colección —los valores válidos son los de arriba— y probá
+        aflojando un filtro, empezando por `desde`.
         """
         filas = []
         for nombre, nd in idx.nodos.items():
@@ -2787,6 +2957,32 @@ def cargar_modelo():
     tres son de una o dos preguntas sobre 81 —ruido— EXCEPTO el recall, donde las 256
     dimensiones ganan claro. Así que se toman las dimensiones y se deja la cuantización.
     """
+    # DOS FAMILIAS DE MODELO, Y SE DISTINGUEN POR EL NOMBRE. Los estáticos (`potion`, model2vec) son
+    # una tabla token→vector y se cargan con StaticModel; un codificador de verdad se carga con
+    # sentence-transformers. Se intenta el codificador primero y se cae al estático si no está
+    # instalado, para que la imagen vieja siga arrancando en vez de quedarse sin capa semántica.
+    _estatico = "potion" in MODELO or "model2vec" in MODELO or (
+        Path(MODELO).is_dir() and (Path(MODELO) / "config.json").is_file()
+        and not (Path(MODELO) / "modules.json").is_file())
+    if not _estatico:
+        try:
+            from sentence_transformers import SentenceTransformer
+            return SentenceTransformer(MODELO)
+        except Exception as e:
+            # RUIDOSO A PROPÓSITO. El degradado silencioso de más abajo —quedarse sin capa semántica
+            # y seguir sirviendo— es correcto para una falla del modelo, y sería MENTIRA acá: si el
+            # modelo configurado es un codificador y la biblioteca no está, lo que corre no es una
+            # versión degradada del sistema, es OTRO sistema. Una batería que se corra así mide
+            # solo-léxico y reporta el número como si fuera el del buscador.
+            print(f"[kb-mcp] AVISO: KB_MODELO={MODELO} pide un codificador y no se pudo cargar "
+                  f"({type(e).__name__}). Sin `sentence-transformers` la capa semántica queda "
+                  f"APAGADA y cualquier medición hecha así NO describe al servidor. "
+                  f"Instalalo, o poné KB_MODELO al modelo estático.", file=sys.stderr)
+            # Y NO SE CAE AL CARGADOR ESTÁTICO CON ESTE NOMBRE. Hacerlo intenta bajar un repositorio
+            # de 470 MB para leerlo como una tabla que no es: se queda colgado descargando y el
+            # servidor no arranca. Sin la biblioteca, este modelo no existe: se sigue sin capa
+            # semántica, que es el degradado honesto y ya está avisado arriba.
+            return None
     if StaticModel is None:
         return None
     try:
