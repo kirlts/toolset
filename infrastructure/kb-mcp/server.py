@@ -1335,7 +1335,7 @@ def con_dominio(base: str, nucleo: str):
 # registrado que «el detector y la deducción llegaron a contradecirse: uno aceptaba resolvió y la
 # otra no», y el 2026-08-06 volvió a pasar al agregar «logró» a una sola de las tres.
 # `consigui` va aparte de `consegui` porque el castellano lo dice irregular: «consiguió».
-_TERMINADO = ("resuelt|resolvi|arregl|cerr|solucion|logr|consigui|consegui|avanz|complet|"
+_TERMINADO = ("resuelt|resolv|arregl|cerr|solucion|logr|consigui|consegui|avanz|complet|"
               "termin|finaliz|entreg")
 
 
@@ -1521,8 +1521,15 @@ def deducir_filtro(pregunta: str) -> tuple[str | None, str | None]:
     # tocar la negativa, «qué NO se logró todavía» pasó a contestar `resuelto` — el mismo error
     # inverso que esa misma corrida acababa de arreglar, reintroducido en el acto de arreglarlo.
     # Con una lista sola, agregar un verbo lo agrega a las dos caras o a ninguna.
-    if re.search(rf"\bno\s+(se\s+|se\s+ha\s+|ha\s+|han\s+|est[aá]n?\s+|fueron\s+)?"
-                 rf"({_TERMINADO})", q) or \
+    # LA PERÍFRASIS ROMPÍA LA NEGACIÓN, y con eso la respuesta salía INVERTIDA. El patrón enumeraba
+    # los auxiliares —«no se», «no ha», «no fueron»— y el castellano tiene muchos más: «qué problemas
+    # NO SE VAN A arreglar» y «qué NO SE PUDO cerrar» caían fuera y devolvían lo RESUELTO. Medido el
+    # 2026-08-07 ejecutando la función. Es la cuarta vez que esta lista se desborda con una forma que
+    # nadie había escrito, así que se deja de enumerar: se admite un HUECO ACOTADO entre el «no» y el
+    # verbo, igual que `_POR_PROPIEDAD` ya hace con `.{0,14}` para el mismo problema.
+    #
+    # Acotado y no libre: sin tope, un «no» de una oración alcanzaría el verbo de la siguiente.
+    if re.search(rf"\bno\s+(?:\w+\s+){{0,3}}?({_TERMINADO})", q) or \
        re.search(r"(todav[ií]a|aun|a[úu]n)\s+no\b", q) or \
        re.search(r"\bsin\s+(resolver|resuelto|arreglar|cerrar|solucionar|terminar|lograr|"
                  r"conseguir|completar|entregar|avanzar|terminado)", q):
@@ -1994,6 +2001,16 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
             # escala de relevancia calibrada es prueba y error con resultado impredecible.
             if not DEFINICIONAL.search(normalizar(pregunta)):
                 for nom, sc in list(puntaje.items()):
+                    # LA EXENCIÓN POR NOMBRE LITERAL SE PROBÓ Y SE MIDIÓ INERTE — 2026-08-07.
+                    # El handoff de esa corrida recomendó eximir a la entrada cuyo nombre aparece
+                    # LITERAL en la pregunta, distinguiéndola del calce por raíces que el párrafo de
+                    # arriba ya declara fallado. Se implementó y se midió con `pertinencia.py`:
+                    # 36/81 con la exención y 36/81 sin ella, y el caso que la motivaba —«cuántos
+                    # clientes tiene OKOS hoy»— devuelve exactamente los mismos tres documentos en
+                    # los dos sentidos. No mueve nada, ni para bien ni para mal.
+                    # Se revirtió: un arreglo que no cambia nada es peor que ninguno, porque queda
+                    # como código que alguien va a creer que hace algo. La causa por la que esa
+                    # entrada se pierde NO es esta penalización, y el diagnóstico sigue abierto.
                     if len(idx.relacionados(nom)) > umbral_hub:
                         puntaje[nom] = sc * 0.55
 
