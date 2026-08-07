@@ -273,6 +273,15 @@ class ConfigKB:
     # servidor no sabe que significa ninguno de estos nombres: solo compara. Vacio = ningun tipo
     # se hereda a las secciones, que es el comportamiento de toda KB que no declare esto.
     tipos_contenedores: list[str] = field(default_factory=list)
+    # DOCUMENTOS DE FUERA DE `knowledge-base/` QUE TAMBIÉN SE INDEXAN. Opcional y vacío por omisión,
+    # que es el comportamiento de toda KB que no lo declare.
+    #
+    # Por qué existe: las REGLAS que gobiernan una base viven en su documentación, no en su corpus,
+    # así que la base recuerda sus defectos y no su criterio. Cuatro corridas de evaluación chocaron
+    # con lo mismo: el sistema que decide qué trabajo tomar no puede leer el criterio con que se
+    # decide. Se indexan con `publicable: false` forzado — son instrumentales por definición y no
+    # escalan a dirección.
+    documentos_extra: list[str] = field(default_factory=list)
 
     @classmethod
     def desde(cls, ruta: Path) -> "ConfigKB":
@@ -297,6 +306,7 @@ class ConfigKB:
             alias[normalizar(entrada.get("alias") or d)] = d
             alias[normalizar(d)] = d
 
+        extra = [str(x) for x in (cfg.get("documentos_extra") or [])]
         niveles = cfg.get("niveles") or {}
         if not isinstance(niveles, dict):
             niveles = {}
@@ -316,6 +326,7 @@ class ConfigKB:
             retencion=retencion,
             tipos_contenedores=[str(t).strip().lower()
                                 for t in (cfg.get("tipos_contenedores") or [])],
+            documentos_extra=extra,
         )
 
 
@@ -463,6 +474,12 @@ def recortar_subentradas(cuerpo: str, campo: str, valor) -> str:
         cuerpo = cuerpo[:vacia.start()] + cuerpo[sig:]
 
 
+# El polo con que se agrupan los documentos de reglas. No es un directorio del corpus: es una
+# etiqueta, para que `panorama` no los mezcle con los subsistemas y para que quien lea sepa que está
+# viendo el criterio y no un hecho sobre la plataforma.
+POLO_REGLAS = "reglas"
+
+
 class Indice:
     def __init__(self, ruta: Path, modelo=None):
         self.raiz = ruta.expanduser().resolve()
@@ -520,6 +537,30 @@ class Indice:
                 modificado=modificado,
                 modificado_iso=modificado_iso,
                 es_indice=es_indice,
+            )
+            self.nodos[nodo.nombre] = nodo
+
+        # LOS DOCUMENTOS DECLARADOS FUERA DEL CORPUS, si la KB los pidió. Entran como nodos de un
+        # polo propio y con `publicable: false` FORZADO —no leído de su frontmatter, que no tienen—
+        # porque son las reglas del instrumental y no escalan a dirección.
+        #
+        # Se les fuerza además `tipo: regla`, así se pueden pedir por propiedad: la pregunta «con qué
+        # criterio se decide qué entra» pasa a tener respuesta exacta y no solo semántica.
+        for rel_extra in self.cfg.documentos_extra:
+            ruta = self.raiz / rel_extra
+            if not ruta.is_file():
+                continue
+            texto = ruta.read_text(encoding="utf-8", errors="replace")
+            cuerpo = texto[m.end():] if (m := FRONTMATTER.match(texto)) else texto
+            creado, modificado, modificado_iso = fechas_git(self.raiz, ruta.parent).get(
+                ruta.name, (0, 0, ""))
+            nodo = Nodo(
+                nombre=ruta.stem, ruta=rel_extra, polo=POLO_REGLAS, cuerpo=cuerpo,
+                meta={"publicable": False, "tipo": "regla", "estado": "vigente"},
+                enlaces={c: [] for c in CAMPOS_GRAFO},
+                menciona=sorted({n.strip() for n in WIKILINK.findall(cuerpo)}),
+                creado=creado, modificado=modificado, modificado_iso=modificado_iso,
+                es_indice=False,
             )
             self.nodos[nodo.nombre] = nodo
 
@@ -1033,13 +1074,18 @@ class Indice:
         pos = min((p for p in (plano_norm.find(normalizar(f)) for f in formas if f) if p >= 0),
                   default=-1)
         if pos < 0:
-            return cab + SEP + resto[:margen] + (SEP.rstrip() if len(resto) > margen else "")
+            return cab + SEP + _hasta_palabra(resto, margen) + (
+                SEP.rstrip() if len(resto) > margen else "")
         ini = max(0, pos - margen // 3)
         fin = min(len(resto), ini + margen)
         ini = max(0, fin - margen)          # si la coincidencia está al final, se usa todo el ancho
-        pasaje = resto[ini:fin]
-        return (cab + SEP + ("" if ini == 0 else "") + pasaje
-                + (SEP.rstrip() if fin < len(resto) else ""))
+        # EL CORTE CAE EN UN LÍMITE DE PALABRA, no en el carácter que toque. Cortar por índice deja
+        # el extracto abriendo con media palabra o con una comilla de cierre huérfana: medido el
+        # 2026-08-07, 10 de 48 respuestas empezaban así, y quien lee —cada vez más otra IA— no tiene
+        # cómo saber si eso es el texto o un error. Solo se mueve el borde; no se agrega ni se quita
+        # contenido, y el ancho pedido se respeta porque solo se recorta hacia adentro.
+        pasaje = _desde_palabra(resto, ini, fin)
+        return (cab + SEP + pasaje + (SEP.rstrip() if fin < len(resto) else ""))
 
     def _hermanas_de(self, nombre: str, titulo_servido: str) -> str:
         """Las OTRAS sub-entradas del nodo, para que el lector sepa qué más hay y cómo se llama.
@@ -1396,6 +1442,33 @@ _PRETERITO = re.compile(
 # porque `consultar` tiene que reconocerlo: una respuesta anunciada como EXACTA que llega diciendo
 # «nada cumple» es la peor forma de la promesa incumplida, y distinguirla es comparar una cadena.
 SIN_RESULTADOS_LISTAR = "Nada cumple ese filtro. Prueba aflojando alguno, o usa panorama()."
+
+
+def _hasta_palabra(txt: str, tope: int) -> str:
+    """`txt` recortado a `tope`, cerrando en el último límite de palabra. Nunca crece."""
+    if len(txt) <= tope:
+        return txt
+    corte = txt.rfind(" ", 0, tope)
+    return txt[:corte if corte > tope * 2 // 3 else tope].rstrip(" ,;:·|\"'«»([{")
+
+
+def _desde_palabra(txt: str, ini: int, fin: int) -> str:
+    """El tramo `[ini:fin]` movido a límites de palabra por los dos lados. Solo recorta.
+
+    Si el inicio cae dentro de una palabra, se avanza al espacio siguiente; si el final cae dentro
+    de una, se retrocede al anterior. Los signos que quedan colgando en los extremos —una comilla
+    de cierre sin apertura, una coma inicial— se sacan: son ruido que el lector no puede distinguir
+    de un defecto.
+    """
+    if ini > 0 and txt[ini - 1] not in " \t":
+        sig = txt.find(" ", ini)
+        if 0 <= sig < fin:
+            ini = sig + 1
+    if fin < len(txt) and txt[fin] not in " \t":
+        ant = txt.rfind(" ", ini, fin)
+        if ant > ini:
+            fin = ant
+    return txt[ini:fin].strip(" ,;:·|\"'«»([{)]}")
 
 
 def marcar_vencimiento(valor: str | None) -> str:
@@ -1836,7 +1909,21 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
             # problemas de seguridad hay". Asi solo se corta lo inequivocamente ajeno; lo del
             # dominio vecino (otra herramienta de software) igual pasa, y esa es una
             # limitacion conocida que se atrapa en la capa de juicio, no aqui.
-            if cercania is not None and cercania < 0.15:
+            # EL PISO SE SUBIÓ A 0,22, Y EL NÚMERO VIEJO ERA DE OTRAS BASES. El comentario de
+            # arriba lo midió «sobre dos bases reales» y concluyó que la franja de lo pertinente
+            # empieza en 0,26 y la de lo ajeno llega a 0,25 — sin corte limpio. En ESTA base, medido
+            # el 2026-08-07, la separación es ancha: las dos consultas ajenas del catálogo dan 0,1575
+            # («capital de Francia») y 0,1533 («receta de pan de masa madre»), y la legítima más
+            # barata que existe —«qué problemas de seguridad hay», sin ninguna señal de nombre— da
+            # 0,3005. Entre 0,16 y 0,30 no hay nada.
+            #
+            # 0,22 queda en el medio de ese hueco, con 0,08 de margen bajo la legítima más floja. NO
+            # se sube más: a 0,30 la base rechazaba esa pregunta, y negar una legítima es el error
+            # caro — el mismo criterio que puso 0,15 en su momento, con datos nuevos.
+            #
+            # Se comprobó contra las 81 preguntas juzgadas de `tools/pertinencia.py`: cero denegadas.
+            # La perilla existe para volver a medirlo cuando el corpus vuelva a mover la escala.
+            if cercania is not None and cercania < float(os.environ.get("KB_PISO", "0.22")):
                 return (f"No encontré nada sobre «{pregunta}» en esta base. "
                         "Es una respuesta informativa: esta base no cubre ese tema.")
 
@@ -2318,7 +2405,8 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
     @registrar
     @con_dominio(etiqueta, contexto)
     def listar(estado: str | None = None, tipo: str | None = None,
-               desde: str | None = None, mostrable: bool | None = None) -> str:
+               desde: str | None = None, mostrable: bool | None = None,
+               fuente: str | None = None) -> str:
         """Filtra secciones de {base} por sus campos: estado, tipo, fecha. Exacto, no por parecido.
 
         `consultar` busca por significado y devuelve lo más parecido. Esto es lo otro:
@@ -2331,6 +2419,7 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
           · «¿qué le puedo mostrar al fundador?» → listar(estado="resuelto", mostrable=True)
           · «¿qué está abierto?» → listar(estado="abierto")
           · «¿qué mediciones hay?» → listar(tipo="medicion")
+          · «¿qué hay dicho pero no comprobado?» → listar(fuente="declaracion")
 
         Parámetros:
           estado:    vigente · resuelto · abierto · aceptado · registrado
@@ -2403,6 +2492,23 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
                 # alguien dijo lleva su fecha ahí. Sin esto, `desde=` los dejaba fuera del
                 # filtro, que es justo lo contrario de lo que el par busca —hacer visible de
                 # dónde salió cada hecho, no esconderlo.
+                # LA FUENTE ES FILTRABLE, y era la única propiedad de la doctrina que no lo era. La
+                # distinción `Verificado`/`Declarado` —lo comprobado contra lo que alguien dijo— es
+                # aquello sobre lo que descansa toda esta base, y no se podía pedir como categoría:
+                # medido el 2026-08-07, preguntar por lo declarado devolvía 14.477 caracteres con
+                # CERO apariciones de la marca. Sin esto, la sección «lo no comprobable» del informe
+                # semanal no se compila y hay que leer el corpus entero a ojo.
+                if fuente:
+                    f = normalizar(fuente)
+                    tiene_v, tiene_d = bool(campos.get("Verificado")), bool(campos.get("Declarado"))
+                    if f.startswith("verific") and not tiene_v:
+                        continue
+                    if f.startswith("declar") and not tiene_d:
+                        continue
+                    if not (f.startswith("verific") or f.startswith("declar")):
+                        return ("«fuente» es `verificacion` (lo comprobado contra el sistema) o "
+                                "`declaracion` (lo que alguien dijo). Son las dos mitades del par "
+                                "sobre el que descansa esta base.")
                 fecha = (campos.get("Verificado") or campos.get("Declarado")
                          or campos.get("Checkpoint") or "")
                 if desde and fecha < desde:
@@ -2415,6 +2521,7 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
             f"estado={estado}" if estado else None,
             f"tipo={tipo}" if tipo else None,
             f"desde={desde}" if desde else None,
+            f"fuente={fuente}" if fuente else None,
             ("mostrable" if mostrable else "solo interno") if mostrable is not None else None,
         ] if x) or "sin filtro"
         salida = [f"{len(filas)} sección(es) — {criterio}\n"]
