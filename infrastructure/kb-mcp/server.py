@@ -693,7 +693,31 @@ class Indice:
         # sub-entrada), asi que el mismo nombre aparece repetido: se queda con su
         # mejor posicion. Es «puntuar la entrada por su mejor sub-entrada» sin
         # cambiar el contrato de devolver una entrada por resultado.
-        orden = (self.orden[i] for i in np.argsort(-(self.vectores @ v)))
+        sims = self.vectores @ v
+        # EL ATRACTOR POR TAMAÑO, Y SU CORRECCIÓN MEDIBLE. Puntuar la entrada por su MEJOR
+        # sub-entrada le da a una entrada de 47 sub-entradas cuarenta y siete tiros a la mejor y a
+        # una de 3 solamente tres: el máximo de n muestras crece con n aunque el tema no tenga nada
+        # que ver. Medido el 2026-08-06 con el instrumento de pertinencia: entre el corpus del 30 de
+        # julio y el de hoy, la precisión en primer lugar cayó 10 preguntas de 81 **con el mismo
+        # código**, y las entradas de `comprobado` pasaron de 10,3 a 16,1 sub-entradas de media —
+        # «Motor de mensajes» de 14 a 47.
+        #
+        # Se descuenta `log(nº de tiros)`, que es como crece esa ventaja. El valor por omisión es
+        # CERO —o sea el comportamiento de siempre, byte por byte— porque cuánto descontar es una
+        # pregunta empírica y la contesta `tools/pertinencia.py --ablacion`, no una intuición.
+        penal = float(os.environ.get("KB_ATRACTOR_PENAL", "0"))
+        if penal:
+            mejor: dict[str, float] = {}
+            tiros: dict[str, int] = {}
+            for i, nom in enumerate(self.orden):
+                if nom not in self.nodos:
+                    continue
+                tiros[nom] = tiros.get(nom, 0) + 1
+                if sims[i] > mejor.get(nom, -2.0):
+                    mejor[nom] = float(sims[i])
+            ajustado = {nom: s - penal * math.log(tiros[nom]) for nom, s in mejor.items()}
+            return sorted(ajustado, key=lambda n: -ajustado[n])[:tope]
+        orden = (self.orden[i] for i in np.argsort(-sims))
         vistos: dict[str, None] = {}
         for n in orden:
             if n in self.nodos and n not in vistos:
@@ -1957,14 +1981,34 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
         # es parte de la relevancia en toda consulta: es lo que hace que un hecho de hoy le gane a un
         # plan de anteayer cuando los dos calzan parecido. Sigue siendo multiplicador y no orden: un
         # nodo irrelevante pero nuevo no domina.
+        # LOS DOS NÚMEROS DE LA RECENCIA SON AJUSTABLES DESDE EL ENTORNO, y no por comodidad: es lo
+        # que vuelve la ABLACIÓN una capacidad en vez de un parche. Hasta el 2026-08-06, decidir si
+        # este multiplicador ayudaba o estorbaba exigía editar el servidor, medir, y desandar — así
+        # que nadie lo hacía y el factor se afinaba a ciegas. Con `tools/pertinencia.py --ablacion`
+        # se mide cada variante contra las preguntas juzgadas y el número decide.
+        # Los valores por omisión son EXACTAMENTE los que había: sin variables de entorno, esto se
+        # comporta igual que antes.
+        # LA MEDIA VIDA ES FIJA EN 45 DÍAS, Y DERIVARLA DEL CORPUS FUE EL ERROR. La versión anterior
+        # la calculaba como `rango // 3`; en una base que se escribe TODOS LOS DÍAS ese rango se
+        # achica solo, dio 3,6 días, y con eso la recencia dejó de ser un desempate para volverse el
+        # criterio dominante: ×5,989 para algo de hoy contra ×4,693 para algo de ayer.
+        #
+        # Medido el 2026-08-06 con el instrumento de pertinencia sobre las 81 preguntas juzgadas, y
+        # contra la batería, que es lo que lo vuelve una decisión y no una opinión:
+        #   · precisión en 1er lugar   32/81 → 35/81   (+3, igual que apagarla del todo)
+        #   · batería                  394/397 → 395/397, con `INT-001` volviendo a verde
+        # O sea: el mecanismo servía y su constante no. Se conserva el desempate por recencia y se
+        # le saca la propiedad que lo volvía dominante — que la base crezca no puede achicar la
+        # media vida.
+        ampl = float(os.environ.get("KB_RECENCIA_AMPLITUD", "5.0"))
         ahora = max((nd.modificado for nd in idx.nodos.values()), default=0)
-        _fechados = [nd.modificado for nd in idx.nodos.values() if nd.modificado]
-        _rango = (ahora - min(_fechados)) if _fechados else 0
-        HALF_LIFE = max(3 * 86400, _rango // 3) or (45 * 86400)
-        for nom in list(puntaje):
-            mod = idx.nodos[nom].modificado
-            if mod:
-                puntaje[nom] *= 1 + 5.0 * math.exp(-(ahora - mod) / HALF_LIFE)
+        _dias = float(os.environ.get("KB_RECENCIA_MEDIA_VIDA_DIAS", "45"))
+        HALF_LIFE = int(_dias * 86400)
+        if ampl:
+            for nom in list(puntaje):
+                mod = idx.nodos[nom].modificado
+                if mod:
+                    puntaje[nom] *= 1 + ampl * math.exp(-(ahora - mod) / HALF_LIFE)
 
         if reciente:
             # Sembrar el pozo con lo MÁS NUEVO del corpus aunque no calce temáticamente: «¿qué es lo
