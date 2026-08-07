@@ -215,6 +215,26 @@ CAMPOS_GRAFO = ("depende_de", "se_descompone_en", "se_relaciona_con")
 NO_POLO = {"assets", ".obsidian", ".trash"}
 
 
+# LA FICHA DE CADA SUB-ENTRADA, FUERA DEL TEXTO QUE SE VECTORIZA — perilla, apagada por omisión.
+#
+# La hipótesis es de Martín, 2026-08-07: la recuperación no se degradó solo por volumen, sino por
+# «todos los campos y parámetros que le fuimos agregando». Es medible y era razonable a priori: cada
+# sub-entrada arranca con cinco líneas de ficha —estado, tipo, verificado, publicable, impacto— que
+# son IDÉNTICAS entre las quinientas y pico sub-entradas del corpus, así que empujan todos los
+# vectores hacia un mismo centro y achatan la discriminación justo a medida que la base crece.
+#
+# `KB_SIN_FICHA=1` las saca del texto que se vectoriza. No las saca de la base ni de la respuesta:
+# se siguen sirviendo y se sigue filtrando por ellas — lo único que cambia es qué se le da al modelo
+# de embeddings. El resultado de medirlo queda escrito acá abajo cuando esté.
+_LINEA_DE_FICHA = re.compile(r"(?m)^\s*-\s*\*\*[A-Za-zÁÉÍÓÚÜÑáéíóúüñ ]{3,20}:\*\*.*$")
+
+
+def _para_vector(sub: str) -> str:
+    if os.environ.get("KB_SIN_FICHA") != "1":
+        return sub
+    return _LINEA_DE_FICHA.sub("", sub)
+
+
 def normalizar(palabra: str) -> str:
     desc = unicodedata.normalize("NFD", palabra.lower())
     return "".join(c for c in desc if unicodedata.category(c) != "Mn")
@@ -695,7 +715,7 @@ class Indice:
             for sub in partes[1:]:
                 # El titulo va repetido a proposito: pesa, y es lo que un lector busca.
                 titulo = sub.split("\n", 1)[0]
-                textos.append(f"{nombre} — {titulo}\n{sub[:1500]}")
+                textos.append(f"{nombre} — {titulo}\n{_para_vector(sub)[:1500]}")
                 self.orden.append(nombre)
                 self.es_cabecera.append(False)
         V = self.modelo.encode(textos).astype("float32")
@@ -2236,7 +2256,31 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
             # Se reordena EXACTAMENTE el lote que se iba a servir — la misma distribucion
             # con que se entreno (candidatos = top-n del orden base). Ampliar la cabeza a
             # mas candidatos que el lote seria aplicar el modelo fuera de su distribucion.
-            cabeza = list(ganadores)
+            # LA CABEZA PUEDE SER MÁS ANCHA QUE EL LOTE — perilla, apagada por omisión (0).
+            #
+            # Medido el 2026-08-07: como el reordenador ve exactamente los `n` que se iban a servir,
+            # CUÁNTOS documentos pidas decide QUÉ documentos llega a considerar. La misma pregunta
+            # con límite 6 y con límite 20 no devuelve el mismo orden truncado: devuelve otro orden.
+            # Sobre las 81 preguntas juzgadas, 15 de las 29 cuyo documento no aparece pidiendo 6 SÍ
+            # aparecen pidiendo 20, y varias en posición 2, 4 o 6 — o sea que el documento correcto
+            # existía, puntuaba alto, y no entraba al lote que el reordenador miraba.
+            # `KB_CABEZA=<k>` le da k candidatos del orden base y recorta a n DESPUÉS.
+            #
+            # SE MIDIÓ Y SE DEJA APAGADO. Sobre las 81 preguntas juzgadas, sirviendo siempre 6:
+            #     cabeza = el lote (hoy)  p@1 35/81 = 43 %   top-3 43   fuera 29
+            #     cabeza = 12 candidatos  p@1 35/81 = 43 %   top-3 44   fuera 31
+            #     cabeza = 20 candidatos  p@1 33/81 = 40 %   top-3 45   fuera 30
+            #     cabeza = 30 candidatos  p@1 33/81 = 40 %   top-3 45   fuera 30
+            # O sea: ensanchar la cabeza CAMBIA primer lugar por top-3. El reordenador, con más
+            # candidatos, reparte la respuesta correcta entre la 2ª y la 3ª y deja entrar a otra en
+            # la 1ª — que es exactamente lo que su propio comentario anticipa arriba: fuera de la
+            # distribución con que se entrenó. La no-monotonía es real y su causa está acá, pero
+            # esta no es su cura. La perilla queda porque volver a medirla cuesta una línea, y
+            # porque el día que se reentrene el reordenador con cabezas anchas hay que volver a
+            # mirarla — con la calibración vieja, no.
+            _k = int(os.environ.get("KB_CABEZA", "0") or 0)
+            cabeza = (sorted(puntaje, key=lambda x: -puntaje[x])[:max(_k, n)] if _k > 0
+                      else list(ganadores))
             F = idx.rasgos(pregunta, cabeza)
             _mu, _sg, _w, _b = (RANKER_PESOS[k] for k in ("mu", "sigma", "w", "b"))
             def _score(nom):
@@ -2293,6 +2337,23 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
         if hubs and not exacto:
             sin_hub = [g for g in ganadores if g not in hubs or g in nombrado_definicional]
             if sin_hub:
+                # LO PODADO SE REPONE, y no es un detalle de conteo. Esta poda corre DESPUÉS de
+                # recortar a `n`, así que cada hub que saca deja un hueco: pedir 6 devuelve 5, y el
+                # documento que habría entrado sexto —que existe, puntuó y no es hub— no se sirve.
+                # El comentario de arriba ya había visto el síntoma en un caso («devolviendo MENOS
+                # documentos de los pedidos porque uno se podaba en silencio») y arregló ESE caso
+                # ampliando la excepción, no la clase.
+                #
+                # Se repone desde el mismo orden base que produjo el lote, saltando los hubs y lo
+                # ya servido. No toca la distribución que ve el reordenador —ya corrió, sobre `n`
+                # candidatos— ni el criterio de la poda: solo deja de castigar a quien preguntó por
+                # una decisión que se tomó sobre otro documento.
+                if len(sin_hub) < len(ganadores):
+                    for g in sorted(puntaje, key=lambda x: -puntaje[x]):
+                        if len(sin_hub) >= n:
+                            break
+                        if g not in sin_hub and (g not in hubs or g in nombrado_definicional):
+                            sin_hub.append(g)
                 ganadores = sin_hub
 
         # Un problema no viaja solo (regla de escalamiento, servida). Si un ganador trae
