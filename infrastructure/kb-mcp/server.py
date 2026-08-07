@@ -1384,13 +1384,30 @@ def con_dominio(base: str, nucleo: str):
 _TERMINADO = ("resuelt|resolv|arregl|cerr|solucion|logr|consigui|consegui|avanz|complet|"
               "termin|finaliz|entreg")
 
+# LOS VERBOS DE EMPEZAR, que la negación no conocía. Solo sabía negar verbos de TERMINAR, así que
+# «qué planes para arreglar problemas NO ARRANCARON» no entraba a la rama negativa, caía en la
+# positiva por el «arreglar» de la subordinada, y contestaba `resuelto` — el inverso exacto, que es
+# el peor error de esta función. Encontrado el 2026-08-07 sondeando el borde de otro arreglo, no por
+# una pregunta real; es la misma familia que ya se desbordó cuatro veces, del otro lado del verbo.
+# Lo que NO arregla esto: que un verbo de terminar en una subordinada («planes PARA ARREGLAR») le
+# gane al sujeto de la pregunta. Eso está registrado como hallazgo aparte y necesita más que una
+# lista.
+_ARRANCADO = "arranc|empez|comenz|inici|parti[oó]|partier"
+
 
 _POR_PROPIEDAD = re.compile(
     # LA FORMA NEGATIVA, con su propia alternativa y bien holgada. «Qué está mal y todavía no se
     # arregló» tiene seis palabras entre el «qué» y el verbo, así que ninguna de las formas de abajo
     # la reconocía — y no reconocerla es peor que en los otros casos: la deducción SÍ la entiende,
     # así que lo único que faltaba para contestar bien era que el detector la dejara pasar.
-    rf"(qu[eé]\s+.{{0,44}}\bno\s+.{{0,14}}({_TERMINADO})|"
+    # Y LOS VERBOS DE EMPEZAR VIAJAN CON LOS DE TERMINAR EN LA RAMA NEGATIVA, no en la positiva. La
+    # deducción aprendió a negarlos el 2026-08-07 y esto no, así que «qué no empezó todavía» ni
+    # llegaba a la deducción: el detector la descartaba antes y la pregunta se contestaba por tema.
+    # Es la tercera vez que una lista de verbos se separa de su gemela y el efecto es el mismo:
+    # media función entiende la pregunta y la otra media no la deja pasar. Solo en la rama NEGATIVA
+    # a propósito — «qué empezó esta semana» no es una pregunta por propiedad, es por tramo de
+    # tiempo, y meterla acá le prometería una respuesta exacta que no hay con qué componer.
+    rf"(qu[eé]\s+.{{0,44}}\bno\s+.{{0,14}}({_TERMINADO}|{_ARRANCADO})|"
     r"qu[eé]\s+.{0,44}\bsin\s+(arreglar|resolver|cerrar|solucionar)|"
     # El sustantivo del medio vale también acá: «qué PROBLEMAS se resolvieron» se preguntaba igual
     # que «qué se resolvió» y solo la segunda calzaba.
@@ -1557,7 +1574,12 @@ def deducir_desde(pregunta: str, hoy: str) -> str | None:
     # número; y la ventana elegida no queda escondida: `listar` imprime `desde=<fecha>` en su
     # criterio y la respuesta exacta la trae en su etiqueta, así que el lector ve el corte y puede
     # pedir otro. Siete días, el mismo valor que «esta semana», por no inventar una tercera unidad.
-    if re.search(r"(esta|[uú]ltima)\s+semana|[uú]ltimos\s+siete\s+d[ií]as"
+    # «LA SEMANA PASADA» — medido el 2026-08-07: la evaluación preguntó «qué se resolvió desde la
+    # semana pasada» y devolvió las 101 secciones resueltas de toda la historia, mientras la misma
+    # pregunta con «esta semana» acotaba bien. Es la forma más natural en castellano para la ventana
+    # que el informe semanal necesita, y es la que dirección usa. Se agrega a la rama que ya existe
+    # —siete días, la misma unidad— en vez de inventar una ventana nueva.
+    if re.search(r"(esta|[uú]ltima)\s+semana|semana\s+pasada|[uú]ltimos\s+siete\s+d[ií]as"
                  r"|(los\s+[uú]ltimos|estos)\s+d[ií]as", q):
         return (base - _dt.timedelta(days=7)).isoformat()
     if re.search(r"(este|[uú]ltimo)\s+mes|[uú]ltimos\s+treinta\s+d[ií]as", q):
@@ -1602,10 +1624,29 @@ def deducir_filtro(pregunta: str) -> tuple[str | None, str | None]:
     # verbo, igual que `_POR_PROPIEDAD` ya hace con `.{0,14}` para el mismo problema.
     #
     # Acotado y no libre: sin tope, un «no» de una oración alcanzaría el verbo de la siguiente.
-    if re.search(rf"\bno\s+(?:\w+\s+){{0,3}}?({_TERMINADO})", q) or \
+    if re.search(rf"\bno\s+(?:\w+\s+){{0,3}}?({_TERMINADO}|{_ARRANCADO})", q) or \
        re.search(r"(todav[ií]a|aun|a[úu]n)\s+no\b", q) or \
        re.search(r"\bsin\s+(resolver|resuelto|arreglar|cerrar|solucionar|terminar|lograr|"
                  r"conseguir|completar|entregar|avanzar|terminado)", q):
+        # LA NEGACIÓN YA NO CONTESTA LO INVERSO, PERO TAMPOCO CONTESTABA LO PEDIDO. Devolvía
+        # `estado=abierto` y ningún tipo, así que «qué problemas todavía no se arreglaron» traía
+        # todos los compromisos abiertos —planes, pedidos de acceso, preguntas— y ni un hallazgo.
+        # Medido el 2026-08-07: tres preguntas con negación de la tanda recibieron una lista que no
+        # respondía. La deducción se quedaba a mitad de camino: acertaba el estado y perdía el tema.
+        #
+        # Y NO SE COMBINA `abierto` CON `tipo=hallazgo`, que es lo que parecía obvio: los hallazgos
+        # viven en el polo de los hechos, donde el estado es `vigente`, no `abierto`. Esa combinación
+        # devuelve CERO secciones bajo un encabezado que promete respuesta exacta —peor que una lista
+        # de más—. Un problema que no se arregló ES un hallazgo vigente, y así se contesta, igual que
+        # la rama de más abajo ya lo hacía para la forma afirmativa de la misma pregunta.
+        #
+        # Y SOLO SI LA PREGUNTA NO NOMBRA OTRO TIPO. «Qué planes para arreglar problemas no
+        # arrancaron» nombra los dos, y ahí el sujeto es el plan: deducir `hallazgo` porque aparece
+        # la palabra «problemas» sería quedarse con el complemento, que es el error que esta misma
+        # función ya cometió con «qué falta para cerrar la compra».
+        if (re.search(r"problema|riesgo|falla|defecto|hallazgo", q)
+                and not re.search(r"\bplan|pedido|acceso|pregunta|compromiso|tarea", q)):
+            return "vigente", "hallazgo"
         return "abierto", None
     # LO QUE FALTA MANDA SOBRE EL VERBO QUE LO ACOMPAÑA, así que `falta` y `queda` viajan acá
     # arriba y no en la rama de más abajo: «qué falta para cerrar la compra» disparaba `cerr` y le
@@ -1923,6 +1964,20 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
             #
             # Se comprobó contra las 81 preguntas juzgadas de `tools/pertinencia.py`: cero denegadas.
             # La perilla existe para volver a medirlo cuando el corpus vuelva a mover la escala.
+            #
+            # ⚠ LOS DOS EJEMPLOS DE ARRIBA NO LLEGAN ACÁ, y por eso esta calibración describe menos
+            # de lo que parece. Medido el 2026-08-07 sobre 16 sondas: «capital de Francia» (0,1575) y
+            # «receta de pan de masa madre» (0,1533) están bajo el piso y NO se niegan, porque este
+            # bloque está detrás de `not lexico` y las dos calzan literalmente por alguna palabra
+            # («capital», «receta»). O sea que el número no las corta: las corta —o no— la señal
+            # léxica, antes.
+            #
+            # Y con el piso real ninguna sonda medida alcanza esta rama: las únicas que pasan el
+            # filtro léxico son palabras raras sueltas y frases como «la crin de un caballo», y esas
+            # dan 0,30 de cercanía, arriba del piso. EN OPERACIÓN ESTA RAMA NO DISPARA HOY. No se
+            # retira —es la defensa de último recurso si el AVISO cambia— y queda cubierta por
+            # `NEG-001`, que la alcanza a propósito moviendo el piso. Lo que se retira es la
+            # impresión de que 0,22 está filtrando algo: hoy filtra el AVISO, que sí dispara.
             if cercania is not None and cercania < float(os.environ.get("KB_PISO", "0.22")):
                 return (f"No encontré nada sobre «{pregunta}» en esta base. "
                         "Es una respuesta informativa: esta base no cubre ese tema.")
@@ -2214,8 +2269,27 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
         # Se exige que la pregunta lo NOMBRE ademas de ser definicional: sin esa segunda
         # condicion, "como funciona el cobro en okos" volveria a devolver el hub, que es
         # justo el caso medido el 2026-07-29 que motivo esta poda.
-        nombrado_definicional = ({g for g in ganadores if normalizar(g) in objetivo}
-                                 if DEFINICIONAL.search(objetivo) else set())
+        # NOMBRARLO COMO SUJETO ALCANZA; nombrarlo como LUGAR no. Medido el 2026-08-07: la poda
+        # solo perdonaba a un hub en preguntas definicionales, asi que «cuantos clientes tiene OKOS
+        # hoy» —que lo nombra y no es definicional— quedaba fuera de su propia respuesta, con la
+        # peor nota posible tres evaluaciones seguidas y devolviendo MENOS documentos de los pedidos
+        # porque uno se podaba en silencio.
+        #
+        # Ampliarlo a «que lo nombre» a secas NO sirve, y esto se midio antes de elegir: reabre el
+        # caso que motivo la poda el 2026-07-29 —«como funciona el cobro EN okos» volvia a devolver
+        # el hub— y `pertinencia.py` no lo detecta, porque esa pregunta no esta entre sus 81. O sea
+        # que ahi la falla es muda, que es justo lo que no se delega.
+        #
+        # La distincion que separa los dos casos es gramatical y barata: si el nombre viene detras
+        # de una preposicion locativa, es el LUGAR donde ocurre lo preguntado y la pregunta es sobre
+        # otra cosa. Si no, es el sujeto.
+        _loc = re.compile(r"\b(en|de|del|dentro de|para|sobre|con)\s+$")
+        def _como_sujeto(g):
+            i = objetivo.find(normalizar(g))
+            return i >= 0 and not _loc.search(objetivo[:i])
+        nombrado_definicional = {g for g in ganadores
+                                 if normalizar(g) in objetivo
+                                 and (DEFINICIONAL.search(objetivo) or _como_sujeto(g))}
         if hubs and not exacto:
             sin_hub = [g for g in ganadores if g not in hubs or g in nombrado_definicional]
             if sin_hub:
