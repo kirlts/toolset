@@ -1305,16 +1305,26 @@ def con_dominio(base: str, nucleo: str):
 # de esta zona se venía verificando por lectura. Dos de ellos resultaron incoherentes entre sí —el
 # detector aceptaba «resolvió» y la deducción no—, y eso es exactamente lo que una prueba de tres
 # líneas habría cazado. Acá se pueden importar y probar: `tools/test_por_propiedad.py`.
+# LOS VERBOS DE ALGO TERMINADO, EN UN SOLO LUGAR. Los leen las TRES piezas que tienen que estar de
+# acuerdo: el detector que decide si la pregunta es por propiedad, la rama que deduce «resuelto» y
+# la que deduce su negación. Tenerlos duplicados es exactamente cómo se separan — la base ya tiene
+# registrado que «el detector y la deducción llegaron a contradecirse: uno aceptaba resolvió y la
+# otra no», y el 2026-08-06 volvió a pasar al agregar «logró» a una sola de las tres.
+# `consigui` va aparte de `consegui` porque el castellano lo dice irregular: «consiguió».
+_TERMINADO = ("resuelt|resolvi|arregl|cerr|solucion|logr|consigui|consegui|avanz|complet|"
+              "termin|finaliz|entreg")
+
+
 _POR_PROPIEDAD = re.compile(
     # LA FORMA NEGATIVA, con su propia alternativa y bien holgada. «Qué está mal y todavía no se
     # arregló» tiene seis palabras entre el «qué» y el verbo, así que ninguna de las formas de abajo
     # la reconocía — y no reconocerla es peor que en los otros casos: la deducción SÍ la entiende,
     # así que lo único que faltaba para contestar bien era que el detector la dejara pasar.
-    r"(qu[eé]\s+.{0,44}\bno\s+.{0,14}(arregl|resolvi|resuelt|cerr|solucion)|"
+    rf"(qu[eé]\s+.{{0,44}}\bno\s+.{{0,14}}({_TERMINADO})|"
     r"qu[eé]\s+.{0,44}\bsin\s+(arreglar|resolver|cerrar|solucionar)|"
     # El sustantivo del medio vale también acá: «qué PROBLEMAS se resolvieron» se preguntaba igual
     # que «qué se resolvió» y solo la segunda calzaba.
-    r"qu[eé]\s+((\w+|\w+\s+\w+)\s+)?(se\s+)?(arregl|resolvi|resuelt|cerr)|"
+    rf"qu[eé]\s+((\w+|\w+\s+\w+)\s+)?(se\s+)?({_TERMINADO})|"
     # Y el orden inverso —el estado ANTES del verbo—: «qué trabajo pendiente queda» es la misma
     # pregunta que «qué queda pendiente», y el español admite las dos sin preferencia.
     r"qu[eé]\s+((\w+|\w+\s+\w+)\s+)?(abierto|pendiente|trabado|frenado|detenido)s?\s+"
@@ -1449,13 +1459,54 @@ def deducir_filtro(pregunta: str) -> tuple[str | None, str | None]:
     # RESUELTAS: exactamente lo contrario, servido como respuesta exacta y con el aire de autoridad
     # que tiene una lista completa. Tres corridas seguidas lo pidieron. Es el peor error posible en
     # esta función, porque no falla ni se queda corta: contesta lo inverso.
-    if re.search(r"\bno\s+(se\s+|se\s+ha\s+|ha\s+|han\s+|est[aá]n?\s+|fueron\s+)?"
-                 r"(resuelt|resolvi|arregl|cerr|solucion)", q) or \
-       re.search(r"(todav[ií]a|aun|a[úu]n)\s+no\b", q) or "sin arreglar" in q:
+    # Y LA LISTA DE FORMAS DE NEGAR NO ALCANZABA. Se enumeraban tres —«no se resolvió», «todavía
+    # no», y el literal «sin arreglar»— y el castellano tiene más: «sin cerrar» caía en la rama
+    # positiva de abajo por su `cerr` y devolvía lo RESUELTO, y «sin solucionar» no deducía nada.
+    # Medido el 2026-08-06 ejecutando la función. Se generaliza a `sin <verbo>` con los verbos que
+    # esta función ya conoce, en vez de agregar la cuarta excepción a una lista que el castellano
+    # siempre va a poder desbordar con una palabra más.
+    # LAS DOS RAMAS COMPARTEN LA MISMA LISTA DE VERBOS, y eso no es elegancia: es la única forma de
+    # que no se separen. El 2026-08-06, al agregar «logró/completó/entregó» a la rama positiva sin
+    # tocar la negativa, «qué NO se logró todavía» pasó a contestar `resuelto` — el mismo error
+    # inverso que esa misma corrida acababa de arreglar, reintroducido en el acto de arreglarlo.
+    # Con una lista sola, agregar un verbo lo agrega a las dos caras o a ninguna.
+    if re.search(rf"\bno\s+(se\s+|se\s+ha\s+|ha\s+|han\s+|est[aá]n?\s+|fueron\s+)?"
+                 rf"({_TERMINADO})", q) or \
+       re.search(r"(todav[ií]a|aun|a[úu]n)\s+no\b", q) or \
+       re.search(r"\bsin\s+(resolver|resuelto|arreglar|cerrar|solucionar|terminar|lograr|"
+                 r"conseguir|completar|entregar|avanzar|terminado)", q):
         return "abierto", None
-    if re.search(r"resuelt|resolvi|arregl|cerr", q):
+    # LO QUE FALTA MANDA SOBRE EL VERBO QUE LO ACOMPAÑA, así que `falta` y `queda` viajan acá
+    # arriba y no en la rama de más abajo: «qué falta para cerrar la compra» disparaba `cerr` y le
+    # servía a dirección las 95 secciones RESUELTAS. Medido el 2026-08-06. Es el sujeto de la
+    # pregunta, no su complemento.
+    if re.search(r"\bfalta|\bqueda[nr]?\b|\brestan?\b", q):
+        return "abierto", None
+    # «QUÉ SE LOGRÓ ESTA SEMANA» ES LA PREGUNTA CANÓNICA DE DIRECCIÓN, y no deducía ningún estado:
+    # devolvía 145 secciones con lo abierto y lo resuelto mezclados, bajo el encabezado que promete
+    # una respuesta exacta. Un logro es algo terminado; mezclarlo con lo que está en curso es
+    # contestar otra pregunta. Medido el 2026-08-06.
+    # Va DESPUÉS de las ramas de negación y de `falta|queda` a propósito: «qué falta para lograr X»
+    # ya se resolvió como abierto ahí, y esta no puede ganarle.
+    if re.search(rf"({_TERMINADO})", q):
         return "resuelto", None
-    if re.search(r"abierto|pendiente|sin\s+resolver|falta|queda|trabado|frenado|"
+    # `propuesto` es un estado real del corpus —17 planes esperando decisión de Martín, o sea justo
+    # los que el sistema de delegación NO puede empezar— y no tenía rama: preguntarlo devolvía los
+    # abiertos. Va antes que la rama de lo abierto porque «esperando una decisión» calza con las
+    # dos y la más específica gana.
+    #
+    # Y NO CAPTURA «esperando una decisión» a secas, aunque sea la forma natural de nombrarlos: eso
+    # también describe algo TRABADO, que es otra cosa —lo trabado ya empezó—. El detector por
+    # propiedad tiene un caso que lo fija («qué está trabado esperando una decisión» → abierto) y se
+    # respetó en vez de reescribirlo: bajar el listón para que un cambio propio pase es falsear la
+    # medición. Pide el nombre del estado, o la forma que solo aplica a lo que aún no arrancó.
+    if re.search(r"propuest|sin (aceptar|aprobar)|"
+                 r"esperando (el |la )?(visto bueno|aprobaci[oó]n)", q):
+        return "propuesto", None
+    # `\bqueda` con límite de palabra: sin él, `queda` calzaba dentro de «busqueda», así que TODA
+    # pregunta sobre el buscador de esta base se contestaba con la lista de lo pendiente.
+    # Comprobado el 2026-08-06 con cuatro formulaciones distintas: las cuatro daban `abierto`.
+    if re.search(r"abierto|pendiente|sin\s+resolver|\bqueda|trabado|frenado|"
                  r"detenido|esperando|bloqueado", q):
         return "abierto", None
     if re.search(r"problema|riesgo|falla|defecto|hallazgo", q):
