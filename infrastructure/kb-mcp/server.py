@@ -1397,6 +1397,33 @@ _PRETERITO = re.compile(
 # «nada cumple» es la peor forma de la promesa incumplida, y distinguirla es comparar una cadena.
 SIN_RESULTADOS_LISTAR = "Nada cumple ese filtro. Prueba aflojando alguno, o usa panorama()."
 
+
+def marcar_vencimiento(valor: str | None) -> str:
+    """El campo `Vence`, con su vencimiento INTERPRETADO y no solo transcrito.
+
+    El servidor tenía el dato y no lo leía: una sub-entrada pasada de su propia fecha seguía
+    diciendo «Estado: vigente» al lado, y en `listar` —el inventario del que depende el sistema de
+    delegación— el campo no aparecía nunca. Medido el 2026-08-07: dos sub-entradas vencidas se
+    sirvieron así, una de ellas una llave de lectura que había caducado tres días antes.
+
+    Es exactamente el modo de fallo que la especificación declara para el consumidor que ejecuta sin
+    dudar: un humano que lee «vence 2026-08-04» hace la cuenta; el que ejecuta, no. Interpretar una
+    fecha que ya está escrita no es inventar contenido — es dejar de esconder lo que el dato dice.
+    """
+    if not valor:
+        return ""
+    v = str(valor).strip().strip("'\"").rstrip(".")
+    try:
+        f = datetime.date.fromisoformat(v[:10])
+    except ValueError:
+        return v
+    dias = (datetime.date.today() - f).days
+    if dias > 0:
+        return f"{v} ⚠ VENCIÓ hace {dias} día(s) — no lo tomes por vigente sin volver a comprobarlo"
+    if dias > -8:
+        return f"{v} (vence en {-dias} día(s))"
+    return v
+
 # Cuántos renglones del listado exacto se pegan dentro de una respuesta de `consultar`. NO limita a
 # `listar` llamada directamente —ahí la completitud ES el producto—: limita la copia que viaja
 # incrustada en otra respuesta, que además trae debajo la búsqueda por significado.
@@ -2124,6 +2151,28 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
         # solo 2 la usaban. Calcular una ventana y descartarla es peor que no calcularla — el
         # trabajo está hecho y el que pregunta no lo recibe.
         desde_f = deducir_desde(pregunta, datetime.date.today().isoformat())
+        # SI LA PREGUNTA TRAE TEMA, NO SE LE ANTEPONE UNA LISTA CIEGA AL TEMA.
+        #
+        # Al deducir un estado, la deducción DESCARTA el tema: «qué problemas de seguridad hay» se
+        # contesta con todos los hallazgos vigentes, de seguridad o no. El propio encabezado lo
+        # declaraba —«exacta sobre el filtro y ciega al tema»—, y un rótulo no es una mitigación:
+        # medido el 2026-08-07, 12 de 55 respuestas se abrieron con esa lista, y SEIS preguntas
+        # distintas recibieron el MISMO bloque. El lector que no puede dudar se lleva la lista
+        # entera como si contestara lo que preguntó.
+        #
+        # `por_nombre` es la señal de tema que el código ya calcula: la pregunta nombra una entrada,
+        # literal o por dos raíces de contenido poco frecuentes. Cuando eso pasa, la búsqueda por
+        # significado ya la contesta y la lista solo agrega ruido — así que queda el aviso de que
+        # existe `listar`, que es lo que había antes de que la lista se compusiera sola.
+        #
+        # El arreglo de fondo es otro y es más grande: que `listar` acepte un tema. Esto es el
+        # paliativo, y se declara como tal.
+        # SUPRIMIR EL BLOQUE ENTERO ERA DEMASIADO: se llevaba puesta la prueba de que la deducción
+        # compuso el filtro correcto —el defecto de la respuesta inversa, cinco corridas de
+        # historia—, y dos casos de la batería cayeron con razón. Cuando la pregunta trae tema NO se
+        # calla: se NOMBRA el filtro que corresponde sin pegar la lista. El lector se lleva la orden
+        # exacta para su intención y la respuesta sigue siendo sobre su tema.
+        trae_tema = bool(por_nombre)
         if POR_PROPIEDAD.search(pregunta) or desde_f:
             # Decirle al lector «usá otra herramienta» es peor que usarla por él: en una
             # pregunta por propiedad la respuesta exacta ya se puede calcular acá, y hacerlo
@@ -2153,6 +2202,8 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
                 # genérico, que es lo que había antes de que existiera la deducción: nunca menos.
                 if exacto_txt.startswith(SIN_RESULTADOS_LISTAR):
                     exacto_txt = ""
+                if trae_tema:            # el filtro se nombra; la lista ciega al tema no se pega
+                    exacto_txt = ""
                 # NI SIN TOPE. El arreglo de arriba cubrió el extremo vacío y dejó vivo el opuesto:
                 # esta rama pegaba la salida ENTERA de `listar`, y «qué se logró esta semana» —la
                 # consulta más natural de dirección— devolvía 166 renglones y ~47.000 caracteres.
@@ -2176,11 +2227,17 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
                     "lo que encontró la búsqueda.\n\n"
                     f"{exacto_txt}\n\n── y esto encontró la búsqueda por significado ──\n\n")
             else:
-                redirigir = ("⚠ Esta pregunta es por una PROPIEDAD (estado, tipo, fecha), no por un "
-                             "tema. La búsqueda por significado devuelve lo más parecido, no todo lo "
-                             "que cumple, así que puede faltarte algo. Para la respuesta exacta y "
-                             "completa usa `listar` — por ejemplo listar(estado=\"resuelto\") o "
-                             "listar(estado=\"abierto\"). Abajo va lo que encontró la búsqueda.\n\n")
+                # SI SE PUDO DEDUCIR EL FILTRO, SE NOMBRA. Es la diferencia entre «usá otra
+                # herramienta» —que le devuelve el trabajo al lector— y «usá ESTA orden», que es
+                # la que corresponde a lo que preguntó. Y es además lo que deja comprobable que la
+                # deducción acertó: el caso de la batería busca ese filtro en la respuesta.
+                orden = (f'listar({etiqueta_filtro.replace(" · ", ", ")})' if etiqueta_filtro
+                         else 'listar(estado="abierto")')
+                redirigir = ("⚠ Esta pregunta es por una PROPIEDAD (estado, tipo, fecha) además de "
+                             "por un tema. La búsqueda por significado devuelve lo más parecido, no "
+                             "todo lo que cumple, así que puede faltarte algo. Abajo va lo que "
+                             "encontró la búsqueda sobre tu tema; para la lista exacta y completa "
+                             f"—de todos los temas— usá `{orden}`.\n\n")
         partes = [redirigir + aviso + f"{len(ganadores)} documento(s) sobre «{pregunta}»\n"]
         for nom in ganadores:
             partes.append(
@@ -2291,7 +2348,7 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
                       "Tipo": str(m.get("tipo", "")),
                       "Publicable": "sí" if m.get("publicable") else "no"}
             for campo, clave in (("Verificado", "verificado"), ("Declarado", "declarado"),
-                                 ("Checkpoint", "checkpoint")):
+                                 ("Checkpoint", "checkpoint"), ("Vence", "vence")):
                 if m.get(clave):
                     unidad[campo] = str(m.get(clave))
             if not secciones:
@@ -2376,7 +2433,8 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
                 tipo_mostrado = f"{tipo_archivo} (del documento)"
             partes_f = [f"- **{k}:** {v}" for k, v in
                         (("Tipo", tipo_mostrado), ("Estado", campos.get("Estado")),
-                         ("Espera a", campos.get("Espera a"))) if v]
+                         ("Espera a", campos.get("Espera a")),
+                         ("Vence", marcar_vencimiento(campos.get("Vence")))) if v]
             sello = (f"{campo_fecha} {fecha}" if campo_fecha and fecha
                      else (fecha or "sin fecha"))
             salida.append(f"  · {sello} — {titulo}"
