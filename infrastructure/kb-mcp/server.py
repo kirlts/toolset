@@ -544,6 +544,28 @@ def fechas_subentrada(raiz: Path) -> dict[str, dict[str, int]]:
     archivo. Nunca falla ruidosamente por esto.
     """
     base = raiz / "knowledge-base"
+    # NO SE PREGUNTA SI SE PUEDE: SE INTENTA, CON EL FRENO PUESTO. Y las dos mitades de esto
+    # costaron una caída y un falso apagado el mismo 2026-08-08, así que valen las dos.
+    #
+    # EL PROBLEMA. El servidor clona las KB con `--filter=blob:none` a propósito: el historial de
+    # commits completo sin bajar los binarios pesados, 8 MB en vez de 154. `git log --name-only`
+    # —lo que usa `fechas_git`— no necesita contenidos. `git blame` SÍ: reconstruye la autoría
+    # línea por línea y para eso pide cada versión histórica del archivo. Lo que no está local, git
+    # lo va a buscar por red, de a uno. Con 411 archivos entre las tres bases el arranque dejó de
+    # terminar: contenedor «unhealthy», registro vacío, ningún error que mirar.
+    #
+    # EL PRIMER ARREGLO FUE MIRAR LA CONFIGURACIÓN DEL CLON, y estuvo mal. Después de traer los
+    # contenidos con `git fetch --refetch --filter=blob:limit=1m`, el blame pasó a costar 4 s para
+    # 105 archivos — pero `remote.origin.partialclonefilter` SIGUE diciendo `blob:none`, así que el
+    # control apagaba la capacidad teniendo todo para usarla. Una etiqueta describe cómo se clonó;
+    # no dice qué hay hoy en el disco.
+    #
+    # LO QUE SE HACE AHORA. `GIT_NO_LAZY_FETCH=1` le prohíbe a git salir a la red por un contenido
+    # que le falte: si los blobs están, el blame corre local y rápido; si no están, FALLA en el
+    # acto y ese archivo se salta. El cuelgue deja de ser posible por construcción en vez de por
+    # una lectura correcta de la configuración. El techo de tiempo de abajo queda igual, como
+    # segunda línea: una versión vieja de git ignora la variable y ahí manda el reloj.
+    entorno = dict(os.environ, GIT_NO_LAZY_FETCH="1", GIT_TERMINAL_PROMPT="0")
     try:
         # DOS rutas por archivo, y confundirlas dejaba el mapa vacío sin fallar: git necesita la
         # ruta desde la raíz del repositorio, y quien consulta este mapa la tiene desde
@@ -553,13 +575,24 @@ def fechas_subentrada(raiz: Path) -> dict[str, dict[str, int]]:
                     for f in sorted(base.rglob("*.md"))]
     except OSError:
         return {}
+    # Y UN TECHO DE TIEMPO IGUAL, porque «no es un clon parcial» no garantiza que sea rápido:
+    # un repositorio grande, un disco lento o un `safe.directory` mal resuelto darían el mismo
+    # arranque eterno por otro camino. Pasado el techo se devuelve lo que se alcanzó a calcular
+    # y se dice cuánto faltó — degradado parcial y ruidoso, nunca un cuelgue mudo.
+    techo = float(os.environ.get("KB_TECHO_BLAME_S", "45"))
+    t0 = time.monotonic()
     fuera: dict[str, dict[str, int]] = {}
-    for r, clave in archivos:
+    for n_arch, (r, clave) in enumerate(archivos):
+        if time.monotonic() - t0 > techo:
+            print(f"[kb-mcp] {raiz.name}: la fecha por sub-entrada pasó el techo de {techo:.0f}s "
+                  f"con {n_arch} de {len(archivos)} archivos; el resto usa la fecha del archivo.",
+                  file=sys.stderr, flush=True)
+            break
         try:
             salida = subprocess.run(
                 ["git", "-C", str(raiz), "-c", "core.quotepath=false", "-c", "safe.directory=*",
                  "blame", "--line-porcelain", "--", r],
-                capture_output=True, text=True, timeout=60, check=True).stdout
+                capture_output=True, text=True, timeout=20, check=True, env=entorno).stdout
         except (subprocess.SubprocessError, OSError):
             continue
         # `--line-porcelain` intercala, por línea del archivo de hoy, sus metadatos y después la
@@ -1818,6 +1851,32 @@ def deducir_desde(pregunta: str, hoy: str) -> str | None:
     # últimas horas es esconder el resto. Medido el 2026-08-06: esa consulta fue la ÚNICA de 54
     # repetidas que bajó de nota, porque el filtro se estrechó hasta vaciarse y la respuesta
     # prometida como exacta llegó vacía. Sin el pretérito, «hoy» no acota nada: enuncia el presente.
+    # ── VENTANAS DE MENOS DE UN DÍA ────────────────────────────────────────────────────────
+    # Se agregan el 2026-08-08 por encargo de Martín: «si hago setenta publicaciones en un día y
+    # después pregunto qué se hizo hoy en la tarde, no va a tener cómo responder, porque es
+    # demasiada información». Recién ahora tienen sentido: hasta hoy el filtro solo sabía de días,
+    # así que deducir una hora no habría tenido dónde aplicarse. Ahora `listar` la acepta y la
+    # marca de tiempo por sub-entrada existe (ver `fechas_subentrada`).
+    #
+    # SE PIDE PRETÉRITO, igual que «hoy» y por el mismo motivo documentado abajo: «qué pasa esta
+    # tarde» no es una pregunta por una ventana. Y solo entran las formas que el castellano dice
+    # sin ambigüedad — «recién» o «hace un rato» quedan fuera a propósito, porque inventarles un
+    # número sería ponerle al lector un corte que no pidió.
+    #
+    # LA MAÑANA NO SE ACOTA, y es deliberado: `listar` no tiene límite superior, así que «esta
+    # mañana» solo podría traducirse a «desde las 00:00», que es lo mismo que «hoy». Devolver eso
+    # con nombre de mañana prometería un recorte que no ocurre. Ante la duda, no se recorta.
+    if _PRETERITO.search(q):
+        m_h = re.search(r"[uú]ltim[ao]s?\s+(\d+)?\s*horas?", q)
+        if m_h:
+            n_h = int(m_h.group(1)) if m_h.group(1) else 1
+            return (_dt.datetime.now() - _dt.timedelta(hours=n_h)).strftime("%Y-%m-%d %H:%M")
+        # La tarde y la noche, con los cortes que usa el castellano corriente.
+        if re.search(r"\b(esta|hoy\s+(a|en|por)\s+la|de\s+la)\s+tarde\b|\bhoy\s+.{0,12}tarde\b", q):
+            return f"{hoy} 12:00"
+        if re.search(r"\b(esta|hoy\s+(a|en|por)\s+la|de\s+la)\s+noche\b", q):
+            return f"{hoy} 19:00"
+
     if re.search(r"\b(hoy|ayer)\b", q) and _PRETERITO.search(q):
         return hoy if "hoy" in q else (base - _dt.timedelta(days=1)).isoformat()
     m = re.search(r"[uú]ltim[oa]s?\s+(\d+)\s+d[ií]as?", q)

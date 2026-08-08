@@ -737,9 +737,22 @@ if [ -f "$KB_SYNC_SRC" ]; then
      sudo rm -f /tmp/sync-kb.sh && \
      echo '  sync-kb.sh deployed'" 2>/dev/null || true
   # Manifiesto de KB a servir: "slug rama repo". Agregar una KB nueva es una linea.
-  # Clon partial (--filter=blob:none): historial completo de commits para la
-  # temporalidad (fechas por nodo), sin descargar los binarios pesados del historial
-  # (8 MB en vez de 154). Privadas: usa las credenciales de gh del usuario opc.
+  # Clon partial (--filter=blob:limit=1m): historial completo de commits, y ademas los
+  # CONTENIDOS de texto, sin descargar los binarios pesados del historial.
+  #
+  # ERA `blob:none` HASTA EL 2026-08-08, y el cambio tiene una razon medida. Sin contenidos,
+  # `git log --name-only` alcanza para la fecha por ARCHIVO, pero NO para la fecha por
+  # SUB-ENTRADA, que se deriva de la autoria linea por linea y necesita cada version historica
+  # del archivo. Con `blob:none` git sale a buscarlas por red de a una y el servidor no termina
+  # de arrancar: 411 archivos, contenedor «unhealthy», registro vacio.
+  #
+  # Lo que cuesta traerlas, medido en el VPS el 2026-08-08 sobre la KB de okos: 3 segundos y
+  # 12 MB (de 16 a 28 MB), y con eso el calculo de las 105 sub-entradas baja a 4 segundos. El
+  # limite de 1 MB por objeto conserva el motivo original —los binarios pesados no bajan— que
+  # es de donde salia la cifra de 154 MB.
+  #
+  # Un clon YA EXISTENTE no cambia con esto: se lo actualiza una vez con
+  #   git -C /opt/kb/<slug> fetch --refetch --filter=blob:limit=1m origin <rama> Privadas: usa las credenciales de gh del usuario opc.
   # Las KB son repos privados y git no trae credenciales por si solo: sin esto el
   # clon inicial y el cron de sync fallan con "could not read Username" —el fetch
   # aborta y la KB se queda congelada en la version del dia del clon, en silencio.
@@ -765,7 +778,7 @@ okos master https://github.com/kirlts/kb-okos.git"
        sudo mkdir -p /opt/kb-vectores && sudo chown 10001:10001 /opt/kb-vectores; \
        if [ ! -d /opt/kb/${slug}/.git ]; then \
          S=/opt/kb/.stage.\$\$; rm -rf \"\$S\"; \
-         git clone --filter=blob:none --branch ${rama} --single-branch \
+         git clone --filter=blob:limit=1m --branch ${rama} --single-branch \
            ${repo} \"\$S\" -q && \
          [ \"\$(find \"\$S/knowledge-base\" -name '*.md' | wc -l)\" -ge 5 ] && \
          sudo rm -rf /opt/kb/${slug} && mv \"\$S\" /opt/kb/${slug} && \
