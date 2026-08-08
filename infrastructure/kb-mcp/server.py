@@ -3095,7 +3095,8 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
         # pasó nada esta tarde» estando en otro huso y preguntando por otra tarde.
         cab = f"{len(filas)} sección(es) — {criterio}"
         if any(len(f[0]) > 10 for f in filas) or (desde and len(desde) > 10):
-            cab += f"\nHoras en {zona_declarada()}; cada una trae su desfase."
+            cab += (f"\nHoras {zona_declarada()}, YA CONVERTIDAS. El «{_desfase_actual()}» de "
+                    f"cada línea declara esa zona; no es algo que haya que restar.")
         salida = [cab + "\n"]
         actual = None
         for fecha, nombre, titulo, campos, tipo_archivo in filas:
@@ -3582,8 +3583,23 @@ def _con_desfase(epoca: int) -> str:
     return f"{t.strftime('%Y-%m-%d %H:%M')} {'−' if off[0] == '-' else '+'}{off[1:3]}:{off[3:]}"
 
 
+def _desfase_actual() -> str:
+    """El desfase de hoy, tal como aparece en las líneas. Cambia solo con el horario de verano."""
+    off = datetime.datetime.now().astimezone().strftime("%z")
+    return f"{'−' if off[0] == '-' else '+'}{off[1:3]}:{off[3:]}"
+
+
 def zona_declarada() -> str:
-    """Cómo se nombra la zona en la que este servidor registra las horas."""
+    """Cómo se nombra la zona en la que este servidor SIRVE las horas.
+
+    IMPORTANTE PARA QUIEN LEA LA RESPUESTA, y por eso se dice y no se deja inferir: la hora que se
+    sirve **ya está convertida** a esta zona. El desfase que acompaña a cada línea es la notación
+    estándar que declara cuál es —`17:48 −04:00` son las 17:48 de acá— y no una corrección
+    pendiente de aplicar. Se explicita porque la primera redacción decía «cada una trae su desfase»
+    y eso admitía la lectura contraria: que la hora fuera del servidor y hubiera que restarla.
+
+    Se calcula, no se escribe fijo: Chile cambia a UTC−3 en verano y la etiqueta lo sigue sola.
+    """
     ahora = datetime.datetime.now().astimezone()
     off = ahora.strftime("%z")
     # El nombre solo se agrega si DICE algo. En muchos sistemas `tzname()` devuelve el propio
