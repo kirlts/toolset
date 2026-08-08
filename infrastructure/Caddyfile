@@ -167,6 +167,16 @@
         respond 404
     }
 
+    # Prototipo visual del mapa OKOS (okos-mapa). Estatico puro: HTML mas dos
+    # scripts, sin backend ni datos en vivo. Publico a proposito — es una
+    # maqueta para validar la forma del artefacto con quien lo vaya a usar.
+    # Sin `try_files`: aqui no hay SPA que enrutar, y un 404 debe ser un 404 y
+    # no la landing con HTTP 200.
+    handle /okos-mapa* {
+        root * /usr/share/caddy/landing
+        file_server
+    }
+
     # Root → landing page
     handle {
         root * /usr/share/caddy/landing

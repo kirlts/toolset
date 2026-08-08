@@ -62,7 +62,33 @@ Cuando se modifica un archivo de configuracion:
 
 ---
 
-## Current Session Changes (2026-07-26)
+## Current Session Changes (2026-08-08)
+
+**Caddy: `/okos-mapa/` sirve el prototipo visual del mapa OKOS, estatico y publico.**
+`infrastructure/Caddyfile` — **UPDATED**: bloque `handle /okos-mapa*` con `root
+/usr/share/caddy/landing` + `file_server`, colocado antes del catch-all de la landing.
+Sin `try_files`: aqui no hay SPA que enrutar, y un 404 debe ser un 404 y no la landing
+con HTTP 200 (el mismo defecto que ya obligo al bloque `/.well-known/*`). Los archivos
+—`index.html` mas `support.js` e `image-slot.js`— viven en `/opt/toolset/landing/okos-mapa/`
+del VPS; no van en git porque el fuente es el repo `okos-mapa`, no este.
+
+Queda publico via el Funnel que ya estaba encendido en el 443: **no se toco la
+configuracion de Funnel**, asi que no hay superficie nueva expuesta mas alla de esa ruta.
+URL: `https://toolset-oci-1-1.tail2d4c18.ts.net/okos-mapa/`. Es una maqueta sin datos en
+vivo, para validar la forma del artefacto; sus rotulos igual se leen como estado real de
+la plataforma, y hoy no lleva `basic_auth` (decision del usuario).
+
+Aplicado con `docker restart caddy`, no con `caddy reload`: el Caddyfile declara `admin
+off`, asi que el endpoint de recarga no existe y `reload` falla con `connection refused`
+al 2019 — es la misma via que usa `deploy.sh`. Backup del anterior en el VPS
+(`/opt/toolset/Caddyfile.bak.<epoch>`). Verificado desde fuera de la tailnet: DNS publico
+→ ingress de Funnel, 200 y tamano exacto del archivo; navegador real contra la IP publica
+renderiza sin errores de consola; y sin regresiones en `/`, `/dashboard`, `/health`,
+con `/okos-mapa/no-existe.js` → 404.
+
+---
+
+## Session Changes (2026-07-26)
 
 **kb-mcp: niveles de acceso por KB + retiro + frescura (server.py).** Tres capacidades nuevas,
 todas opt-in por KB via su `kb/mcp.yaml` (una KB que no declara nada se sirve EXACTAMENTE igual
