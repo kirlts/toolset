@@ -439,7 +439,7 @@ class ConfigKB:
     # que es el comportamiento de toda KB que no lo declare.
     #
     # Por qué existe: las REGLAS que gobiernan una base viven en su documentación, no en su corpus,
-    # así que la base recuerda sus defectos y no su criterio. Cuatro corridas de evaluación chocaron
+    # así que la base recuerda sus defectos y no su criterio. Cuatro iteraciones de evaluación chocaron
     # con lo mismo: el sistema que decide qué trabajo tomar no puede leer el criterio con que se
     # decide. Se indexan con `publicable: false` forzado — son instrumentales por definición y no
     # escalan a dirección.
@@ -565,6 +565,15 @@ def fechas_subentrada(raiz: Path) -> dict[str, dict[str, int]]:
     # acto y ese archivo se salta. El cuelgue deja de ser posible por construcción en vez de por
     # una lectura correcta de la configuración. El techo de tiempo de abajo queda igual, como
     # segunda línea: una versión vieja de git ignora la variable y ahí manda el reloj.
+    # SE ENCIENDE A PROPÓSITO, y viene APAGADA. No es timidez: el 2026-08-08 esta función dejó la
+    # base caída TRES veces mientras se la afinaba, y cada caída se la come todo el que consulta.
+    # Una capacidad nueva que corre en el camino del ARRANQUE no puede estar encendida por
+    # omisión hasta que su costo esté medido EN EL SERVIDOR —no en la máquina de quien la
+    # escribe, que fue exactamente el error: acá el historial está completo y allá no—.
+    # Se enciende con `KB_FECHA_SUBENTRADA=1` en el entorno del contenedor, y se apaga sacándola.
+    # Apagada, todo se comporta como antes: la fecha del archivo para todo.
+    if os.environ.get("KB_FECHA_SUBENTRADA", "0") not in ("1", "si", "sí", "true"):
+        return {}
     entorno = dict(os.environ, GIT_NO_LAZY_FETCH="1", GIT_TERMINAL_PROMPT="0")
     try:
         # DOS rutas por archivo, y confundirlas dejaba el mapa vacío sin fallar: git necesita la
@@ -1230,7 +1239,7 @@ class Indice:
         # ARCHIVO. Los dos vocabularios no se cruzan en un solo valor: los archivos son `plan`,
         # `sistema`, `pregunta`, `requerido`; la retención está declarada para `hallazgo`,
         # `funcionamiento`, `medicion`, `contexto`. Así que el plazo salía vacío SIEMPRE y el aviso
-        # nunca disparaba: cubría 2 de 61 entradas, por coincidencia. Cuarta corrida pidiéndolo, y la
+        # nunca disparaba: cubría 2 de 61 entradas, por coincidencia. Cuarta iteración pidiéndolo, y la
         # palabra «re-verificación» no aparecía en ninguna de las 54 respuestas de la última.
         #
         # Todavía no se nota —la base tiene doce días y los plazos son de 90 a 180— y es justamente
@@ -1432,7 +1441,7 @@ class Indice:
                 # —tercera evaluación, 2026-07-27—, pero solo se anexaba en los caminos de ventana
                 # adivinada. Cuando el camino de sub-entrada pasó a ser el habitual, la venda dejó de
                 # aplicarse: medido el 2026-08-06, 15 de 160 tarjetas (9,4 %) la traían. Cuarta
-                # corrida pidiéndolo.
+                # iteración pidiéndolo.
                 if len(plano) <= tope:
                     return plano + self._hermanas_de(nombre, fila[0])
                 # Y SI NO CABE, SE RECORTA — no se descarta. Descartarla y caer a la ventana
@@ -1699,7 +1708,7 @@ _POR_PROPIEDAD = re.compile(
     # pregunta que «qué queda pendiente», y el español admite las dos sin preferencia.
     r"qu[eé]\s+((\w+|\w+\s+\w+)\s+)?(abierto|pendiente|trabado|frenado|detenido)s?\s+"
     r"(queda|hay|est[aá]|falta|sigue)|"
-    # El sustantivo del medio: «qué TRABAJO está abierto» es la primera pregunta de toda corrida de
+    # El sustantivo del medio: «qué TRABAJO está abierto» es la primera pregunta de toda iteración de
     # delegación, y no calzaba porque el patrón exigía «qué está abierto» pegado. Medido el
     # 2026-08-05 sobre el servidor real: no disparaba, así que se servía lo más parecido en vez de
     # la lista completa. Se admiten hasta dos palabras —«qué trabajo pendiente queda»—.
@@ -1834,7 +1843,7 @@ def deducir_desde(pregunta: str, hoy: str) -> str | None:
     POR QUÉ HACE FALTA. `listar` acepta `desde` y funciona, pero la deducción no lo componía nunca:
     «qué se cerró HOY» devolvía las 106 secciones resueltas de toda la vida de la base y 26.854
     caracteres. La respuesta era correcta y perfectamente inútil — quien pregunta por hoy y recibe
-    todo tiene que filtrar a mano lo que el filtro tenía que filtrar. Tercera corrida pidiéndolo.
+    todo tiene que filtrar a mano lo que el filtro tenía que filtrar. Tercera iteración pidiéndolo.
 
     Se deducen solo ventanas que el castellano dice sin ambigüedad. «Últimamente» o «hace poco» no
     entran a propósito: inventarles un número sería ponerle al lector un corte que no pidió.
@@ -1884,7 +1893,7 @@ def deducir_desde(pregunta: str, hoy: str) -> str | None:
         return (base - _dt.timedelta(days=int(m.group(1)))).isoformat()
     # «LOS ÚLTIMOS DÍAS», SIN NÚMERO. El patrón de arriba exige un dígito, así que «qué se resolvió
     # en los últimos días» no traía ventana: devolvía 110 secciones y 33.693 caracteres, la
-    # respuesta más larga de las 72 de la tanda del 2026-08-06, y creciendo corrida a corrida.
+    # respuesta más larga de las 72 de la tanda del 2026-08-06, y creciendo iteración a iteración.
     # Entra —a diferencia de «últimamente»— porque nombra la unidad, «días», y solo le falta el
     # número; y la ventana elegida no queda escondida: `listar` imprime `desde=<fecha>` en su
     # criterio y la respuesta exacta la trae en su etiqueta, así que el lector ve el corte y puede
@@ -1918,7 +1927,7 @@ def deducir_filtro(pregunta: str) -> tuple[str | None, str | None]:
     # LA NEGACIÓN INVIERTE LA PREGUNTA, y sin mirarla la respuesta era la opuesta a la pedida.
     # «Qué está mal y todavía NO se arregló» disparaba con «arregló» y devolvía las 103 secciones
     # RESUELTAS: exactamente lo contrario, servido como respuesta exacta y con el aire de autoridad
-    # que tiene una lista completa. Tres corridas seguidas lo pidieron. Es el peor error posible en
+    # que tiene una lista completa. Tres iteraciones seguidas lo pidieron. Es el peor error posible en
     # esta función, porque no falla ni se queda corta: contesta lo inverso.
     # Y LA LISTA DE FORMAS DE NEGAR NO ALCANZABA. Se enumeraban tres —«no se resolvió», «todavía
     # no», y el literal «sin arreglar»— y el castellano tiene más: «sin cerrar» caía en la rama
@@ -1929,7 +1938,7 @@ def deducir_filtro(pregunta: str) -> tuple[str | None, str | None]:
     # LAS DOS RAMAS COMPARTEN LA MISMA LISTA DE VERBOS, y eso no es elegancia: es la única forma de
     # que no se separen. El 2026-08-06, al agregar «logró/completó/entregó» a la rama positiva sin
     # tocar la negativa, «qué NO se logró todavía» pasó a contestar `resuelto` — el mismo error
-    # inverso que esa misma corrida acababa de arreglar, reintroducido en el acto de arreglarlo.
+    # inverso que esa misma iteración acababa de arreglar, reintroducido en el acto de arreglarlo.
     # Con una lista sola, agregar un verbo lo agrega a las dos caras o a ninguna.
     # LA PERÍFRASIS ROMPÍA LA NEGACIÓN, y con eso la respuesta salía INVERTIDA. El patrón enumeraba
     # los auxiliares —«no se», «no ha», «no fueron»— y el castellano tiene muchos más: «qué problemas
@@ -2005,7 +2014,7 @@ def deducir_filtro(pregunta: str) -> tuple[str | None, str | None]:
     #
     # SIN ESTADO A PROPÓSITO: lo pendiente y lo ya resuelto con esa persona son ambos material de una
     # reunión —«esto quedó cerrado» es tan reportable como «esto sigue trabado»—, y la ficha de cada
-    # sección declara el suyo. Es la misma consulta cuyos siete resultados tres corridas leyeron como
+    # sección declara el suyo. Es la misma consulta cuyos siete resultados tres iteraciones leyeron como
     # pendientes estando cerrados; por eso `listar` ahora advierte que los estados se cuentan.
     # Y SOLO LOS VERBOS DE PEDIR, no los de mostrar: «qué le puedo MOSTRAR al fundador» es otra
     # pregunta —lo presentable, que se filtra por `mostrable`— y «qué tengo que PREGUNTARLE» es lo
@@ -2500,7 +2509,7 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
             if not DEFINICIONAL.search(normalizar(pregunta)):
                 for nom, sc in list(puntaje.items()):
                     # LA EXENCIÓN POR NOMBRE LITERAL SE PROBÓ Y SE MIDIÓ INERTE — 2026-08-07.
-                    # El handoff de esa corrida recomendó eximir a la entrada cuyo nombre aparece
+                    # El handoff de esa iteración recomendó eximir a la entrada cuyo nombre aparece
                     # LITERAL en la pregunta, distinguiéndola del calce por raíces que el párrafo de
                     # arriba ya declara fallado. Se implementó y se midió con `pertinencia.py`:
                     # 36/81 con la exención y 36/81 sin ella, y el caso que la motivaba —«cuántos
@@ -2743,7 +2752,7 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
         # El arreglo de fondo es otro y es más grande: que `listar` acepte un tema. Esto es el
         # paliativo, y se declara como tal.
         # SUPRIMIR EL BLOQUE ENTERO ERA DEMASIADO: se llevaba puesta la prueba de que la deducción
-        # compuso el filtro correcto —el defecto de la respuesta inversa, cinco corridas de
+        # compuso el filtro correcto —el defecto de la respuesta inversa, cinco iteraciones de
         # historia—, y dos casos de la batería cayeron con razón. Cuando la pregunta trae tema NO se
         # calla: se NOMBRA el filtro que corresponde sin pegar la lista. El lector se lleva la orden
         # exacta para su intención y la respuesta sigue siendo sobre su tema.
