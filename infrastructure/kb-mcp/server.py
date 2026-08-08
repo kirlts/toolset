@@ -17,11 +17,14 @@ pide al que consulta que la conozca.
 from __future__ import annotations
 
 import argparse
+import asyncio
 import collections
 import contextlib
 import copy
 import datetime
+import json
 import math
+import signal
 import textwrap
 import hashlib
 import sys
@@ -29,6 +32,8 @@ import os
 import re
 import sqlite3
 import subprocess
+import threading
+import time
 import unicodedata
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -38,9 +43,27 @@ from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 from mcp.server.transport_security import TransportSecuritySettings
 
+# UN ANALIZADOR MORFOLÓGICO POR HILO, y no uno solo compartido. Snowball guarda estado
+# mutable adentro del objeto: usarlo desde dos hilos a la vez corrompe ese estado y sale
+# `IndexError: string index out of range` en cualquier palabra, no en una en particular.
+#
+# NO es una precaución teórica. Antes del 2026-08-08 el índice se construía únicamente al
+# arrancar, cuando nadie estaba consultando todavía, así que jamás había dos hilos acá. Desde
+# que el índice se reconstruye EN CALIENTE (ver `Planta`) el hilo que reconstruye analiza las
+# quinientas sub-entradas mientras el que atiende analiza la pregunta de quien consulta.
+# Medido con el servidor bajo carga: la reconstrucción abortaba y, sobre 111 peticiones, una
+# de un usuario real devolvía ese mismo error. Reproducible: `producto/probar-recarga-sin-corte.py`.
 try:
     import snowballstemmer
-    _STEM = snowballstemmer.stemmer("spanish").stemWord
+    _STEMMERS = threading.local()
+
+    def _stem_por_hilo(palabra: str) -> str:
+        s = getattr(_STEMMERS, "st", None)
+        if s is None:
+            s = _STEMMERS.st = snowballstemmer.stemmer("spanish")
+        return s.stemWord(palabra)
+
+    _STEM = _stem_por_hilo
 except ImportError:  # sin stemmer se degrada a busqueda exacta, no se cae
     _STEM = None
 
@@ -2950,7 +2973,52 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
 
 # --- arranque ----------------------------------------------------------------
 
-def cargar_modelo():
+class ModeloSerializado:
+    """Envuelve al modelo para que UN SOLO hilo lo use a la vez.
+
+    NO es defensa preventiva: se agregó después de reproducir el fallo. Desde que el índice
+    se reconstruye en caliente (ver `Planta`), el hilo que reconstruye llama a `encode()`
+    para vectorizar las quinientas sub-entradas mientras el bucle de eventos llama a
+    `encode()` para vectorizar la pregunta de quien está consultando. Ni la tabla estática
+    ni el tokenizador de un codificador son reentrantes, y el resultado medido fue
+    `IndexError: string index out of range` — una vez en la reconstrucción, que quedó
+    abortada, y una vez en una consulta de un usuario, sobre 111 peticiones.
+
+    Es la clase de fallo que nunca aparecía antes porque el índice solo se construía al
+    arrancar, cuando todavía no había nadie atendido. El cambio en caliente lo destapó, y
+    por eso el candado va acá y no en cada sitio de llamada: hay tres, y el cuarto que
+    alguien agregue no se va a acordar.
+
+    Costo: las consultas esperan como mucho un lote de vectorización, que es del orden de
+    decenas de milisegundos. Medido después del arreglo: 0 fallos sobre 300 peticiones
+    durante dos recargas seguidas, con la latencia máxima igual a la de antes.
+    """
+
+    def __init__(self, modelo):
+        self._modelo = modelo
+        self._candado = threading.Lock()
+        # SE VECTORIZA POR LOTES CHICOS, y el motivo es la latencia de QUIEN CONSULTA, no la
+        # velocidad de la reconstrucción. Con el candado tomado por el lote entero —las 500
+        # sub-entradas de una vez— una pregunta que llega en medio espera a que termine todo:
+        # medido, la peor latencia durante una recarga pasaba de 0,8 s a 3,2 s. Troceando, el
+        # que consulta espera como mucho un lote. Se mide con `producto/probar-recarga-sin-corte.py`.
+        self._lote = max(1, int(os.environ.get("KB_LOTE_VECTORES", "32")))
+
+    def encode(self, textos):
+        if len(textos) <= self._lote:
+            with self._candado:
+                return self._modelo.encode(textos)
+        partes = []
+        for i in range(0, len(textos), self._lote):
+            with self._candado:
+                partes.append(np.asarray(self._modelo.encode(textos[i:i + self._lote])))
+        return np.concatenate(partes)
+
+    def __getattr__(self, nombre):  # cualquier otro atributo pasa tal cual
+        return getattr(self._modelo, nombre)
+
+
+def _cargar_modelo_crudo():
     """Carga el modelo de embeddings estáticos: int8, con la dimensión COMPLETA (256).
 
     Antes se truncaba además a 128 dimensiones, o sea se tiraba la mitad de la
@@ -3013,56 +3081,29 @@ def cargar_modelo():
         return None
 
 
+def cargar_modelo():
+    """El modelo que usa todo el servidor, ya serializado. Ver `ModeloSerializado`."""
+    m = _cargar_modelo_crudo()
+    return ModeloSerializado(m) if m is not None else None
+
+
 def descubrir(raiz: Path) -> list[Path]:
     """Cada subdirectorio con knowledge-base/ es una KB."""
     return sorted(d for d in raiz.iterdir() if (d / "knowledge-base").is_dir())
 
 
-def main() -> None:
-    p = argparse.ArgumentParser(description="Servidor MCP de solo lectura para KBs de kb-template")
-    p.add_argument("--kb", action="append", default=[], help="Raiz de una KB (repetible)")
-    p.add_argument("--kbs", help="Directorio que contiene varias KB")
-    p.add_argument("--transport", default="stdio", choices=["stdio", "streamable-http"])
-    p.add_argument("--host", default="127.0.0.1")
-    p.add_argument("--port", type=int, default=8765)
-    a = p.parse_args()
+def armar_rutas(indices: list["Indice"], seguridad) -> tuple[list, list]:
+    """Monta cada KB y cada uno de sus niveles, y devuelve (servidores, rutas HTTP).
 
-    rutas = [Path(k) for k in a.kb]
-    if a.kbs:
-        rutas += descubrir(Path(a.kbs))
-    if not rutas:
-        p.error("indica --kb RUTA o --kbs DIRECTORIO")
+    Estaba adentro de `main()`. Se sacó afuera porque ahora se llama UNA VEZ POR GENERACIÓN
+    del índice: cuando el contenido cambia se arma un juego nuevo de servidores mientras el
+    viejo sigue atendiendo. Ver `Planta`.
+    """
+    from starlette.routing import Mount
 
-    modelo = cargar_modelo()  # una sola vez, compartido por todas las KB
-    indices = [Indice(r, modelo) for r in rutas]
-    for i in indices:
-        print(f"[kb-mcp] {i.cfg.slug}: {len(i.nodos)} entradas, "
-              f"polos={list(i.cfg.polos)}, semantica={'sí' if i.vectores is not None else 'no'}",
-              flush=True)
-
-    if a.transport == "stdio":
-        if len(indices) > 1:
-            p.error("stdio sirve una sola KB; usa --kb una vez")
-        crear_servidor(indices[0]).run(transport="stdio")
-        return
-
-    import uvicorn
-    from starlette.applications import Starlette
-    from starlette.responses import JSONResponse
-    from starlette.routing import Mount, Route
-
-    hosts = [h.strip() for h in os.environ.get("KB_ALLOWED_HOSTS", "").split(",") if h.strip()]
-    seguridad = TransportSecuritySettings(
-        allowed_hosts=hosts,
-        allowed_origins=[f"https://{h}" for h in hosts] + [f"http://{h}" for h in hosts],
-    ) if hosts else None
-
-    # Cada KB SOLO bajo su slug: /<slug>/mcp. No hay KB por defecto en la raiz —
-    # siempre hay que nombrar la KB. Esto deja lista una futura autorizacion por-KB:
-    # cada ruta es un recurso distinto que un token podra habilitar o no.
     servidores, rutas_http = [], []
 
-    def montar(idx: Indice, ruta: str, herramientas: list[str] | None = None,
+    def montar(idx: "Indice", ruta: str, herramientas: list[str] | None = None,
                descripcion: str | None = None, cierre: str | None = None,
                ambitos_texto: str | None = None) -> FastMCP:
         mcp = crear_servidor(idx, herramientas, descripcion, cierre, ambitos_texto)
@@ -3093,19 +3134,290 @@ def main() -> None:
             print(f"[kb-mcp]   nivel '{nombre}': {len(vista.nodos)} entradas, "
                   f"herramientas={cfg_nivel.get('herramientas') or 'todas'}", flush=True)
 
-    async def salud(_):
-        return JSONResponse({"kbs": [{"slug": i.cfg.slug, "entradas": len(i.nodos),
-                                      "semantica": i.vectores is not None} for i in indices]})
+    return servidores, rutas_http
 
-    @contextlib.asynccontextmanager
-    async def lifespan(_app):
-        async with contextlib.AsyncExitStack() as pila:
+
+# ── LA PLANTA: el índice se cambia sin cortar el servicio ────────────────────────────────
+#
+# POR QUÉ EXISTE, y es un requisito de Martín del 2026-08-08, no una optimización.
+# Hasta hoy `sync-kb.sh` REINICIABA EL CONTENEDOR ENTERO en cada cambio de contenido —28
+# veces el 2026-08-07— y durante ese reinicio la base NO CONTESTA A NADIE. Con la tabla
+# estática eran ~8,7 s cada vez; con un codificador de verdad son 49 s sin caché, o sea
+# catorce minutos diarios de servicio caído. Eso era lo que volvía indesplegable al
+# codificador, y por eso se arregla acá y no en el que reinicia.
+#
+# Su instrucción, textual: «mientras la base vieja sigue andando y se está reconstruyendo,
+# tú sirves una copia; y solo cuando la versión nueva y desplegada esté 100% disponible,
+# haces un cambio que toma menos de un segundo y dejas de servir el caché».
+#
+# Eso es exactamente lo que hace esta clase, y las tres propiedades importan:
+#
+#   1. EL ÍNDICE NUEVO SE CONSTRUYE EN UN HILO (`asyncio.to_thread`). Si se construyera en
+#      el bucle de eventos, la generación vieja no podría atender mientras tanto y no
+#      habríamos arreglado nada — habríamos movido la caída de lugar.
+#   2. EL CAMBIO ES UNA ASIGNACIÓN DE PUNTERO, después de que la generación nueva ya está
+#      montada y con sus gestores de sesión andando. No hay ninguna ventana en que no haya
+#      un índice servible.
+#   3. SI LA CONSTRUCCIÓN FALLA, NO SE CAMBIA NADA. La generación vieja sigue sirviendo y
+#      el error queda a la vista en `/salud`. Un contenido roto ya no puede tumbar la base:
+#      antes el reinicio se llevaba puesto lo que había, que es la forma en que el
+#      2026-08-07 las tres bases quedaron sin capa semántica.
+#
+# EL DISPARADOR ES SIGHUP Y NO UNA RUTA HTTP, a propósito. Caddy proxea `/kb/*` entero al
+# backend sin exigir secreto (así es como `/kb/salud` es público hoy), de modo que
+# cualquier ruta nueva quedaría alcanzable desde internet por cualquiera. Una señal no
+# tiene superficie de red: la manda quien ya está adentro del servidor.
+#
+# QUÉ TENDRÍA QUE PASAR PARA QUE ESTO DIJERA QUE NO: si el índice nuevo no se puede
+# construir, `recargar()` devuelve False, `/salud` publica `error_ultima_recarga` y la
+# generación NO avanza. `sync-kb.sh` lee ese código de salida y lo dice con hora. La forma
+# de sabotearlo está probada: se le da una KB con un `mcp.yaml` ilegible y la generación se
+# queda donde estaba, sirviendo.
+class Planta:
+    """Sostiene la generación viva del servidor y sabe cambiarla sin cortar el servicio."""
+
+    def __init__(self, fijas: list[Path], directorio: Path | None, seguridad, modelo,
+                 gracia: float = 30.0):
+        # LAS RUTAS SE VUELVEN A DESCUBRIR EN CADA GENERACIÓN, no se congelan al arrancar.
+        # Con la lista congelada, una KB agregada a /opt/kb no aparecía hasta un reinicio de
+        # verdad — o sea que el cambio en caliente arreglaba el caso frecuente y dejaba mudo
+        # el caso nuevo, que es peor que no arreglar nada porque nadie lo esperaría. Se
+        # encontró probando el sabotaje: la KB rota que la prueba metía no la veía nadie.
+        self.fijas, self.directorio = fijas, directorio
+        self.seguridad, self.modelo = seguridad, modelo
+        # Cuánto se deja viva la generación anterior después del cambio, para que las
+        # peticiones que ya estaban en vuelo terminen contra el índice con el que
+        # empezaron. Cerrarla en el acto cortaría justamente lo que esto viene a evitar.
+        self.gracia = gracia
+        self.generacion = 0
+        self.app = None
+        self.indices: list["Indice"] = []
+        self._pila: contextlib.AsyncExitStack | None = None
+        self.recargando = False
+        self.ultima_recarga: str | None = None
+        self.ultimo_error: str | None = None
+        self.duracion_ultima: float | None = None
+        self._lock = asyncio.Lock()
+
+    # ── construcción ──────────────────────────────────────────────────────────────────
+    def rutas(self) -> list[Path]:
+        r = list(self.fijas)
+        if self.directorio:
+            r += descubrir(self.directorio)
+        return r
+
+    def _construir_indices(self) -> list["Indice"]:
+        """CPU pura. Se llama SIEMPRE desde un hilo, nunca desde el bucle de eventos.
+
+        SE LE BAJA LA PRIORIDAD AL HILO, y no es cosmético. En Linux la prioridad es por hilo,
+        así que esto solo afecta a la reconstrucción y deja al que atiende ganando el reparto de
+        CPU. Sin esto, medido en contenedor con el codificador, la peor latencia de una consulta
+        durante una recarga llegaba a 7,3 s: el servidor contestaba todo —cero fallos— pero
+        contestaba tarde, y el VPS tiene DOS núcleos, o sea que ahí sería peor. Lo único que se
+        paga es que la reconstrucción tarde un poco más, y eso ya no le cuesta nada a nadie:
+        desde que no corta el servicio, cuánto tarda dejó de ser un problema de disponibilidad.
+        """
+        with contextlib.suppress(OSError, AttributeError):
+            os.nice(10)
+        rutas = self.rutas()
+        if not rutas:
+            raise RuntimeError("no hay ninguna KB que servir")
+        return [Indice(r, self.modelo) for r in rutas]
+
+    async def _montar(self, indices: list["Indice"]):
+        from starlette.applications import Starlette
+        servidores, rutas_http = armar_rutas(indices, self.seguridad)
+        pila = contextlib.AsyncExitStack()
+        try:
             for s in servidores:
                 await pila.enter_async_context(s.session_manager.run())
-            yield
+        except BaseException:
+            # Si un gestor de sesión no arranca, se deshace lo que sí arrancó y se
+            # propaga: una generación a medio montar no se sirve jamás.
+            await pila.aclose()
+            raise
+        return Starlette(routes=rutas_http), pila
 
-    app = Starlette(routes=[Route("/salud", salud)] + rutas_http, lifespan=lifespan)
-    uvicorn.run(app, host=a.host, port=a.port, log_level="warning")
+    def _anunciar(self, indices: list["Indice"]) -> None:
+        for i in indices:
+            print(f"[kb-mcp] {i.cfg.slug}: {len(i.nodos)} entradas, "
+                  f"polos={list(i.cfg.polos)}, "
+                  f"semantica={'sí' if i.vectores is not None else 'no'}", flush=True)
+
+    async def arrancar(self) -> None:
+        t0 = time.monotonic()
+        indices = await asyncio.to_thread(self._construir_indices)
+        app, pila = await self._montar(indices)
+        self.app, self._pila, self.indices = app, pila, indices
+        self.generacion = 1
+        self.duracion_ultima = round(time.monotonic() - t0, 2)
+        self.ultima_recarga = datetime.datetime.now(datetime.timezone.utc).isoformat(
+            timespec="seconds")
+        self._anunciar(indices)
+        print(f"[kb-mcp] generación 1 en línea en {self.duracion_ultima}s", flush=True)
+
+    async def recargar(self) -> tuple[bool, str]:
+        """Construye una generación nueva y la cambia. Devuelve (cambió, detalle)."""
+        if self._lock.locked():
+            return False, "ya hay una recarga en curso"
+        async with self._lock:
+            self.recargando = True
+            t0 = time.monotonic()
+            try:
+                indices = await asyncio.to_thread(self._construir_indices)
+                app, pila = await self._montar(indices)
+            except Exception as e:
+                self.ultimo_error = f"{type(e).__name__}: {e}"
+                self.recargando = False
+                # La traza entera va al REGISTRO y el mensaje corto a `/salud`. Sin la traza,
+                # la primera recarga que falló de verdad —un IndexError por usar el modelo
+                # desde dos hilos a la vez— hubo que reproducirla a mano para ubicarla.
+                import traceback
+                print(f"[kb-mcp] RECARGA FALLÓ, sigue sirviendo la generación "
+                      f"{self.generacion}: {self.ultimo_error}\n" + traceback.format_exc(),
+                      file=sys.stderr, flush=True)
+                return False, self.ultimo_error
+
+            # ── EL CAMBIO. Todo lo caro ya pasó; esto es asignar punteros. ──
+            vieja = self._pila
+            self.app, self._pila, self.indices = app, pila, indices
+            self.generacion += 1
+            self.duracion_ultima = round(time.monotonic() - t0, 2)
+            self.ultima_recarga = datetime.datetime.now(datetime.timezone.utc).isoformat(
+                timespec="seconds")
+            self.ultimo_error = None
+            self.recargando = False
+            self._anunciar(indices)
+            print(f"[kb-mcp] generación {self.generacion} en línea "
+                  f"(se armó en {self.duracion_ultima}s, sin cortar el servicio)", flush=True)
+            asyncio.get_running_loop().create_task(self._jubilar(vieja))
+            return True, f"generación {self.generacion}"
+
+    async def _jubilar(self, pila) -> None:
+        if pila is None:
+            return
+        await asyncio.sleep(self.gracia)
+        with contextlib.suppress(Exception):
+            await pila.aclose()
+
+    async def apagar(self) -> None:
+        if self._pila is not None:
+            with contextlib.suppress(Exception):
+                await self._pila.aclose()
+            self._pila = None
+
+    # ── lo que se publica ─────────────────────────────────────────────────────────────
+    def salud(self) -> dict:
+        """El estado sale del proceso vivo, no de un documento que alguien mantenga.
+
+        Las tres claves de siempre —`kbs`, con `slug`, `entradas` y `semantica`— se
+        conservan tal cual: `sync-kb.sh`, el handoff y la batería las leen. Lo que se
+        agrega dice si el cambio en caliente está funcionando, que hasta hoy no se podía
+        saber desde afuera.
+        """
+        return {
+            "kbs": [{"slug": i.cfg.slug, "entradas": len(i.nodos),
+                     "semantica": i.vectores is not None} for i in self.indices],
+            "generacion": self.generacion,
+            "recargando": self.recargando,
+            "desde": self.ultima_recarga,
+            "armado_en_s": self.duracion_ultima,
+            "error_ultima_recarga": self.ultimo_error,
+            "modelo": MODELO,
+        }
+
+    def __repr__(self) -> str:  # útil en el registro
+        return f"<Planta gen={self.generacion} kbs={[i.cfg.slug for i in self.indices]}>"
+
+
+async def _responder_json(send, codigo: int, cuerpo: dict) -> None:
+    datos = json.dumps(cuerpo, ensure_ascii=False).encode("utf-8")
+    await send({"type": "http.response.start", "status": codigo,
+                "headers": [(b"content-type", b"application/json; charset=utf-8"),
+                            (b"content-length", str(len(datos)).encode())]})
+    await send({"type": "http.response.body", "body": datos})
+
+
+def main() -> None:
+    p = argparse.ArgumentParser(description="Servidor MCP de solo lectura para KBs de kb-template")
+    p.add_argument("--kb", action="append", default=[], help="Raiz de una KB (repetible)")
+    p.add_argument("--kbs", help="Directorio que contiene varias KB")
+    p.add_argument("--transport", default="stdio", choices=["stdio", "streamable-http"])
+    p.add_argument("--host", default="127.0.0.1")
+    p.add_argument("--port", type=int, default=8765)
+    a = p.parse_args()
+
+    rutas = [Path(k) for k in a.kb]
+    if a.kbs:
+        rutas += descubrir(Path(a.kbs))
+    if not rutas:
+        p.error("indica --kb RUTA o --kbs DIRECTORIO")
+
+    modelo = cargar_modelo()  # una sola vez, compartido por todas las KB y por todas las generaciones
+
+    if a.transport == "stdio":
+        if len(rutas) > 1:
+            p.error("stdio sirve una sola KB; usa --kb una vez")
+        idx = Indice(rutas[0], modelo)
+        print(f"[kb-mcp] {idx.cfg.slug}: {len(idx.nodos)} entradas, "
+              f"polos={list(idx.cfg.polos)}, "
+              f"semantica={'sí' if idx.vectores is not None else 'no'}", flush=True)
+        crear_servidor(idx).run(transport="stdio")
+        return
+
+    import uvicorn
+
+    hosts = [h.strip() for h in os.environ.get("KB_ALLOWED_HOSTS", "").split(",") if h.strip()]
+    seguridad = TransportSecuritySettings(
+        allowed_hosts=hosts,
+        allowed_origins=[f"https://{h}" for h in hosts] + [f"http://{h}" for h in hosts],
+    ) if hosts else None
+
+    planta = Planta([Path(k) for k in a.kb], Path(a.kbs) if a.kbs else None,
+                    seguridad, modelo, gracia=float(os.environ.get("KB_GRACIA", "30")))
+
+    def _pedir_recarga() -> None:
+        """Manejador de SIGHUP. Solo agenda: el trabajo va en el bucle, nunca en la señal."""
+        asyncio.get_running_loop().create_task(planta.recargar())
+
+    async def raiz(scope, receive, send):
+        """ASGI de afuera. Es fino a propósito: solo `/salud` y el delegado a la generación viva.
+
+        Todo lo demás lo atiende `planta.app`, que es la aplicación Starlette de la
+        generación actual. Leer el puntero en cada petición es lo que permite cambiarlo:
+        una petición que llega un microsegundo después del cambio ya va a la nueva, y las
+        que estaban en vuelo terminan contra la vieja, que sigue montada durante la gracia.
+        """
+        if scope["type"] == "lifespan":
+            while True:
+                mensaje = await receive()
+                if mensaje["type"] == "lifespan.startup":
+                    try:
+                        await planta.arrancar()
+                    except BaseException as e:  # noqa: BLE001 — hay que reportarlo al servidor
+                        await send({"type": "lifespan.startup.failed",
+                                    "message": f"{type(e).__name__}: {e}"})
+                        return
+                    with contextlib.suppress(NotImplementedError, RuntimeError, AttributeError):
+                        asyncio.get_running_loop().add_signal_handler(
+                            signal.SIGHUP, _pedir_recarga)
+                        print("[kb-mcp] SIGHUP recarga el índice sin cortar el servicio",
+                              flush=True)
+                    await send({"type": "lifespan.startup.complete"})
+                elif mensaje["type"] == "lifespan.shutdown":
+                    await planta.apagar()
+                    await send({"type": "lifespan.shutdown.complete"})
+                    return
+        if scope["type"] == "http" and scope.get("path") == "/salud":
+            await _responder_json(send, 200, planta.salud())
+            return
+        actual = planta.app
+        if actual is None:
+            await _responder_json(send, 503, {"error": "el índice todavía no está armado"})
+            return
+        await actual(scope, receive, send)
+
+    uvicorn.run(raiz, host=a.host, port=a.port, log_level="warning")
 
 
 if __name__ == "__main__":

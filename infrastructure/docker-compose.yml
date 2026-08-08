@@ -193,6 +193,20 @@ services:
     environment:
       # Directorio con TODAS las KB (cada subdir con knowledge-base/ es una).
       KB_ROOT: /kb
+      # QUE MODELO USA LA CAPA SEMANTICA. Por omision el estatico montado en /modelo, que es
+      # exactamente el comportamiento de siempre: sin esta variable en el .env, nada cambia.
+      # Para pasar al codificador se agrega UNA linea a /opt/toolset/.env:
+      #   KB_MODELO_KB=sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
+      # y para volver atras se quita esa linea y se levanta el servicio de nuevo. La imagen
+      # trae las dos familias instaladas a proposito, asi que revertir NO exige reconstruir.
+      # Medido sobre las 81 preguntas juzgadas, con el criterio que importa —quien consulta es
+      # siempre un agente, asi que pesa el conjunto y no el primer puesto—: las preguntas que
+      # no traen su documento bajan de 27 a 20.
+      KB_MODELO: ${KB_MODELO_KB:-/modelo}
+      # Cuanto se deja viva la generacion anterior del indice despues de una recarga en
+      # caliente, para que las peticiones en vuelo terminen contra el indice con el que
+      # empezaron. Ver la clase `Planta` en server.py.
+      KB_GRACIA: "30"
       # Host interno + dominio publico del Funnel. La proteccion anti-DNS-rebinding
       # del SDK sigue activa; solo se declaran los Host legitimos.
       KB_ALLOWED_HOSTS: "kb-mcp:8765,localhost:8765,127.0.0.1:8765,${FUNNEL_DOMAIN:-toolset-oci-1-1.tail2d4c18.ts.net}"
