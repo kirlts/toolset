@@ -193,6 +193,11 @@ services:
     environment:
       # Directorio con TODAS las KB (cada subdir con knowledge-base/ es una).
       KB_ROOT: /kb
+      # LA ZONA DE QUIEN LEE, no la del proceso. El contenedor corre en UTC; la base la consulta
+      # gente en Chile. Sin esto el servidor sirve 22:33 donde son las 18:33, y «hoy» empieza y
+      # termina en el dia equivocado — con la hora por sub-entrada eso deja de ser una molestia y
+      # pasa a ser una respuesta falsa: preguntar por «la tarde» a las 18:33 devolveria la noche.
+      TZ: ${KB_TZ:-America/Santiago}
       # QUE MODELO USA LA CAPA SEMANTICA. Por omision el estatico montado en /modelo, que es
       # exactamente el comportamiento de siempre: sin esta variable en el .env, nada cambia.
       # Para pasar al codificador se agrega UNA linea a /opt/toolset/.env:

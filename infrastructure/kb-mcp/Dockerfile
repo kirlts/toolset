@@ -15,7 +15,13 @@ FROM python:3.12-slim
 # midio que el remoto no traia fechas y lo atribuyo a que el contenedor no tenia historial. El clon
 # SI trae historial completo —`--filter=blob:none` se eligio a proposito para eso—; lo que faltaba
 # era el programa para leerlo. Comprobado dentro del contenedor: `command -v git` no devuelve nada.
-RUN apt-get update && apt-get install -y --no-install-recommends git \
+# GIT y TZDATA. Lo segundo no es cosmetico: el contenedor corre en UTC y la base la lee gente en
+# Chile, asi que sin datos de zona el servidor muestra 22:33 cuando son las 18:33 — tres o cuatro
+# horas de corrimiento en TODA fecha que sirve, y ademas «hoy» empieza y termina en el dia
+# equivocado. Esta base ya registro el sintoma una vez: a una de cada cuatro entradas les ponia la
+# fecha del DIA SIGUIENTE. Con la hora por sub-entrada el error pasa de ser una molestia a ser una
+# respuesta falsa: preguntar «que se hizo en la tarde» a las 18:33 devolveria lo de la noche.
+RUN apt-get update && apt-get install -y --no-install-recommends git tzdata \
     && rm -rf /var/lib/apt/lists/*
 
 # numpy y model2vec dan la capa semantica (embeddings estaticos, tabla de consulta
