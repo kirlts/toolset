@@ -2972,10 +2972,17 @@ def cargar_modelo():
     # una tabla token→vector y se cargan con StaticModel; un codificador de verdad se carga con
     # sentence-transformers. Se intenta el codificador primero y se cae al estático si no está
     # instalado, para que la imagen vieja siga arrancando en vez de quedarse sin capa semántica.
-    _estatico = "potion" in MODELO or "model2vec" in MODELO or (
-        Path(MODELO).is_dir() and (Path(MODELO) / "config.json").is_file()
-        and not (Path(MODELO) / "modules.json").is_file())
-    if not _estatico:
+    # UNA SOLA REGLA PARA DECIDIR SI ES ESTÁTICO, y es la misma que usa el umbral del AVISO. Acá
+    # había una segunda, más lista y equivocada: miraba si el directorio traía `config.json` sin
+    # `modules.json`. El artefacto montado en `/modelo` no cumplió esa forma, así que se clasificó
+    # como codificador, `sentence-transformers` no lo pudo cargar, y el `return None` de abajo —que
+    # existe para no colgar el arranque bajando 470 MB— lo mató en vez de dejarlo caer al cargador
+    # correcto. Resultado, comprobado en producción el 2026-08-07 con `/kb/salud`: `semantica:false`
+    # en las TRES bases, incluidas dos que nada tienen que ver con este cambio.
+    #
+    # Dos reglas para la misma pregunta se separan; una sola no puede. Si es una RUTA es el
+    # artefacto montado, y eso lo carga el cargador estático: no hay nada que adivinar.
+    if not _es_modelo_estatico(MODELO):
         try:
             from sentence_transformers import SentenceTransformer
             return SentenceTransformer(MODELO)
