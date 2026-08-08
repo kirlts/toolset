@@ -309,6 +309,10 @@ def _umbral_aviso() -> float:
     return 0.32 if _es_modelo_estatico(MODELO) else 0.45
 
 
+# Las claves que este proceso vio en CUALQUIERA de sus índices. Ver `_vectorizar_con_cache`.
+_CLAVES_VIVAS: set[str] = set()
+
+
 def _vectorizar_con_cache(modelo, textos: list[str]):
     """Calcula los vectores, reusando los que ya se calcularon para un texto idéntico.
 
@@ -328,6 +332,13 @@ def _vectorizar_con_cache(modelo, textos: list[str]):
     """
     ruta = os.environ.get("KB_VECTORES")
     clave = lambda t: hashlib.sha256((MODELO + "\x00" + t).encode("utf-8")).hexdigest()
+    # LAS CLAVES SE ACUMULAN ENTRE ÍNDICES, y sin esto el caché servía para UNA sola base.
+    # Al guardar se conserva «solo lo que el índice usa hoy», para que el archivo no crezca con
+    # cada texto que existió alguna vez. Correcto con una KB; con TRES en el mismo proceso, cada
+    # una guardaba únicamente sus claves y borraba las de las otras dos, así que el arranque
+    # recalculaba dos bases enteras siempre. Medido el 2026-08-08: el archivo quedaba con las
+    # claves de la última base indexada y ninguna más. Acumulando en el proceso, las tres
+    # sobreviven y la poda sigue existiendo — lo que se descarta es lo que ya no usa NINGUNA.
     previo: dict[str, "np.ndarray"] = {}
     if ruta:
         try:
@@ -350,9 +361,10 @@ def _vectorizar_con_cache(modelo, textos: list[str]):
             # no lo tenga, así que el temporal terminaba en otro archivo y el `replace` fallaba —
             # silenciosamente, porque este bloque traga excepciones. Medido: dos arranques seguidos
             # costaban lo mismo y el caché no existía.
+            _CLAVES_VIVAS.update(claves)
             tmp = ruta + ".nuevo"
             with open(tmp, "wb") as fh:
-                np.savez(fh, **{k: previo[k] for k in claves})
+                np.savez(fh, **{k: previo[k] for k in _CLAVES_VIVAS if k in previo})
             os.replace(tmp, ruta)
         except Exception:
             pass
