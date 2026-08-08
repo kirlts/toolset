@@ -519,94 +519,105 @@ class Nodo:
         return (resto[:sig.start()] if sig else resto).strip()
 
 
-def fechas_subentrada(raiz: Path) -> dict[str, dict[str, int]]:
-    """Cuándo creció por última vez CADA sub-entrada, derivado del historial línea por línea.
+def _commits_sin_crecimiento(raiz: Path, entorno: dict) -> list[str]:
+    """Los commits que NO agregaron contenido: reescrituras, renombres, barridos de vocabulario.
 
-    POR QUÉ EXISTE, y es un encargo de Martín del 2026-08-08. `fechas_git()` da UNA fecha por
-    ARCHIVO, y las entradas de esta base tienen entre 40 y 65 sub-entradas. La consecuencia es
-    concreta: «Maquinaria de la base de conocimiento» tiene 65 sub-entradas y las 65 reciben la
-    misma marca —`2026-08-07 15:23:13`— aunque la más vieja se escribió el día anterior a las
-    19:59. Casi veinte horas de diferencia, invisibles. Con la base recibiendo del orden de
-    setenta publicaciones diarias, preguntar «qué se hizo hoy en la tarde» devuelve cincuenta
-    cosas sin ningún orden interno, que es exactamente el síntoma que él describió.
+    POR QUÉ, y es el defecto que invalidaba la capacidad entera. La primera versión tomaba el
+    último toque de cualquier línea como «cuándo creció». No es lo mismo. El 2026-08-08 un barrido
+    de vocabulario —«corrida» pasa a «iteración» en 55 entradas— hizo que todas esas sub-entradas
+    declararan haber crecido a las 21:49, y preguntar «qué pasó en la última hora» devolvió 262
+    secciones: casi la base entera. Con más confianza que antes de tener la capacidad.
 
-    EL MÉTODO ES SUYO, y es lo que lo vuelve barato: «ver qué porciones de un documento han
-    crecido antes que otras, similar al mecanismo del DIFF de GitHub». O sea UNA atribución
-    línea por línea POR ARCHIVO —no una búsqueda del historial por cada sub-entrada, que es
-    O(sub-entradas × historial) y por eso se temía que costara minutos—. Agrupando las líneas
-    por el encabezado al que pertenecen sale el máximo de cada bloque: cuándo creció.
+    La corrección la tenía escrita el propio encargo y no se leyó bien: Martín dijo «ver qué
+    porciones han CRECIDO», y eso en un diff es el verde, no el amarillo. Un commit que sustituye
+    una palabra tiene tantas líneas agregadas como borradas; uno que agrega una nota, no. Así que
+    se ignoran los que no dejan saldo positivo en el archivo, y la autoría de esas líneas vuelve a
+    su commit anterior — que es exactamente cuándo el contenido apareció.
+    """
+    try:
+        salida = subprocess.run(
+            ["git", "-C", str(raiz), "-c", "core.quotepath=false", "-c", "safe.directory=*",
+             "log", "--format=%x00%H", "--numstat", "--no-renames", "--", "knowledge-base"],
+            capture_output=True, text=True, timeout=60, check=True, env=entorno).stdout
+    except (subprocess.SubprocessError, OSError):
+        return []
+    ignorar, commit, saldo = [], None, 0
+    for linea in salida.split("\n"):
+        if linea.startswith("\x00"):
+            if commit and saldo <= 0:
+                ignorar.append(commit)
+            commit, saldo = linea[1:].strip(), 0
+        elif linea.strip() and commit:
+            campos = linea.split("\t")
+            if len(campos) >= 2 and campos[0].isdigit() and campos[1].isdigit():
+                saldo += int(campos[0]) - int(campos[1])
+    if commit and saldo <= 0:
+        ignorar.append(commit)
+    return ignorar
 
-    COSTO MEDIDO: 103 archivos, 485 sub-entradas, 2,09 s para la base entera (~20 ms por
-    archivo). El índice sin ningún modelo ya cuesta 7,9 s, así que esto no cambia el orden de
-    magnitud del arranque — y desde que la reconstrucción no corta el servicio, tampoco importa.
 
-    Degrada como `fechas_git`: si no hay historial, devuelve {} y todo sigue con la fecha del
-    archivo. Nunca falla ruidosamente por esto.
+def fechas_subentrada(raiz: Path) -> tuple[dict[str, dict[str, int]], dict]:
+    """Cuándo CRECIÓ por última vez cada sub-entrada, derivado del historial línea por línea.
+
+    Devuelve (mapa, diagnóstico). El diagnóstico no es adorno: la primera versión degradaba MUDA
+    —el 41 % de las sub-entradas se quedaba sin fecha y el sistema reportaba igual que si
+    funcionara entero—, y eso es peor que no tener la capacidad, porque nadie sale a buscar lo que
+    no se queja. Ahora se cuenta y se publica en `/salud`.
+
+    POR QUÉ HACE FALTA. `fechas_git()` da UNA fecha por ARCHIVO, y las entradas de esta base tienen
+    hasta 70 sub-entradas: todas reciben la misma marca aunque las separen días. Con del orden de
+    setenta publicaciones diarias, «qué se hizo hoy en la tarde» devuelve cincuenta cosas sin orden
+    interno.
+
+    EL MÉTODO ES DE MARTÍN: «ver qué porciones de un documento han crecido antes que otras, similar
+    al mecanismo del DIFF». Una atribución línea por línea POR ARCHIVO —no una búsqueda del
+    historial por sub-entrada—, ignorando los commits que no agregaron nada (ver arriba).
+
+    NO SALE A LA RED. `GIT_NO_LAZY_FETCH=1`: sobre un clon sin contenidos históricos el blame
+    fallaría pidiéndolos de a uno —2 s por archivo, 411 archivos, el arranque no termina— así que
+    tiene prohibido intentarlo y falla en el acto. Más un techo de tiempo como segunda línea.
     """
     base = raiz / "knowledge-base"
-    # NO SE PREGUNTA SI SE PUEDE: SE INTENTA, CON EL FRENO PUESTO. Y las dos mitades de esto
-    # costaron una caída y un falso apagado el mismo 2026-08-08, así que valen las dos.
-    #
-    # EL PROBLEMA. El servidor clona las KB con `--filter=blob:none` a propósito: el historial de
-    # commits completo sin bajar los binarios pesados, 8 MB en vez de 154. `git log --name-only`
-    # —lo que usa `fechas_git`— no necesita contenidos. `git blame` SÍ: reconstruye la autoría
-    # línea por línea y para eso pide cada versión histórica del archivo. Lo que no está local, git
-    # lo va a buscar por red, de a uno. Con 411 archivos entre las tres bases el arranque dejó de
-    # terminar: contenedor «unhealthy», registro vacío, ningún error que mirar.
-    #
-    # EL PRIMER ARREGLO FUE MIRAR LA CONFIGURACIÓN DEL CLON, y estuvo mal. Después de traer los
-    # contenidos con `git fetch --refetch --filter=blob:limit=1m`, el blame pasó a costar 4 s para
-    # 105 archivos — pero `remote.origin.partialclonefilter` SIGUE diciendo `blob:none`, así que el
-    # control apagaba la capacidad teniendo todo para usarla. Una etiqueta describe cómo se clonó;
-    # no dice qué hay hoy en el disco.
-    #
-    # LO QUE SE HACE AHORA. `GIT_NO_LAZY_FETCH=1` le prohíbe a git salir a la red por un contenido
-    # que le falte: si los blobs están, el blame corre local y rápido; si no están, FALLA en el
-    # acto y ese archivo se salta. El cuelgue deja de ser posible por construcción en vez de por
-    # una lectura correcta de la configuración. El techo de tiempo de abajo queda igual, como
-    # segunda línea: una versión vieja de git ignora la variable y ahí manda el reloj.
-    # SE ENCIENDE A PROPÓSITO, y viene APAGADA. No es timidez: el 2026-08-08 esta función dejó la
-    # base caída TRES veces mientras se la afinaba, y cada caída se la come todo el que consulta.
-    # Una capacidad nueva que corre en el camino del ARRANQUE no puede estar encendida por
-    # omisión hasta que su costo esté medido EN EL SERVIDOR —no en la máquina de quien la
-    # escribe, que fue exactamente el error: acá el historial está completo y allá no—.
-    # Se enciende con `KB_FECHA_SUBENTRADA=1` en el entorno del contenedor, y se apaga sacándola.
-    # Apagada, todo se comporta como antes: la fecha del archivo para todo.
+    diag = {"archivos": 0, "con_fecha": 0, "sin_fecha": 0, "ignorados": 0, "segundos": 0.0}
     if os.environ.get("KB_FECHA_SUBENTRADA", "0") not in ("1", "si", "sí", "true"):
-        return {}
+        diag["apagada"] = True
+        return {}, diag
+
     entorno = dict(os.environ, GIT_NO_LAZY_FETCH="1", GIT_TERMINAL_PROMPT="0")
     try:
-        # DOS rutas por archivo, y confundirlas dejaba el mapa vacío sin fallar: git necesita la
-        # ruta desde la raíz del repositorio, y quien consulta este mapa la tiene desde
-        # `knowledge-base/` —que es lo que guarda `Nodo.ruta`—. La primera versión devolvía las
-        # claves de git y calzaba con cero entradas de 105, en silencio.
         archivos = [(str(f.relative_to(raiz)), str(f.relative_to(base)))
                     for f in sorted(base.rglob("*.md"))]
     except OSError:
-        return {}
-    # Y UN TECHO DE TIEMPO IGUAL, porque «no es un clon parcial» no garantiza que sea rápido:
-    # un repositorio grande, un disco lento o un `safe.directory` mal resuelto darían el mismo
-    # arranque eterno por otro camino. Pasado el techo se devuelve lo que se alcanzó a calcular
-    # y se dice cuánto faltó — degradado parcial y ruidoso, nunca un cuelgue mudo.
-    techo = float(os.environ.get("KB_TECHO_BLAME_S", "45"))
+        return {}, diag
+    diag["archivos"] = len(archivos)
+
     t0 = time.monotonic()
+    ignorar = _commits_sin_crecimiento(raiz, entorno)
+    diag["ignorados"] = len(ignorar)
+    ruta_ignorar = None
+    if ignorar:
+        with contextlib.suppress(OSError):
+            import tempfile
+            fh = tempfile.NamedTemporaryFile("w", suffix=".revs", delete=False)
+            fh.write("\n".join(ignorar) + "\n"); fh.close()
+            ruta_ignorar = fh.name
+
+    techo = float(os.environ.get("KB_TECHO_BLAME_S", "90"))
     fuera: dict[str, dict[str, int]] = {}
     for n_arch, (r, clave) in enumerate(archivos):
         if time.monotonic() - t0 > techo:
             print(f"[kb-mcp] {raiz.name}: la fecha por sub-entrada pasó el techo de {techo:.0f}s "
-                  f"con {n_arch} de {len(archivos)} archivos; el resto usa la fecha del archivo.",
-                  file=sys.stderr, flush=True)
+                  f"con {n_arch} de {len(archivos)} archivos.", file=sys.stderr, flush=True)
             break
+        orden = ["git", "-C", str(raiz), "-c", "core.quotepath=false", "-c", "safe.directory=*",
+                 "blame", "--line-porcelain"]
+        if ruta_ignorar:
+            orden += [f"--ignore-revs-file={ruta_ignorar}"]
         try:
-            salida = subprocess.run(
-                ["git", "-C", str(raiz), "-c", "core.quotepath=false", "-c", "safe.directory=*",
-                 "blame", "--line-porcelain", "--", r],
-                capture_output=True, text=True, timeout=20, check=True, env=entorno).stdout
+            salida = subprocess.run(orden + ["--", r], capture_output=True, text=True,
+                                    timeout=20, check=True, env=entorno).stdout
         except (subprocess.SubprocessError, OSError):
             continue
-        # `--line-porcelain` intercala, por línea del archivo de hoy, sus metadatos y después la
-        # línea de contenido precedida por un tabulador. Se recorre en orden llevando el último
-        # `author-time` visto: así cada línea de contenido queda con el momento en que entró.
         actual, titulo = 0, None
         por_titulo: dict[str, int] = {}
         for linea in salida.split("\n"):
@@ -616,15 +627,34 @@ def fechas_subentrada(raiz: Path) -> dict[str, dict[str, int]]:
                 texto = linea[1:]
                 if texto.startswith("### "):
                     titulo = texto[4:].strip()
-                if titulo is not None:
-                    # El máximo del bloque: cuándo creció por última vez esta porción. Si dos
-                    # sub-entradas del mismo archivo comparten título, gana la más nueva, que es
-                    # la respuesta correcta a «cuándo se tocó esto».
-                    if actual > por_titulo.get(titulo, 0):
-                        por_titulo[titulo] = actual
+                if titulo is not None and actual > por_titulo.get(titulo, 0):
+                    por_titulo[titulo] = actual
         if por_titulo:
             fuera[clave] = por_titulo
-    return fuera
+    if ruta_ignorar:
+        with contextlib.suppress(OSError):
+            os.unlink(ruta_ignorar)
+    # SE CUENTAN SUB-ENTRADAS, NO ARCHIVOS, y la diferencia no es cosmética: contando archivos, un
+    # plan de una sola pieza —que no tiene sub-entradas y por eso no aparece acá— se anotaba como
+    # «sin fecha» y ensuciaba el número, mientras que un archivo con 70 sub-entradas cuya autoría
+    # falla contaba como UNO. O sea que el indicador podía mostrarse mal estando bien, y bien
+    # estando mal. La unidad del problema es la sub-entrada: se cuenta esa.
+    esperadas = 0
+    for r, clave in archivos:
+        with contextlib.suppress(OSError):
+            esperadas += sum(1 for l in (base / clave).read_text(
+                encoding="utf-8", errors="replace").splitlines() if l.startswith("### "))
+    logradas = sum(len(v) for v in fuera.values())
+    diag["segundos"] = round(time.monotonic() - t0, 2)
+    diag["subentradas"] = esperadas
+    diag["con_fecha"] = logradas
+    diag["sin_fecha"] = max(0, esperadas - logradas)
+    if esperadas and logradas < esperadas:
+        print(f"[kb-mcp] {raiz.name}: la fecha por sub-entrada alcanzó a "
+              f"{logradas} de {esperadas} ({100*logradas//esperadas} %). Las que faltan usan la "
+              f"fecha del archivo. Causa habitual: contenidos históricos ausentes del clon — "
+              f"`git -C <kb> fetch --refetch origin <rama>`.", file=sys.stderr, flush=True)
+    return fuera, diag
 
 
 def fechas_git(raiz: Path, base: Path) -> dict[str, tuple[int, int]]:
@@ -772,7 +802,7 @@ class Indice:
         fechas = fechas_git(self.raiz, self.base)
         # La marca de tiempo POR SUB-ENTRADA, derivada del historial. Ver `fechas_subentrada`:
         # la del archivo no alcanza porque una entrada de esta base tiene decenas de notas.
-        self.fechas_sub: dict[str, dict[str, int]] = fechas_subentrada(self.raiz)
+        self.fechas_sub, self.diag_fechas_sub = fechas_subentrada(self.raiz)
 
         for ruta in sorted(self.base.rglob("*.md")):
             texto = ruta.read_text(encoding="utf-8", errors="replace")
@@ -3025,13 +3055,19 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
                 fina = (datetime.datetime.fromtimestamp(sello).strftime("%Y-%m-%d %H:%M")
                         if sello else fecha)
                 if desde:
-                    # Si `desde` trae hora, se compara contra la marca fina; si trae solo el día,
-                    # se compara contra la ficha, que es el comportamiento de siempre. Así pedir
-                    # por día no cambia de resultado y pedir por hora empieza a funcionar.
-                    if len(desde) > 10:
-                        if not sello or fina < desde:
-                            continue
-                    elif fecha < desde:
+                    # LAS DOS CONDICIONES SE EXIGEN JUNTAS CUANDO HAY HORA, y sin esto el filtro
+                    # se contradecía: `2026-08-08` devolvía 18 secciones y `2026-08-08 00:00` —el
+                    # mismo instante— devolvía 53. Una ventana más angosta no puede devolver más.
+                    #
+                    # La causa es que las dos fechas responden preguntas distintas y las dos son
+                    # legítimas: la de la ficha es CUÁNDO SE VERIFICÓ el hecho, que es lo que su
+                    # autor declara; la derivada es CUÁNDO SE ESCRIBIÓ, que sale del historial.
+                    # Pedir por día siempre significó lo primero y se conserva. Pedir por hora
+                    # exige ahora las dos, así que la ventana con hora es siempre un subconjunto
+                    # de su día — que es lo único que quien pregunta puede suponer sin leer esto.
+                    if fecha < desde[:10]:
+                        continue
+                    if len(desde) > 10 and (not sello or fina < desde):
                         continue
                 filas.append((fina, nombre, titulo, campos, tipo_archivo))
         if not filas:
@@ -3505,6 +3541,13 @@ class Planta:
             "armado_en_s": self.duracion_ultima,
             "error_ultima_recarga": self.ultimo_error,
             "modelo": MODELO,
+            # LA DEGRADACIÓN SE PUBLICA. La primera versión de la fecha por sub-entrada perdía el
+            # 41 % de las sub-entradas —el blame fallaba en los archivos más activos— y reportaba
+            # exactamente igual que si funcionara entera. Una capacidad a medias que no se queja no
+            # se arregla nunca: nadie sale a buscar lo que no duele.
+            "fecha_por_subentrada": [
+                dict(kb=i.cfg.slug, **getattr(i, "diag_fechas_sub", {}))
+                for i in self.indices],
         }
 
     def __repr__(self) -> str:  # útil en el registro
