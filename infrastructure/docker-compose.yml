@@ -207,6 +207,16 @@ services:
       # caliente, para que las peticiones en vuelo terminen contra el indice con el que
       # empezaron. Ver la clase `Planta` en server.py.
       KB_GRACIA: "30"
+      # LA FECHA POR SUB-ENTRADA, apagada por omision. Deriva del historial cuando creció cada
+      # nota —no la del archivo, que es la misma para las 70 notas de una entrada grande— y es lo
+      # que permite preguntar «que se hizo hoy en la tarde». Corre en el camino del ARRANQUE, asi
+      # que se enciende a proposito y con su costo medido en ESTE servidor: `KB_FECHA_SUBENTRADA=1`
+      # en /opt/toolset/.env. Sin la variable, todo se comporta como antes.
+      #
+      # Y NO ALCANZA CON PONERLA EN EL .env: el .env sirve para sustituir ${} en este archivo, no
+      # se le pasa solo al contenedor. Se agrego el 2026-08-08 despues de encenderla ahi y
+      # comprobar que adentro no existia — el servicio arrancaba sin ella y sin decir nada.
+      KB_FECHA_SUBENTRADA: ${KB_FECHA_SUBENTRADA:-0}
       # Host interno + dominio publico del Funnel. La proteccion anti-DNS-rebinding
       # del SDK sigue activa; solo se declaran los Host legitimos.
       KB_ALLOWED_HOSTS: "kb-mcp:8765,localhost:8765,127.0.0.1:8765,${FUNNEL_DOMAIN:-toolset-oci-1-1.tail2d4c18.ts.net}"
