@@ -3052,8 +3052,17 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
                 # el filtro parecía más limpio porque escondía la mitad del corpus.
                 sello = ((idx.fecha_de_sub.get(nombre) or {}).get(titulo)
                          or nd.modificado or 0)
-                fina = (datetime.datetime.fromtimestamp(sello).strftime("%Y-%m-%d %H:%M")
-                        if sello else fecha)
+                # LA HORA VIAJA CON SU DESFASE. Criterio de Martín, 2026-08-08: quien consulta
+                # esta base es siempre una IA, y una de ellas trabaja para el fundador, que está
+                # en otra zona horaria. «No podemos mitigar esto del lado del fundador, pero sí
+                # podemos exponer en qué zona se registró cada hora, y de esa forma cualquier
+                # inteligencia artificial va a saber de inmediato cómo resolver la discrepancia».
+                #
+                # Es más fuerte que configurar bien la zona del servidor: una hora con desfase se
+                # interpreta sola aunque el servidor esté mal configurado, y una hora desnuda no
+                # se puede rescatar aunque esté bien. El desfase convierte un dato que hay que
+                # creer en un dato que se puede convertir.
+                fina = (_con_desfase(sello) if sello else fecha)
                 if desde:
                     # LAS DOS CONDICIONES SE EXIGEN JUNTAS CUANDO HAY HORA, y sin esto el filtro
                     # se contradecía: `2026-08-08` devolvía 18 secciones y `2026-08-08 00:00` —el
@@ -3067,7 +3076,7 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
                     # de su día — que es lo único que quien pregunta puede suponer sin leer esto.
                     if fecha < desde[:10]:
                         continue
-                    if len(desde) > 10 and (not sello or fina < desde):
+                    if len(desde) > 10 and (not sello or fina[:16] < desde[:16]):
                         continue
                 filas.append((fina, nombre, titulo, campos, tipo_archivo))
         if not filas:
@@ -3080,7 +3089,14 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
             f"fuente={fuente}" if fuente else None,
             ("mostrable" if mostrable else "solo interno") if mostrable is not None else None,
         ] if x) or "sin filtro"
-        salida = [f"{len(filas)} sección(es) — {criterio}\n"]
+        # LA ZONA SE DECLARA UNA VEZ, ARRIBA. Las horas de cada línea ya traen su desfase, pero
+        # decirlo también acá le ahorra a quien lee tener que inferirlo de la primera fila —y sobre
+        # todo se lo dice cuando NO hay filas, que es justo cuando alguien podría concluir que «no
+        # pasó nada esta tarde» estando en otro huso y preguntando por otra tarde.
+        cab = f"{len(filas)} sección(es) — {criterio}"
+        if any(len(f[0]) > 10 for f in filas) or (desde and len(desde) > 10):
+            cab += f"\nHoras en {zona_declarada()}; cada una trae su desfase."
+        salida = [cab + "\n"]
         actual = None
         for fecha, nombre, titulo, campos, tipo_archivo in filas:
             if nombre != actual:
@@ -3552,6 +3568,29 @@ class Planta:
 
     def __repr__(self) -> str:  # útil en el registro
         return f"<Planta gen={self.generacion} kbs={[i.cfg.slug for i in self.indices]}>"
+
+
+def _con_desfase(epoca: int) -> str:
+    """`2026-08-08 17:48 −04:00` — la hora local del servidor, diciendo cuál es.
+
+    El signo se escribe con el menos tipográfico a propósito: el guion corriente se confunde con
+    el separador de la fecha cuando alguien lee la línea rápido, y quien lee esto casi siempre es
+    un modelo que después tiene que restar horas.
+    """
+    t = datetime.datetime.fromtimestamp(epoca).astimezone()
+    off = t.strftime("%z")  # p.ej. -0400
+    return f"{t.strftime('%Y-%m-%d %H:%M')} {'−' if off[0] == '-' else '+'}{off[1:3]}:{off[3:]}"
+
+
+def zona_declarada() -> str:
+    """Cómo se nombra la zona en la que este servidor registra las horas."""
+    ahora = datetime.datetime.now().astimezone()
+    off = ahora.strftime("%z")
+    # El nombre solo se agrega si DICE algo. En muchos sistemas `tzname()` devuelve el propio
+    # desfase —«-04»— y entonces la línea quedaba «UTC−4 (-04)», que repite el dato y ensucia.
+    nombre = (ahora.tzname() or "").strip()
+    util = nombre and not re.fullmatch(r"[+-]?\d{2}(:?\d{2})?", nombre)
+    return f"UTC{'−' if off[0] == '-' else '+'}{int(off[1:3])}" + (f" ({nombre})" if util else "")
 
 
 async def _responder_json(send, codigo: int, cuerpo: dict) -> None:
