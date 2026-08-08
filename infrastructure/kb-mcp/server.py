@@ -519,6 +519,72 @@ class Nodo:
         return (resto[:sig.start()] if sig else resto).strip()
 
 
+def fechas_subentrada(raiz: Path) -> dict[str, dict[str, int]]:
+    """Cuándo creció por última vez CADA sub-entrada, derivado del historial línea por línea.
+
+    POR QUÉ EXISTE, y es un encargo de Martín del 2026-08-08. `fechas_git()` da UNA fecha por
+    ARCHIVO, y las entradas de esta base tienen entre 40 y 65 sub-entradas. La consecuencia es
+    concreta: «Maquinaria de la base de conocimiento» tiene 65 sub-entradas y las 65 reciben la
+    misma marca —`2026-08-07 15:23:13`— aunque la más vieja se escribió el día anterior a las
+    19:59. Casi veinte horas de diferencia, invisibles. Con la base recibiendo del orden de
+    setenta publicaciones diarias, preguntar «qué se hizo hoy en la tarde» devuelve cincuenta
+    cosas sin ningún orden interno, que es exactamente el síntoma que él describió.
+
+    EL MÉTODO ES SUYO, y es lo que lo vuelve barato: «ver qué porciones de un documento han
+    crecido antes que otras, similar al mecanismo del DIFF de GitHub». O sea UNA atribución
+    línea por línea POR ARCHIVO —no una búsqueda del historial por cada sub-entrada, que es
+    O(sub-entradas × historial) y por eso se temía que costara minutos—. Agrupando las líneas
+    por el encabezado al que pertenecen sale el máximo de cada bloque: cuándo creció.
+
+    COSTO MEDIDO: 103 archivos, 485 sub-entradas, 2,09 s para la base entera (~20 ms por
+    archivo). El índice sin ningún modelo ya cuesta 7,9 s, así que esto no cambia el orden de
+    magnitud del arranque — y desde que la reconstrucción no corta el servicio, tampoco importa.
+
+    Degrada como `fechas_git`: si no hay historial, devuelve {} y todo sigue con la fecha del
+    archivo. Nunca falla ruidosamente por esto.
+    """
+    base = raiz / "knowledge-base"
+    try:
+        # DOS rutas por archivo, y confundirlas dejaba el mapa vacío sin fallar: git necesita la
+        # ruta desde la raíz del repositorio, y quien consulta este mapa la tiene desde
+        # `knowledge-base/` —que es lo que guarda `Nodo.ruta`—. La primera versión devolvía las
+        # claves de git y calzaba con cero entradas de 105, en silencio.
+        archivos = [(str(f.relative_to(raiz)), str(f.relative_to(base)))
+                    for f in sorted(base.rglob("*.md"))]
+    except OSError:
+        return {}
+    fuera: dict[str, dict[str, int]] = {}
+    for r, clave in archivos:
+        try:
+            salida = subprocess.run(
+                ["git", "-C", str(raiz), "-c", "core.quotepath=false", "-c", "safe.directory=*",
+                 "blame", "--line-porcelain", "--", r],
+                capture_output=True, text=True, timeout=60, check=True).stdout
+        except (subprocess.SubprocessError, OSError):
+            continue
+        # `--line-porcelain` intercala, por línea del archivo de hoy, sus metadatos y después la
+        # línea de contenido precedida por un tabulador. Se recorre en orden llevando el último
+        # `author-time` visto: así cada línea de contenido queda con el momento en que entró.
+        actual, titulo = 0, None
+        por_titulo: dict[str, int] = {}
+        for linea in salida.split("\n"):
+            if linea.startswith("author-time "):
+                actual = int(linea.split(" ", 1)[1])
+            elif linea.startswith("\t"):
+                texto = linea[1:]
+                if texto.startswith("### "):
+                    titulo = texto[4:].strip()
+                if titulo is not None:
+                    # El máximo del bloque: cuándo creció por última vez esta porción. Si dos
+                    # sub-entradas del mismo archivo comparten título, gana la más nueva, que es
+                    # la respuesta correcta a «cuándo se tocó esto».
+                    if actual > por_titulo.get(titulo, 0):
+                        por_titulo[titulo] = actual
+        if por_titulo:
+            fuera[clave] = por_titulo
+    return fuera
+
+
 def fechas_git(raiz: Path, base: Path) -> dict[str, tuple[int, int]]:
     """Por cada .md, (primer commit, ultimo commit) segun git. La temporalidad de
     un grafo que crece vive en su historial, no en el frontmatter. Un solo `git log`
@@ -662,6 +728,9 @@ class Indice:
         self.nodos.clear(); self.backlinks.clear()
         self.vocabulario.clear(); self.formas.clear()
         fechas = fechas_git(self.raiz, self.base)
+        # La marca de tiempo POR SUB-ENTRADA, derivada del historial. Ver `fechas_subentrada`:
+        # la del archivo no alcanza porque una entrada de esta base tiene decenas de notas.
+        self.fechas_sub: dict[str, dict[str, int]] = fechas_subentrada(self.raiz)
 
         for ruta in sorted(self.base.rglob("*.md")):
             texto = ruta.read_text(encoding="utf-8", errors="replace")
@@ -890,6 +959,14 @@ class Indice:
                   for t, _ in subentradas(nd.cuerpo) if t]
             for nom, nd in self.nodos.items()
         }
+        # {entrada: {título de la sub-entrada: cuándo creció por última vez}}, indexado por el
+        # NOMBRE de la entrada y no por su ruta, que es como lo piden quienes lo usan.
+        self.fecha_de_sub: dict[str, dict[str, int]] = {}
+        for nom, nd in self.nodos.items():
+            porc = getattr(self, "fechas_sub", {}).get(nd.ruta)
+            if porc:
+                self.fecha_de_sub[nom] = porc
+
         self.subs_norm: dict[str, list[str]] = {
             nom: [normalizar(f"{t} {c}") for t, c in subentradas(nd.cuerpo)]
             for nom, nd in self.nodos.items()
@@ -2862,9 +2939,33 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
                                 "sobre el que descansa esta base.")
                 fecha = (campos.get("Verificado") or campos.get("Declarado")
                          or campos.get("Checkpoint") or "")
-                if desde and fecha < desde:
-                    continue
-                filas.append((fecha, nombre, titulo, campos, tipo_archivo))
+                # LA HORA SALE DEL HISTORIAL, no de la ficha. La ficha guarda el DÍA, y con esta
+                # base recibiendo del orden de setenta publicaciones diarias el día no discrimina
+                # nada: preguntar por lo de hoy devuelve cincuenta cosas sin orden interno. La marca
+                # fina se deriva de cuándo creció de verdad cada sub-entrada (ver
+                # `fechas_subentrada`), así que es verdad comprobable y no un campo que alguien
+                # tenga que acordarse de llenar — ni exige migrar las ~500 sub-entradas ya escritas.
+                # SI LA SUB-ENTRADA NO TIENE MARCA PROPIA, VALE LA DEL ARCHIVO. Un archivo sin
+                # encabezados de sección —casi todos los planes— es UNA sola unidad, así que la
+                # fecha del archivo ES su fecha; excluirlo sería peor que no tener hora. Sin este
+                # respaldo, pedir con hora dejaba fuera en silencio a las 80 entradas de 105 que no
+                # tienen secciones: medido con el instrumento temporal, la cobertura caía de 0,78 a
+                # 0,67 en las preguntas de ventana larga mientras la contaminación mejoraba — o sea
+                # el filtro parecía más limpio porque escondía la mitad del corpus.
+                sello = ((idx.fecha_de_sub.get(nombre) or {}).get(titulo)
+                         or nd.modificado or 0)
+                fina = (datetime.datetime.fromtimestamp(sello).strftime("%Y-%m-%d %H:%M")
+                        if sello else fecha)
+                if desde:
+                    # Si `desde` trae hora, se compara contra la marca fina; si trae solo el día,
+                    # se compara contra la ficha, que es el comportamiento de siempre. Así pedir
+                    # por día no cambia de resultado y pedir por hora empieza a funcionar.
+                    if len(desde) > 10:
+                        if not sello or fina < desde:
+                            continue
+                    elif fecha < desde:
+                        continue
+                filas.append((fina, nombre, titulo, campos, tipo_archivo))
         if not filas:
             return SIN_RESULTADOS_LISTAR
         filas.sort(key=lambda x: (x[0], x[1]), reverse=True)
