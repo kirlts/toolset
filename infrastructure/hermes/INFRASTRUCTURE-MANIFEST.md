@@ -33,6 +33,7 @@
 | `infrastructure/kb-mcp/server.py` | Servidor MCP de solo lectura sobre KBs de kb-template: híbrido léxico+semántico+grafo+índices, recencia git. Sin escritura, sin estado | Imagen construida en VPS (docker compose build kb-mcp) | 2026-07-23 |
 | `infrastructure/kb-mcp/Dockerfile` | Imagen de kb-mcp: python:3.12-slim, usuario no-root, ARM64 | docker compose build (en VPS) | 2026-07-23 |
 | `infrastructure/kb-mcp/sync-kb.sh` | git pull de la KB + reindexado. Reinicia SOLO kb-mcp y solo si cambio el HEAD | deploy.sh (paso kb-mcp) + cron (*/15 min) | 2026-07-23 |
+| `infrastructure/Caddyfile` | **Enrutado HTTP unico del VPS** (`:8080`, detras del Funnel): dashboard y API de Hindsight, Infisical, `/kb/*` (kb-mcp con direcciones-capacidad), `/okos-mapa/*` (prototipo estatico del mapa OKOS, publico) y la landing como catch-all. Corre con `admin off`: **no admite reload en caliente**, se aplica reiniciando el contenedor | deploy.sh (`tee` + validacion en el contenedor + `docker restart caddy` solo si cambio) | 2026-08-08 |
 
 ---
 
