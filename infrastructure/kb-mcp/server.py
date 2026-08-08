@@ -808,8 +808,18 @@ class Indice:
         self.vectores = None
         self.orden: list[str] = []
         self.es_cabecera: list[bool] = []
-        if self.modelo is None:
-            return
+        # SIN MODELO SE SIGUE CONSTRUYENDO LO QUE NO ES VECTORIAL, y esto no es prolijidad: era una
+        # caída. Este `return` temprano dejaba el índice a medio armar —sin `filas`, sin `subs_norm`—
+        # y `consultar` moría con `AttributeError: 'Indice' object has no attribute 'subs_norm'`. O
+        # sea que el degradado que todo el archivo promete —«sin capa semántica queda solo la léxica,
+        # no se cae»— no existía: se caía.
+        #
+        # Estuvo latente desde siempre porque el modelo estático se montaba desde la imagen y NUNCA
+        # fallaba en producción. El 2026-08-07, al pasar a un codificador que sí puede no cargar, la
+        # ruta se ejercitó por primera vez y tumbó la búsqueda del servidor real. Es el patrón que
+        # esta base ya tiene registrado dos veces: una defensa que nadie ejecutó nunca no es una
+        # defensa, es una declaración.
+        _sin_vectores = self.modelo is None
         textos: list[str] = []
         for nombre in self.nodos:
             cuerpo = self.nodos[nombre].cuerpo
@@ -825,8 +835,9 @@ class Indice:
                 textos.append(f"{nombre} — {titulo}\n{_para_vector(sub)[:1500]}")
                 self.orden.append(nombre)
                 self.es_cabecera.append(False)
-        V = _vectorizar_con_cache(self.modelo, textos)
-        self.vectores = V / np.clip(np.linalg.norm(V, axis=1, keepdims=True), 1e-9, None)
+        if not _sin_vectores:
+            V = _vectorizar_con_cache(self.modelo, textos)
+            self.vectores = V / np.clip(np.linalg.norm(V, axis=1, keepdims=True), 1e-9, None)
         # Posiciones de todos los vectores de cada entrada, para puntuarla por su MEJOR
         # sub-entrada en vez de por su cabecera (ver `rasgos`).
         self.filas: dict[str, list[int]] = {}

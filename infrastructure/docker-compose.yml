@@ -181,6 +181,13 @@ services:
     # a Hermes, que es lo que no se toca.
     mem_limit: 2000m
     read_only: true
+    # SIN ESTO EL CODIFICADOR NO CARGA, y costó una caída de la búsqueda en producción el
+    # 2026-08-07: con la raíz en solo lectura, las bibliotecas de modelos no pueden escribir sus
+    # archivos de bloqueo ni sus temporales, y `sentence-transformers` falla al cargar. Un tmpfs da
+    # ese espacio sin renunciar a `read_only` —vive en memoria y muere con el contenedor—.
+    tmpfs:
+      - /tmp:size=64m
+      - /home/kb/.cache:size=64m
     security_opt:
       - no-new-privileges:true
     environment:
@@ -189,6 +196,18 @@ services:
       # Host interno + dominio publico del Funnel. La proteccion anti-DNS-rebinding
       # del SDK sigue activa; solo se declaran los Host legitimos.
       KB_ALLOWED_HOSTS: "kb-mcp:8765,localhost:8765,127.0.0.1:8765,${FUNNEL_DOMAIN:-toolset-oci-1-1.tail2d4c18.ts.net}"
+      # REVERTIDO AL MODELO ESTÁTICO EL 2026-08-07, misma tarde en que se cambió. El codificador no
+      # cargó dentro del contenedor —causa probable: la raíz en solo lectura, atacada arriba con el
+      # tmpfs— y el índice quedó sin capa semántica, lo que destapó una caída latente: `consultar`
+      # moría con AttributeError en vez de degradar. Esa caída ya está arreglada en el servidor.
+      #
+      # Se restaura lo conocido-bueno ANTES de volver a intentar la mejora, que es el orden correcto
+      # con un servicio que un equipo está usando. El umbral del AVISO se deriva del modelo, así que
+      # esta línea revierte también la calibración: no queda nada descuadrado.
+      #
+      # Para volver a probar el codificador: quitar esta línea. Todo lo demás —caché de vectores,
+      # tmpfs, descripciones, panorama— ya está desplegado y es independiente del modelo.
+      KB_MODELO: /modelo
     volumes:
       # Se monta el directorio raiz de KB, no una sola: el servidor sirve todas.
       - /opt/kb:/kb:ro
