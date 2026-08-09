@@ -1867,6 +1867,58 @@ def _recortar_listado(txt: str, etiqueta: str) -> str:
               f"recorte.")
 
 
+def deducir_ventana(pregunta: str, hoy: str) -> tuple[str | None, str | None]:
+    """La franja que la pregunta pide: (desde, hasta). Cualquiera de los dos puede faltar.
+
+    Envuelve a `deducir_desde`, que solo sabía de bordes inferiores. El borde superior se agregó
+    el 2026-08-08 y es lo que permite traducir una FRANJA en vez de una cola abierta:
+
+      · «esta mañana»  → de las 00:00 a las 12:00. Antes no se traducía: sin borde superior solo
+        podía decir «desde las 00:00», que es lo mismo que «hoy», y prometer un recorte que no
+        ocurría. Se prefería no traducirla.
+      · «ayer»         → el día de ayer entero, cerrado. Antes devolvía lo de hoy primero, porque
+        «desde ayer» incluye hoy.
+      · «anoche»       → de las 19:00 de ayer a las 06:00 de hoy, que es como el castellano
+        corriente parte esa noche.
+
+    Habilita la pregunta que Martín nombró como la que le interesa: qué suele hacer de mañana
+    contra qué suele hacer de noche.
+    """
+    import datetime as _dt
+    q = pregunta.lower()
+    base = _dt.date.fromisoformat(hoy)
+    ayer = (base - _dt.timedelta(days=1)).isoformat()
+
+    # «ANOCHE» NO PIDE PRETÉRITO, y es la excepción que confirma por qué los demás sí. La regla
+    # existe porque «hoy» y «ayer» son también adverbios de actualidad —«qué problemas hay hoy»
+    # pregunta por el presente— y acotar ahí esconde. «Anoche» no tiene lectura de presente: solo
+    # puede referirse a una franja que ya pasó. Además así funciona escrito sin tilde —«qué paso
+    # anoche»—, que es como se escribe la mitad de las veces y que el detector de pretérito no ve.
+    if re.search(r"\banoche\b", q):
+        return f"{ayer} 19:00", f"{hoy} 06:00"
+
+    if _PRETERITO.search(q):
+        # LAS FRANJAS DE AYER VAN ANTES QUE «AYER» ENTERO. Al revés, «qué se hizo ayer en la
+        # tarde» calzaba con la rama del día completo y devolvía el día completo: una ventana más
+        # ancha que la pedida, que es el error que este borde superior vino a eliminar.
+        if re.search(r"\bayer\b", q) and re.search(r"\btarde\b", q):
+            return f"{ayer} 12:00", f"{ayer} 19:00"
+        if re.search(r"\bayer\b", q) and re.search(r"\bmañana\b", q):
+            return f"{ayer} 00:00", f"{ayer} 12:00"
+        if re.search(r"\bayer\b", q) and re.search(r"\bnoche\b", q):
+            return f"{ayer} 19:00", f"{hoy} 06:00"
+        # AYER ENTERO, CERRADO. Sin borde superior «desde ayer» incluía hoy y lo ponía primero.
+        if re.search(r"\bayer\b", q):
+            return f"{ayer} 00:00", f"{hoy} 00:00"
+        # LA MAÑANA DE HOY, que ahora sí se puede acotar por los dos lados. Antes no se traducía:
+        # sin borde superior solo podía decirse «desde las 00:00», que es lo mismo que «hoy», y
+        # eso prometía un recorte que no ocurría.
+        if re.search(r"\b(esta|hoy\s+(a|en|por)\s+la|de\s+la)\s+mañana\b", q):
+            return f"{hoy} 00:00", f"{hoy} 12:00"
+
+    return deducir_desde(pregunta, hoy), None
+
+
 def deducir_desde(pregunta: str, hoy: str) -> str | None:
     """La ventana temporal que la pregunta pide, como fecha ISO desde la cual mirar.
 
@@ -2764,7 +2816,7 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
         # función pura: de las 13 consultas temporales de la tanda, `deducir_desde` acertaba en 9 y
         # solo 2 la usaban. Calcular una ventana y descartarla es peor que no calcularla — el
         # trabajo está hecho y el que pregunta no lo recibe.
-        desde_f = deducir_desde(pregunta, datetime.date.today().isoformat())
+        desde_f, hasta_f = deducir_ventana(pregunta, datetime.date.today().isoformat())
         # SI LA PREGUNTA TRAE TEMA, NO SE LE ANTEPONE UNA LISTA CIEGA AL TEMA.
         #
         # Al deducir un estado, la deducción DESCARTA el tema: «qué problemas de seguridad hay» se
@@ -2802,7 +2854,7 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
             exacto_txt, etiqueta_filtro = "", ""
             if filtro or tipo_f or desde_f:
                 kw = {k: v for k, v in (("estado", filtro), ("tipo", tipo_f),
-                                        ("desde", desde_f)) if v}
+                                        ("desde", desde_f), ("hasta", hasta_f)) if v}
                 try:
                     exacto_txt = listar(**kw)
                     etiqueta_filtro = " · ".join(f'{k}="{v}"' for k, v in kw.items())
@@ -2815,7 +2867,19 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
                 # cumple ese filtro», con 19 hallazgos vigentes en la base. Se cae al aviso
                 # genérico, que es lo que había antes de que existiera la deducción: nunca menos.
                 if exacto_txt.startswith(SIN_RESULTADOS_LISTAR):
-                    exacto_txt = ""
+                    # SALVO QUE LA FRANJA ESTÉ CERRADA POR LOS DOS LADOS, y entonces el vacío ES la
+                    # respuesta. El caso que motivó suprimir el vacío —«qué problemas hay hoy en la
+                    # plataforma», que sirvió «nada cumple ese filtro» teniendo 19 hallazgos
+                    # vigentes— era una ventana deducida de más sobre una pregunta que no pedía
+                    # ninguna. Una franja con los dos bordes solo se deduce de una pregunta que la
+                    # nombra explícitamente en pretérito —«qué se hizo ayer en la tarde»— y ahí
+                    # «no se hizo nada en esa franja» es información, no un filtro que se pasó.
+                    # Callarla obliga a quien pregunta a no distinguir entre «no pasó nada» y «la
+                    # herramienta no supo contestar», que son cosas muy distintas.
+                    if desde_f and hasta_f:
+                        exacto_txt = (f"En esa franja no se registró nada.\n{exacto_txt}")
+                    else:
+                        exacto_txt = ""
                 if trae_tema:            # el filtro se nombra; la lista ciega al tema no se pega
                     exacto_txt = ""
                 # NI SIN TOPE. El arreglo de arriba cubrió el extremo vacío y dejó vivo el opuesto:
@@ -2915,8 +2979,8 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
     @registrar
     @con_dominio(etiqueta, contexto)
     def listar(estado: str | None = None, tipo: str | None = None,
-               desde: str | None = None, mostrable: bool | None = None,
-               fuente: str | None = None) -> str:
+               desde: str | None = None, hasta: str | None = None,
+               mostrable: bool | None = None, fuente: str | None = None) -> str:
         """Filtra secciones de {base} por sus campos: estado, tipo, fecha. Exacto, no por parecido.
 
         `consultar` busca por significado y devuelve lo más parecido. Esto es lo otro:
@@ -2934,7 +2998,10 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
         Parámetros:
           estado:    vigente · resuelto · abierto · aceptado · registrado
           tipo:      hallazgo · funcionamiento · medicion · contexto
-          desde:     fecha ISO; solo lo verificado o declarado en esa fecha o después
+          desde:     fecha ISO, o fecha-hora («2026-08-08 12:00»); desde ahí en adelante
+          hasta:     el otro borde. Con los dos se pide una FRANJA: la mañana de un día, la
+                     noche de ayer, la última hora. Sin `hasta` la ventana queda abierta hacia
+                     el presente, que es lo de siempre
           mostrable: True devuelve solo lo que puede verse fuera del equipo técnico;
                      False, solo lo interno. Se omite para no filtrar por eso.
           fuente:    verificacion · declaracion. Lo comprobado contra el sistema, o lo
@@ -3078,6 +3145,16 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
                         continue
                     if len(desde) > 10 and (not sello or fina[:16] < desde[:16]):
                         continue
+                # EL BORDE SUPERIOR, que es lo que convierte una ventana abierta en una franja.
+                # Sin él «esta mañana» no se podía traducir —solo se podía decir «desde las 00:00»,
+                # que es lo mismo que «hoy»— y «ayer» devolvía lo de hoy primero. Con él, la
+                # pregunta que Martín nombró como la que le interesa —qué suele hacer de mañana
+                # contra qué suele hacer de noche— pasa a tener con qué contestarse.
+                if hasta:
+                    if fecha > hasta[:10]:
+                        continue
+                    if len(hasta) > 10 and sello and fina[:16] > hasta[:16]:
+                        continue
                 filas.append((fina, nombre, titulo, campos, tipo_archivo))
         if not filas:
             return SIN_RESULTADOS_LISTAR
@@ -3086,6 +3163,7 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
             f"estado={estado}" if estado else None,
             f"tipo={tipo}" if tipo else None,
             f"desde={desde}" if desde else None,
+            f"hasta={hasta}" if hasta else None,
             f"fuente={fuente}" if fuente else None,
             ("mostrable" if mostrable else "solo interno") if mostrable is not None else None,
         ] if x) or "sin filtro"
