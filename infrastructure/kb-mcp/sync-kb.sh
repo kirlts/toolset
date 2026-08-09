@@ -76,7 +76,23 @@ if [ "$cambio" -eq 1 ]; then
     case "$salud" in *'"error_ultima_recarga": "'*) break ;; esac
   done
 
+  # UNA CAPACIDAD APAGADA NO SE QUEJA SOLA, asi que se le pregunta cada vez. Criterio de Martin,
+  # 2026-08-09: «esto no puede depender de que yo me acuerde de que existen estos componentes».
+  # Cada mejora del buscador se enciende con una variable de entorno —a proposito: corren en el
+  # camino de servir y cada una se encendio con su numero medido— pero un despliegue que no
+  # arrastre una de esas variables deja el buscador PEOR respondiendo exactamente igual de sano.
+  # Esto corre cada quince minutos sin que nadie lo pida, que es la unica forma de que se note.
+  apagadas() {
+    printf '%s' "${1:-}" | python3 -c 'import json,sys
+try: c = json.load(sys.stdin).get("capacidades") or {}
+except Exception: sys.exit(0)
+esperadas = {"recencia_por_subentrada": True, "fecha_por_subentrada": True}
+print(" ".join(k for k, v in esperadas.items() if c and c.get(k) != v))' 2>/dev/null || true
+  }
+
   if [ -n "$gen_ahora" ] && [ "$gen_ahora" != "$gen_antes" ]; then
+    off=$(apagadas "$salud")
+    [ -n "$off" ] && log "ALERTA: el buscador corre con capacidades APAGADAS ($off). Se midio que sirven; alguien las perdio en un despliegue."
     log "$CONTAINER recargado EN CALIENTE, sin cortar el servicio (generacion $gen_antes -> $gen_ahora): $salud"
   elif printf '%s' "$salud" | grep -q '"error_ultima_recarga": "'; then
     log "ALERTA: la recarga de $CONTAINER FALLO y sigue sirviendo la generacion $gen_antes. El contenido nuevo NO esta indexado: $salud"

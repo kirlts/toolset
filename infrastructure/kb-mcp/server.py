@@ -1058,6 +1058,13 @@ class Indice:
             for nom, nd in self.nodos.items()
         }
 
+    def vector_de(self, consulta: str):
+        """El vector de una consulta, normalizado. `None` si no hay capa semántica."""
+        if self.modelo is None or self.vectores is None:
+            return None
+        v = self.modelo.encode([consulta]).astype("float32")[0]
+        return v / max(float(np.linalg.norm(v)), 1e-9)
+
     def fecha_mejor_sub(self, consulta: str, nombres: list[str]) -> dict[str, int]:
         """Por cada nodo, la marca de tiempo de la sub-entrada que MEJOR calza con la pregunta.
 
@@ -2772,6 +2779,49 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
                            in zip(F[nom], _mu, _sg, _w)) + _b
             ganadores = sorted(cabeza, key=lambda x: (-_score(x), -puntaje[x]))[:n]
 
+            # ── EL REORDENADOR NEURONAL: ELIGE CUÁLES, NO EN QUÉ ORDEN ──────────────────────
+            # Medido el 2026-08-09 sobre las 81 preguntas juzgadas, con cabeza de 20 y salida de 6:
+            #
+            #     hoy (sin él)                                    1er 33 · top-3 48 · sin traer 26
+            #     él elige Y ordena                               1er 30 · top-3 50 · sin traer 18
+            #     él ELIGE, el orden entrenado ORDENA             1er 31 · top-3 50 · sin traer 18
+            #     …y él solo desempata donde el barato se contradice   1er 36 · top-3 52 · sin traer 18
+            #
+            # Las tres columnas mejoran a la vez en la última fila, y el salto grande está en la que
+            # importa: **ocho preguntas menos sin traer su documento**. Lo contraintuitivo, y es lo
+            # que define la forma de este código: usarlo para ordenar EMPEORA (30 contra 36). Es
+            # bueno decidiendo cuáles seis merecen salir del pozo y malo decidiendo su orden, así
+            # que hace solo lo primero — y lo segundo únicamente cuando el orden barato se
+            # contradice a sí mismo, o sea cuando puso primero algo que no es lo más parecido.
+            #
+            # POR QUÉ ESTO NO EXISTÍA. La opción estaba escrita y descartada en el plan de
+            # pertinencia con un argumento económico: «cuesta torch para siempre». Torch entró a la
+            # imagen el 2026-08-08 con el codificador, así que la premisa del descarte se cayó sin
+            # que el descarte se revisara. La primera medición de hoy además salió NEGATIVA (−5 en
+            # primer lugar) por dos errores del montaje —un modelo entrenado en inglés, y leyendo la
+            # cabecera de la entrada en vez de la sub-entrada que calzó—: con el modelo multilingüe
+            # y la unidad correcta, la misma prueba da +1. Un falso negativo bien medido.
+            #
+            # APAGADO POR OMISIÓN Y CON SU COSTO DECLARADO: pone un modelo en el camino de servir y
+            # eso se enciende a propósito, con el número de latencia medido en el servidor que lo
+            # va a correr y no en la máquina de quien lo escribió.
+            _ce = os.environ.get("KB_REORDENADOR", "").strip()
+            if _ce and len(cabeza) > n:
+                elegidos = _reordenar_con_modelo(_ce, pregunta, cabeza, idx, n)
+                if elegidos:
+                    # El ORDEN lo conserva el barato: se recorre `cabeza` —ya ordenada por él— y se
+                    # deja pasar solo a los que el modelo eligió.
+                    ganadores = [x for x in sorted(cabeza, key=lambda y: (-_score(y), -puntaje[y]))
+                                 if x in set(elegidos)][:n]
+                    # …salvo que el barato se contradiga con la similitud pura en su propia cabeza.
+                    # Ahí no hay razón para preferirlo, y el caro decide.
+                    v_q = idx.vector_de(pregunta)
+                    if v_q is not None and len(ganadores) > 1:
+                        cs = [max(float(idx.vectores[i] @ v_q) for i in idx.filas[g])
+                              for g in ganadores[:2]]
+                        if cs[0] < cs[1]:
+                            ganadores = elegidos[:n]
+
         # Un índice no contiene respuestas: enumera lo que existe. Preguntar «¿cómo
         # funciona el cobro?» y recibir la tabla de contenidos es la peor respuesta
         # posible, porque parece correcta. Medido el 2026-07-29: tres de cuatro
@@ -3695,6 +3745,30 @@ class Planta:
             # 41 % de las sub-entradas —el blame fallaba en los archivos más activos— y reportaba
             # exactamente igual que si funcionara entera. Una capacidad a medias que no se queja no
             # se arregla nunca: nadie sale a buscar lo que no duele.
+            # LAS CAPACIDADES SE DECLARAN, y esto no es telemetría: es lo que impide que una
+            # mejora se apague sin que nadie se entere. Criterio de Martín, 2026-08-09: «esto no
+            # puede depender de que yo me acuerde de que existen estos componentes».
+            #
+            # Cada una de estas nació detrás de una perilla, por buenas razones —corren en el
+            # camino de servir y se encienden con su costo medido—. Pero una perilla que nadie
+            # mira es justamente algo que hay que acordarse: si mañana un despliegue no arrastra
+            # una variable de entorno, el buscador sirve peor y responde exactamente igual de
+            # sano. Publicarlas convierte «se apagó» en algo que se ve, y `cierre-de-martin.sh`
+            # las compara contra lo que corresponde.
+            "capacidades": {
+                "recencia_por_subentrada": os.environ.get(
+                    "KB_RECENCIA_POR_SUBENTRADA", "1") in ("1", "si", "sí", "true"),
+                "fecha_por_subentrada": os.environ.get(
+                    "KB_FECHA_SUBENTRADA", "0") in ("1", "si", "sí", "true"),
+                "cabeza": int(os.environ.get("KB_CABEZA", "0") or 0),
+                "reordenador": os.environ.get("KB_REORDENADOR", "") or None,
+                # Con cuántas preguntas juzgadas se entrenó el orden que corre. Si este número
+                # queda atrás del conjunto, hay una mejora sin cosechar — y `evaluar-kb liberar`
+                # se niega a cerrar una evaluación en ese estado.
+                "orden_entrenado_con": (RANKER_PESOS or {}).get("n"),
+                "media_vida_recencia_dias": float(
+                    os.environ.get("KB_RECENCIA_MEDIA_VIDA_DIAS", "45")),
+            },
             "fecha_por_subentrada": [
                 dict(kb=i.cfg.slug, **getattr(i, "diag_fechas_sub", {}))
                 for i in self.indices],
@@ -3702,6 +3776,52 @@ class Planta:
 
     def __repr__(self) -> str:  # útil en el registro
         return f"<Planta gen={self.generacion} kbs={[i.cfg.slug for i in self.indices]}>"
+
+
+_MODELO_REORDEN = {}
+
+
+def _reordenar_con_modelo(nombre: str, pregunta: str, candidatos: list[str], idx, n: int):
+    """Elige los `n` mejores de `candidatos` con un modelo que lee la pregunta y el texto juntos.
+
+    Devuelve la lista elegida, o `[]` si el modelo no está disponible — degradado silencioso a
+    propósito: el orden de siempre es una respuesta correcta, y colgar el arranque de un servidor
+    por una mejora opcional no lo es.
+
+    SE LE DA LA SUB-ENTRADA QUE MEJOR CALZA, no la cabecera de la entrada. Este buscador recupera
+    sobre la unidad chica y devuelve la entrada padre; darle el resumen es darle otra cosa. La
+    primera medición de esto lo hizo mal y salió CINCO primeros puestos peor — un falso negativo
+    del montaje, no del modelo.
+
+    El modelo se carga una vez y queda en memoria; la carga cuesta segundos y la inferencia
+    decenas o cientos de milisegundos por lote, así que se paga una vez por proceso.
+    """
+    try:
+        if nombre not in _MODELO_REORDEN:
+            from sentence_transformers import CrossEncoder
+            _MODELO_REORDEN[nombre] = CrossEncoder(nombre, max_length=512)
+        modelo = _MODELO_REORDEN[nombre]
+    except Exception as e:  # noqa: BLE001 — cualquier fallo degrada al orden de siempre
+        if nombre not in _MODELO_REORDEN:
+            _MODELO_REORDEN[nombre] = None
+            print(f"[kb-mcp] AVISO: KB_REORDENADOR={nombre} no se pudo cargar "
+                  f"({type(e).__name__}); se sirve el orden de siempre.",
+                  file=sys.stderr, flush=True)
+        return []
+    if modelo is None:
+        return []
+    pal = {w for w in re.findall(r"\w{4,}", normalizar(pregunta))}
+    pares = []
+    for nom in candidatos:
+        subs = [c for _t, c in subentradas(idx.nodos[nom].cuerpo)] or [idx.nodos[nom].cuerpo]
+        mejor = max(subs, key=lambda c: sum(1 for w in pal if w in normalizar(c)))
+        pares.append((pregunta, f"{nom}\n{mejor[:1200]}"))
+    try:
+        puntos = modelo.predict(pares)
+    except Exception:  # noqa: BLE001
+        return []
+    return [nom for _p, nom in sorted(zip(map(float, puntos), candidatos),
+                                      key=lambda x: -x[0])][:n]
 
 
 def _con_desfase(epoca: int) -> str:
