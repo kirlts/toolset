@@ -3093,11 +3093,9 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
         # decirlo también acá le ahorra a quien lee tener que inferirlo de la primera fila —y sobre
         # todo se lo dice cuando NO hay filas, que es justo cuando alguien podría concluir que «no
         # pasó nada esta tarde» estando en otro huso y preguntando por otra tarde.
-        cab = f"{len(filas)} sección(es) — {criterio}"
-        if any(len(f[0]) > 10 for f in filas) or (desde and len(desde) > 10):
-            cab += (f"\nHoras {zona_declarada()}, YA CONVERTIDAS. El «{_desfase_actual()}» de "
-                    f"cada línea declara esa zona; no es algo que haya que restar.")
-        salida = [cab + "\n"]
+        # SIN LÍNEA DE ACLARACIÓN. La tuvo mientras el formato era ambiguo; con la zona pegada a
+        # cada hora —`18:40 (UTC−4)`— el dato se explica solo y la prosa era ruido.
+        salida = [f"{len(filas)} sección(es) — {criterio}\n"]
         actual = None
         for fecha, nombre, titulo, campos, tipo_archivo in filas:
             if nombre != actual:
@@ -3572,41 +3570,37 @@ class Planta:
 
 
 def _con_desfase(epoca: int) -> str:
-    """`2026-08-08 17:48 −04:00` — la hora local del servidor, diciendo cuál es.
+    """`2026-08-08 18:40 (UTC−4)` — la hora YA convertida, diciendo en qué zona está.
 
-    El signo se escribe con el menos tipográfico a propósito: el guion corriente se confunde con
-    el separador de la fecha cuando alguien lee la línea rápido, y quien lee esto casi siempre es
-    un modelo que después tiene que restar horas.
+    LA ZONA VA PEGADA AL DATO Y NO EXPLICADA APARTE. Criterio de Martín, 2026-08-08: «no
+    necesitamos explicar con prosa cosas que se pueden entender rápidamente viendo un dato».
+    La versión anterior servía `18:40 −04:00` y encabezaba la respuesta con dos líneas aclarando
+    que la hora ya estaba convertida y que el desfase no había que restarlo. Esas dos líneas
+    existían porque el formato admitía la lectura contraria; con `(UTC−4)` no la admite, así que
+    la aclaración sobra y se fue.
+
+    POR QUÉ IMPORTA, y no es estética: quien lee esto es siempre un agente, y uno de ellos trabaja
+    para alguien en otra zona horaria. Una hora con su zona pegada se convierte sola; una hora
+    desnuda con una explicación arriba depende de que el lector relacione las dos cosas.
+
+    SE CALCULA, NO SE ESCRIBE FIJO. Chile pasa a UTC−3 en verano y esto lo sigue solo: sale del
+    reloj del proceso en el instante de servir. No hace falta ningún cron ni ninguna tabla.
     """
     t = datetime.datetime.fromtimestamp(epoca).astimezone()
-    off = t.strftime("%z")  # p.ej. -0400
-    return f"{t.strftime('%Y-%m-%d %H:%M')} {'−' if off[0] == '-' else '+'}{off[1:3]}:{off[3:]}"
-
-
-def _desfase_actual() -> str:
-    """El desfase de hoy, tal como aparece en las líneas. Cambia solo con el horario de verano."""
-    off = datetime.datetime.now().astimezone().strftime("%z")
-    return f"{'−' if off[0] == '-' else '+'}{off[1:3]}:{off[3:]}"
+    return f"{t.strftime('%Y-%m-%d %H:%M')} ({zona_declarada()})"
 
 
 def zona_declarada() -> str:
-    """Cómo se nombra la zona en la que este servidor SIRVE las horas.
+    """`UTC−4`, o `UTC−3:30` donde el desfase no sea de horas enteras.
 
-    IMPORTANTE PARA QUIEN LEA LA RESPUESTA, y por eso se dice y no se deja inferir: la hora que se
-    sirve **ya está convertida** a esta zona. El desfase que acompaña a cada línea es la notación
-    estándar que declara cuál es —`17:48 −04:00` son las 17:48 de acá— y no una corrección
-    pendiente de aplicar. Se explicita porque la primera redacción decía «cada una trae su desfase»
-    y eso admitía la lectura contraria: que la hora fuera del servidor y hubiera que restarla.
-
-    Se calcula, no se escribe fijo: Chile cambia a UTC−3 en verano y la etiqueta lo sigue sola.
+    El signo se escribe con el menos tipográfico a propósito: el guion corriente se confunde con
+    el separador de la fecha cuando la línea se lee rápido, y quien la lee casi siempre es un
+    modelo que después tiene que convertir husos.
     """
-    ahora = datetime.datetime.now().astimezone()
-    off = ahora.strftime("%z")
-    # El nombre solo se agrega si DICE algo. En muchos sistemas `tzname()` devuelve el propio
-    # desfase —«-04»— y entonces la línea quedaba «UTC−4 (-04)», que repite el dato y ensucia.
-    nombre = (ahora.tzname() or "").strip()
-    util = nombre and not re.fullmatch(r"[+-]?\d{2}(:?\d{2})?", nombre)
-    return f"UTC{'−' if off[0] == '-' else '+'}{int(off[1:3])}" + (f" ({nombre})" if util else "")
+    off = datetime.datetime.now().astimezone().strftime("%z")  # p.ej. -0400
+    signo = "−" if off[0] == "-" else "+"
+    horas, minutos = int(off[1:3]), int(off[3:5])
+    return f"UTC{signo}{horas}" + (f":{minutos:02d}" if minutos else "")
 
 
 async def _responder_json(send, codigo: int, cuerpo: dict) -> None:
