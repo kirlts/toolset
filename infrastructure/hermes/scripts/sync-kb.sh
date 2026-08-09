@@ -31,24 +31,96 @@ for dir in "$KB_ROOT"/*/; do
   fi
 done
 
+# Consulta /salud desde adentro del contenedor (no trae curl; se usa su propio python).
+# La ruta interna es /salud: el /kb se lo antepone el proxy.
+salud_de() {
+  sudo docker exec "$CONTAINER" python3 -c 'import urllib.request;print(urllib.request.urlopen("http://127.0.0.1:8765/salud",timeout=4).read().decode())' 2>/dev/null || true
+}
+# La generacion del indice. Sube de a uno cada vez que el servidor lo reconstruye.
+# Un servidor viejo no la publica y esto devuelve vacio, que es como se detecta.
+generacion_de() {
+  printf '%s' "${1:-}" | python3 -c 'import json,sys
+try: print(json.load(sys.stdin).get("generacion",""))
+except Exception: print("")' 2>/dev/null || true
+}
+
 if [ "$cambio" -eq 1 ]; then
-  # El indice se reconstruye al arrancar; reiniciar solo este contenedor.
-  sudo docker restart "$CONTAINER" >/dev/null
-  # Lazo CERRADO: reiniciar y asumir que quedo bien es el mismo patron que la
-  # vigilancia-que-anota-normal. Se comprueba contra el propio servicio: /kb/salud
-  # debe responder y declarar las KB. Si a los 60s no responde, se dice ALERTA en el
-  # log — que es lo unico que este script puede hacer, pero queda dicho con hora.
-  # La ruta interna es /salud (el /kb lo antepone el proxy), y el contenedor no trae
-  # curl: se consulta con su propio python.
-  for i in $(seq 1 12); do
-    salud=$(sudo docker exec "$CONTAINER" python3 -c 'import urllib.request;print(urllib.request.urlopen("http://127.0.0.1:8765/salud",timeout=4).read().decode())' 2>/dev/null || true)
-    [ -n "$salud" ] && break
+  # ── RECARGA EN CALIENTE, no reinicio ────────────────────────────────────────────────
+  # Hasta el 2026-08-08 esto hacia `docker restart` y la base NO CONTESTABA A NADIE mientras
+  # levantaba: ~9 s con el modelo estatico y ~49 s con un codificador. Por 28 cambios de
+  # contenido en un dia son entre 4 y 23 minutos diarios de servicio caido, en tandas, mientras
+  # alguien pregunta. Era ademas lo que volvia indesplegable al codificador.
+  #
+  # Ahora se le manda SIGHUP: el servidor construye el indice nuevo EN UN HILO mientras sigue
+  # atendiendo con el viejo, y solo cuando el nuevo esta entero cambia el puntero. Medido con el
+  # servidor bajo carga, tres recargas seguidas: 0 peticiones fallidas de 150.
+  #
+  # QUE TENDRIA QUE PASAR PARA QUE ESTO DIJERA QUE NO. Tres cosas, y las tres se distinguen:
+  #   · el contenido nuevo no se puede indexar  -> la generacion NO sube y /salud trae
+  #     `error_ultima_recarga`. Se dice ALERTA con el error, y la base sigue sirviendo lo viejo.
+  #   · la imagen es vieja y no sabe de SIGHUP  -> la generacion no sube Y no hay error. Ahi se
+  #     cae al reinicio de antes, que es correcto para esa imagen, y se dice en el log.
+  #   · el contenedor no responde                -> ALERTA, igual que antes.
+  antes_salud=$(salud_de)
+  gen_antes=$(generacion_de "$antes_salud")
+
+  sudo docker kill -s HUP "$CONTAINER" >/dev/null 2>&1 || true
+
+  salud=""; gen_ahora=""
+  for _ in $(seq 1 24); do   # hasta 120 s: en el VPS reconstruir cuesta ~12 s con cache
     sleep 5
+    salud=$(salud_de)
+    gen_ahora=$(generacion_de "$salud")
+    case "$salud" in *'"recargando": true'*) continue ;; esac
+    [ -n "$gen_ahora" ] && [ "$gen_ahora" != "$gen_antes" ] && break
+    case "$salud" in *'"error_ultima_recarga": "'*) break ;; esac
   done
-  if [ -n "${salud:-}" ]; then
-    log "$CONTAINER reindexado y verificado: $salud"
+
+  # UNA CAPACIDAD APAGADA NO SE QUEJA SOLA, asi que se le pregunta cada vez. Criterio de Martin,
+  # 2026-08-09: «esto no puede depender de que yo me acuerde de que existen estos componentes».
+  # Cada mejora del buscador se enciende con una variable de entorno —a proposito: corren en el
+  # camino de servir y cada una se encendio con su numero medido— pero un despliegue que no
+  # arrastre una de esas variables deja el buscador PEOR respondiendo exactamente igual de sano.
+  # Esto corre cada quince minutos sin que nadie lo pida, que es la unica forma de que se note.
+  apagadas() {
+    printf '%s' "${1:-}" | python3 -c 'import json,sys
+try: c = json.load(sys.stdin).get("capacidades") or {}
+except Exception: sys.exit(0)
+esperadas = {"recencia_por_subentrada": True, "fecha_por_subentrada": True}
+print(" ".join(k for k, v in esperadas.items() if c and c.get(k) != v))' 2>/dev/null || true
+  }
+
+  if [ -n "$gen_ahora" ] && [ "$gen_ahora" != "$gen_antes" ]; then
+    off=$(apagadas "$salud")
+    [ -n "$off" ] && log "ALERTA: el buscador corre con capacidades APAGADAS ($off). Se midio que sirven; alguien las perdio en un despliegue."
+    log "$CONTAINER recargado EN CALIENTE, sin cortar el servicio (generacion $gen_antes -> $gen_ahora): $salud"
+  elif printf '%s' "$salud" | grep -q '"error_ultima_recarga": "'; then
+    log "ALERTA: la recarga de $CONTAINER FALLO y sigue sirviendo la generacion $gen_antes. El contenido nuevo NO esta indexado: $salud"
+  elif [ -z "$salud" ]; then
+    # NO CONTESTAR NO ES «IMAGEN VIEJA», y confundirlos hizo daño el 2026-08-09 a las 02:17. La
+    # rama de abajo existe para una imagen anterior a la recarga en caliente, que SI contesta pero
+    # sin declarar su generacion. Cuando /salud no contesta NADA la causa es otra —el contenedor
+    # esta arrancando, o alguien lo esta reemplazando— y reiniciarlo ahi es pelearse con quien
+    # este trabajando: eso fue exactamente lo que paso, un despliegue en curso y este guion
+    # reiniciando encima, dejando el servicio caido y una ALERTA que culpaba a la imagen.
+    #
+    # Un arranque legitimo tarda hasta ~160 s con el codificador y el cache frio. No se hace nada:
+    # se dice, y el proximo ciclo —quince minutos— lo encuentra resuelto o lo vuelve a decir.
+    log "ALERTA: $CONTAINER no responde /kb/salud. NO se reinicia: puede estar arrancando o en reemplazo. Se reintenta en el proximo ciclo."
   else
-    log "ALERTA: $CONTAINER no respondio /kb/salud tras el reinicio"
+    # CONTESTA pero sin declarar generacion: imagen anterior a la recarga en caliente. Ahi si.
+    log "$CONTAINER contesta pero no publica generacion (imagen vieja); se reinicia como antes"
+    sudo docker restart "$CONTAINER" >/dev/null
+    for _ in $(seq 1 12); do
+      salud=$(salud_de)
+      [ -n "$salud" ] && break
+      sleep 5
+    done
+    if [ -n "$salud" ]; then
+      log "$CONTAINER reindexado y verificado: $salud"
+    else
+      log "ALERTA: $CONTAINER no respondio /kb/salud tras el reinicio"
+    fi
   fi
 else
   log "sin cambios en ninguna KB"
