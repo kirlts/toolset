@@ -997,6 +997,9 @@ class Indice:
         # defensa, es una declaración.
         _sin_vectores = self.modelo is None
         textos: list[str] = []
+        # El título de la sub-entrada que representa cada fila de vector (None en la cabecera).
+        # Es lo que permite darle a cada fila su propia marca de tiempo — ver `fecha_fila`.
+        titulos_fila: list[str | None] = []
         for nombre in self.nodos:
             cuerpo = self.nodos[nombre].cuerpo
             partes = re.split(r"(?m)^### ", cuerpo)
@@ -1005,12 +1008,14 @@ class Indice:
             textos.append(f"{nombre}\n{partes[0][:2000]}")
             self.orden.append(nombre)
             self.es_cabecera.append(True)
+            titulos_fila.append(None)
             for sub in partes[1:]:
                 # El titulo va repetido a proposito: pesa, y es lo que un lector busca.
                 titulo = sub.split("\n", 1)[0]
                 textos.append(f"{nombre} — {titulo}\n{_para_vector(sub)[:1500]}")
                 self.orden.append(nombre)
                 self.es_cabecera.append(False)
+                titulos_fila.append(titulo.strip())
         if not _sin_vectores:
             V = _vectorizar_con_cache(self.modelo, textos)
             self.vectores = V / np.clip(np.linalg.norm(V, axis=1, keepdims=True), 1e-9, None)
@@ -1039,10 +1044,43 @@ class Indice:
             if porc:
                 self.fecha_de_sub[nom] = porc
 
+        # LA MARCA DE TIEMPO DE CADA FILA DE VECTOR. Con esto el ranking puede pesar la recencia de
+        # la sub-entrada que de verdad calzó con la pregunta, en vez de la del archivo entero —que
+        # es la misma para las setenta notas de una entrada grande y por eso no discrimina nada.
+        self.fecha_fila: list[int] = []
+        for i, nom in enumerate(self.orden):
+            t = titulos_fila[i] if i < len(titulos_fila) else None
+            propia = (self.fecha_de_sub.get(nom) or {}).get(t) if t else None
+            self.fecha_fila.append(propia or self.nodos[nom].modificado or 0)
+
         self.subs_norm: dict[str, list[str]] = {
             nom: [normalizar(f"{t} {c}") for t, c in subentradas(nd.cuerpo)]
             for nom, nd in self.nodos.items()
         }
+
+    def fecha_mejor_sub(self, consulta: str, nombres: list[str]) -> dict[str, int]:
+        """Por cada nodo, la marca de tiempo de la sub-entrada que MEJOR calza con la pregunta.
+
+        Es lo que permite que la recencia del ranking opere sobre la unidad que importa. Hasta el
+        2026-08-09 el multiplicador miraba `Nodo.modificado` —una fecha por ARCHIVO— así que las
+        setenta sub-entradas de una entrada grande pesaban todas igual, y una nota de hoy enterrada
+        en un archivo viejo no ganaba nada.
+
+        Se calcula con el vector de la consulta, que es el mismo criterio con que el nodo entró al
+        pozo: se pregunta cuál de sus sub-entradas se parece más, y se usa la fecha de esa.
+        """
+        if self.modelo is None or self.vectores is None or not getattr(self, "fecha_fila", None):
+            return {}
+        v = self.modelo.encode([consulta]).astype("float32")[0]
+        v = v / max(float(np.linalg.norm(v)), 1e-9)
+        fuera: dict[str, int] = {}
+        for nom in nombres:
+            filas = self.filas.get(nom)
+            if not filas:
+                continue
+            mejor = max(filas, key=lambda k: float(self.vectores[k] @ v))
+            fuera[nom] = self.fecha_fila[mejor]
+        return fuera
 
     def semejantes(self, consulta: str, tope: int = 12) -> list[str]:
         if self.modelo is None or self.vectores is None:
@@ -2634,12 +2672,31 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
         # le saca la propiedad que lo volvía dominante — que la base crezca no puede achicar la
         # media vida.
         ampl = float(os.environ.get("KB_RECENCIA_AMPLITUD", "5.0"))
-        ahora = max((nd.modificado for nd in idx.nodos.values()), default=0)
+        # LA RECENCIA POR SUB-ENTRADA, detrás de una perilla porque tiene que decidirlo un número.
+        # La base ya midió que tocar esta parte a ciegas cuesta preguntas —derivar la media vida del
+        # corpus la volvió el criterio dominante y perdió tres—, así que esto se enciende, se mide
+        # con `tools/pertinencia.py --ablacion` sobre las 81 preguntas juzgadas, y se deja o se saca
+        # según lo que diga. Lo que NO se hace es dejarlo sin decidir.
+        # MEDIDO Y ENCENDIDO. Sobre las 81 preguntas juzgadas, con la media vida de 45 días que ya
+        # estaba fijada:
+        #     fecha del ARCHIVO (antes)   1er 35/81 · top-3 43 · sin traer el documento 28
+        #     por SUB-ENTRADA, 45 días    1er 35/81 · top-3 44 · sin traer el documento 27
+        #     por SUB-ENTRADA, 14 días    1er 34/81 · top-3 44 · sin traer el documento 27
+        #     por SUB-ENTRADA,  3 días    1er 32/81 · top-3 35 · sin traer el documento 37
+        # Gana una pregunta en la columna que importa —quien consulta es un agente y lee el
+        # conjunto— y una en top-3, sin costar ninguna en el primer puesto. Es poco, y se dice: una
+        # de 81. Lo que NO se hace es acortar la media vida: a 14 días ya cuesta un primer puesto y
+        # a 3 se desploma, que es la misma curva que esta base había medido cuando la fecha era del
+        # archivo. El mecanismo servía y la constante era el error; con la unidad correcta, sigue.
+        por_sub = os.environ.get("KB_RECENCIA_POR_SUBENTRADA", "1") in ("1", "si", "sí", "true")
+        finas = idx.fecha_mejor_sub(pregunta, list(puntaje)) if (por_sub and ampl) else {}
+        ahora = (max(idx.fecha_fila) if (finas and getattr(idx, "fecha_fila", None))
+                 else max((nd.modificado for nd in idx.nodos.values()), default=0))
         _dias = float(os.environ.get("KB_RECENCIA_MEDIA_VIDA_DIAS", "45"))
         HALF_LIFE = int(_dias * 86400)
         if ampl:
             for nom in list(puntaje):
-                mod = idx.nodos[nom].modificado
+                mod = finas.get(nom) or idx.nodos[nom].modificado
                 if mod:
                     puntaje[nom] *= 1 + ampl * math.exp(-(ahora - mod) / HALF_LIFE)
 
