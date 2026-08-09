@@ -80,9 +80,20 @@ if [ "$cambio" -eq 1 ]; then
     log "$CONTAINER recargado EN CALIENTE, sin cortar el servicio (generacion $gen_antes -> $gen_ahora): $salud"
   elif printf '%s' "$salud" | grep -q '"error_ultima_recarga": "'; then
     log "ALERTA: la recarga de $CONTAINER FALLO y sigue sirviendo la generacion $gen_antes. El contenido nuevo NO esta indexado: $salud"
+  elif [ -z "$salud" ]; then
+    # NO CONTESTAR NO ES «IMAGEN VIEJA», y confundirlos hizo daño el 2026-08-09 a las 02:17. La
+    # rama de abajo existe para una imagen anterior a la recarga en caliente, que SI contesta pero
+    # sin declarar su generacion. Cuando /salud no contesta NADA la causa es otra —el contenedor
+    # esta arrancando, o alguien lo esta reemplazando— y reiniciarlo ahi es pelearse con quien
+    # este trabajando: eso fue exactamente lo que paso, un despliegue en curso y este guion
+    # reiniciando encima, dejando el servicio caido y una ALERTA que culpaba a la imagen.
+    #
+    # Un arranque legitimo tarda hasta ~160 s con el codificador y el cache frio. No se hace nada:
+    # se dice, y el proximo ciclo —quince minutos— lo encuentra resuelto o lo vuelve a decir.
+    log "ALERTA: $CONTAINER no responde /kb/salud. NO se reinicia: puede estar arrancando o en reemplazo. Se reintenta en el proximo ciclo."
   else
-    # Sin generacion en /salud: imagen anterior a la recarga en caliente. Se reinicia como antes.
-    log "$CONTAINER no publica generacion (imagen vieja); se reinicia como antes"
+    # CONTESTA pero sin declarar generacion: imagen anterior a la recarga en caliente. Ahi si.
+    log "$CONTAINER contesta pero no publica generacion (imagen vieja); se reinicia como antes"
     sudo docker restart "$CONTAINER" >/dev/null
     for _ in $(seq 1 12); do
       salud=$(salud_de)
