@@ -63,6 +63,20 @@ Cuando se modifica un archivo de configuracion:
 
 ---
 
+## Current Session Changes (2026-08-10)
+
+**`/okos-mapa/`: el index.html publicado pasa de la maqueta v5 a la Torre v9 con datos reales.**
+Solo cambio el ARCHIVO servido: ni Caddyfile ni Funnel se tocaron. La v9 embebe el contrato
+vivo del mapa (292 piezas · 222 cintas · 4 dias de historia) y se regenera desde el repo
+`okos-mapa` con `prototype/generar_digest.py` + `prototype/ensamblar_v9.py`. Respaldo del
+anterior en `/opt/toolset/landing/okos-mapa/index.html.bak.1786393122`. Verificado desde
+fuera: 200 con tamano exacto (876962), 404 en ruta inexistente, `/health` sin regresion,
+navegador real sin errores de consola. **Exposicion nueva**: a diferencia de la v5 (maqueta
+sin datos), la v9 lleva nombres de espacios de clientes, cuotas por plan y evidencia de
+sondas; sigue sin `basic_auth` por decision del usuario.
+
+---
+
 ## Current Session Changes (2026-08-08)
 
 **Caddy: `/okos-mapa/` sirve el prototipo visual del mapa OKOS, estatico y publico.**
