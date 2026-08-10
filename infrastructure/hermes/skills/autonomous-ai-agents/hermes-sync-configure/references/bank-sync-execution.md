@@ -8,6 +8,8 @@ Used by the `hermes-sync-banks` cron job (02:00 UTC daily). This doc captures th
 
 **UPDATE 2026-08-06 — the MCP path CAN complete when the iteration budget allows.** A full 16-bank sync via MCP tools finished in one cron turn (~15 min wall clock, 13,412 facts: personal-buffer 7 pages, hermes 3 pages, rest 1 page each, using `execute_code` to merge/persist page dumps instead of reading every page inline). The 08-05 failure was the iteration cap, not the MCP path itself. REST script (Method D) remains the lower-risk default, but if the run has budget for ~50-70 tool calls, MCP is viable and produces the final report content directly. When doing so: use `execute_code`/`terminal` to merge page outputs into the dated JSON (dedupe by `id`, verify count == `total`), and delete `_pageN.json` intermediates before `git add`.
 
+**CONFIRMED 2026-08-10 — full sequential MCP sync succeeded again** (16 banks, 172,417 JSON lines committed as e36fe46). Pattern: per bank, `list_memories(limit=1000)` → parse persisted output (double-`json.loads` unwrap: `data['result']` is an escaped JSON string → `result['items']`) → write dated JSON via `terminal()` python → `reflect` + `retain`. The MCP path is now a proven reliable cron mode, not a last resort.
+
 **Correct order of attack when the sync must run:**
 1. **REST API script first** — `scripts/hindsight-sync.py` (background `terminal(background=true, notify_on_complete=true)`). It does export + reflect + retain + git in one process.
 2. **If `127.0.0.1:8888` is refused**, use the container IP: `HIP=$(docker inspect hindsight --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}')` then `HINDSIGHT_API=http://$HIP:8888 python3 hindsight-sync.py`. This has been the fix on 2026-08-02, 08-03 AND 08-05 — treat the mapped port as likely-broken and jump to the container IP early, before burning iterations on MCP.
@@ -407,7 +409,8 @@ git ls-tree --name-only HEAD infrastructure/hermes/banks/<bank>/YYYY-MM-DD.json
 
 | Pitfall | Mitigation |
 |---------|-----------|
-| `execute_code` blocked in cron mode | Use `terminal()` with inline Python or the export script via `python3 /tmp/export_bank.py`. The `terminal()` tool is available in cron mode. |
+| **`list_memories(limit=1000)` returns `has_more=False` but bank has far more facts** | Observed 2026-08-10: personal-buffer had `fact_count` 7471 but a single `list_memories(limit=1000)` call returned 1000 items with `has_more=False` — the run accepted it and moved on (potential silent under-export). `has_more` is NOT a reliable completeness signal in cron mode. Mitigation: compare exported `items` count against the bank's `fact_count` from `list_banks()`; if it differs materially, paginate by `offset` in `limit=1000` steps until `offset >= total` regardless of `has_more`. |
+| **`execute_code` blocked in cron mode** | Use `terminal()` with inline Python or the export script via `python3 /tmp/export_bank.py`. The `terminal()` tool is available in cron mode. |
 | `git pull --rebase` fails with stale `.git/rebase-merge/` | `rm -fr ".git/rebase-merge"` before the pull. Previous cron crashes leave this behind. |
 | Detached HEAD from previous rebase | `git checkout main` then `git cherry-pick` any orphaned commits from the sync. Use `git log` on the orphan to check if it's relevant sync content. |
 | Local main diverged from origin/main | `git reset --soft origin/main` — aligns pointer while preserving staged/unstaged work. |
@@ -429,28 +432,28 @@ git ls-tree --name-only HEAD infrastructure/hermes/banks/<bank>/YYYY-MM-DD.json
 | **MCP JSON-RPC via curl returns `Invalid Content-Type header`** | The MCP SSE endpoint does not accept standard HTTP POST with JSON body. Use the REST API at `http://127.0.0.1:8888` instead. |
 | **REST API `127.0.0.1:8888` connection refused but container healthy** | docker-proxy port mapping can fail while the container is fine (observed 2026-08-02 AND 2026-08-03 — recurring). Use container IP: `HIP=$(docker inspect hindsight --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}')` then `HINDSIGHT_API=http://$HIP:8888`. See Method D section. |
 
-## Appendix: Bank Inventory (as of 2026-07-30)
+## Appendix: Bank Inventory (as of 2026-08-10)
 
 | Bank | Facts | Notes |
 |---|---|---|
-| personal-buffer | ~4,717 | Staging for KB candidates (largest bank, ~10 pages at limit=500) |
-| hermes | ~2,544 | Orchestrator identity & state (needs 6 pages at limit=500) |
-| wwe-profile | ~515 | WWE preferences |
-| personal-profile | ~408 | Curated KB (Terreno/Mito) |
-| toolset-profile | ~393 | Toolset infra decisions |
-| chat-profile | ~349 | General chat ideas & patterns |
-| researchit | ~284 | Research engine |
-| entrenador-profile | ~270 | Personal trainer profile |
-| toolset | ~226 | Infra multi-tenant |
-| cl-concerts-db | ~213 | Concert DB project |
-| desarrollo-trazambiental-profile | ~200 | Dev sub-group Trazambiental |
-| kairos | ~179 | Governance framework |
-| trazambiental-profile | ~158 | Equipo Trazambiental |
-| evidencia-zero | ~113 | Data sanitization tool |
-| yacv | ~103 | Resume builder |
-| witral | ~95 | Plugin-based data router |
+| personal-buffer | ~7,471 | Staging for KB candidates (largest bank, needs pagination: 8 pages at limit=1000) |
+| hermes | ~2,756 | Orchestrator identity & state (needs pagination: 3 pages at limit=1000) |
+| wwe-profile | ~644 | WWE preferences |
+| toolset-profile | ~529 | Toolset infra decisions |
+| personal-profile | ~525 | Curated KB (Terreno/Mito) |
+| chat-profile | ~462 | General chat ideas & patterns |
+| entrenador-profile | ~385 | Personal trainer profile |
+| researchit | ~362 | Research engine |
+| desarrollo-trazambiental-profile | ~328 | Dev sub-group Trazambiental |
+| toolset | ~324 | Infra multi-tenant |
+| cl-concerts-db | ~288 | Concert DB project |
+| kairos | ~210 | Governance framework |
+| trazambiental-profile | ~207 | Equipo Trazambiental |
+| evidencia-zero | ~147 | Data sanitization tool |
+| yacv | ~139 | Resume builder |
+| witral | ~122 | Plugin-based data router |
 
-**Threshold guide**: Banks with >1,000 facts need pagination. For personal-buffer (4,714 facts), `limit=500` needs 10 pages. For hermes (2,544 facts), `limit=500` needs 6 pages. All other banks fit in a single `limit=500` call.
+**Threshold guide**: Banks with >1,000 facts need pagination. For personal-buffer (7,471 facts), `limit=1000` needs 8 pages. For hermes (2,756 facts), `limit=1000` needs 3 pages. All other banks fit in a single `limit=1000` call (but see the `has_more=False` pitfall — verify counts against `list_banks()` even for single-page banks).
 
 **REST API pagination**: `GET /v1/default/banks/{bid}/memories/list?limit=500&offset=0` → response has `items`, `total`, `limit`, `offset`. Use `while offset < total: offset += limit` to paginate.
 
