@@ -95,6 +95,7 @@ A cron job that exports ALL Hindsight banks to JSON, synthesizes a daily summary
    - Banks with <200 facts: one call at limit=1000
    - Banks with 200-1000 facts: use limit=1000 (confirmed working up to ~430 facts as of 2026-07-19). If a specific bank fails with "could not be saved", retry with limit=500.
    - Banks with >1000 facts: paginate with offset=1000 (limit=1000 works for these because they paginate naturally)
+   - Banks >3000 facts (scale as of 2026-08-12): MCP pagination still works up to ~2800 facts (hermes: 2783, 3 pages); the largest bank (personal-buffer: 8055 facts, 9 pages at limit=1000) times out via MCP even paginated — export it with the REST API instead (`http://127.0.0.1:8888`, container-IP fallback via `docker inspect hindsight --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'`; ready script in `hermes-sync-configure/scripts/hindsight-sync.py`)
 3. Save each export as: infrastructure/hermes/banks/<BANK_ID>/YYYY-MM-DD.json
 4. reflect(bank_id=BANK_ID, query="daily synthesis")   → per bank
 5. retain(bank_id=BANK_ID, content=reflect_result,     → per bank
@@ -130,6 +131,8 @@ skill: agent-state-management
   **Empirical update (2026-07-19):** limit=1000 now works for banks up to ~430 facts (852KB response) and across 5 concurrent calls. The original overflow failures may have been a transient server-side issue from mid-July. If a specific bank fails persisted output, retry with limit=500; but do not pre-emptively reduce for all medium banks -- try 1000 first.
 - **Reflect failure fallback**: When reflect returns "Provider returned empty message content" even after retrying with a shorter query and budget="low", compose a manual summary from the list_memories output. Scan items for patterns (dates, entities, tags) and write a 3-8 sentence summary. This has been observed on banks as small as toolset (125 facts) and personal-profile (224 facts).
 - **Sequential required**: list_memories calls across different banks ARE independent reads and can be parallelized to save wall-clock time. But reflect + retain must be sequential per bank (each reflect is stateful).
+- **Process small banks first, giant bank last (2026-08-12)**: In the 16-bank daily sync, attempting the largest bank (personal-buffer, 8055 facts) FIRST caused repeated MCP timeouts and stalled the run before any other bank completed. The working order: export all small/medium banks first (they complete in 1 call each), then tackle the giant bank last with REST pagination. Don't let one oversized bank block the whole sync.
+- **Retain batching (2026-08-12)**: retain calls can be issued 4-at-a-time in parallel — they return immediately with `operation_id` (async). This completed the 16-bank retain phase in 4 rounds instead of 16 sequential calls.
 - **Data processing in cron mode**: execute_code is blocked in cron mode (no user present to approve). Use terminal() with inline Python (`python3 << 'PYEOF' ... PYEOF`) to combine paginated MCP outputs from /tmp/hermes-results/call_*.txt files. Pattern: read each persisted file, strip the read_file line-number prefix with `re.sub(r'^\d+\|', '', raw, count=1)`, parse JSON, extract items, combine, save as a single combined JSON file. This works for any number of pagination pages.
 
 ### Periodic Git Sync (Instance → Repo)
