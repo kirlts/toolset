@@ -95,7 +95,7 @@ A cron job that exports ALL Hindsight banks to JSON, synthesizes a daily summary
    - Banks with <200 facts: one call at limit=1000
    - Banks with 200-1000 facts: use limit=1000 (confirmed working up to ~430 facts as of 2026-07-19). If a specific bank fails with "could not be saved", retry with limit=500.
    - Banks with >1000 facts: paginate with offset=1000 (limit=1000 works for these because they paginate naturally)
-   - Banks >3000 facts (scale as of 2026-08-12): MCP pagination still works up to ~2800 facts (hermes: 2783, 3 pages); the largest bank (personal-buffer: 8055 facts, 9 pages at limit=1000) times out via MCP even paginated — export it with the REST API instead (`http://127.0.0.1:8888`, container-IP fallback via `docker inspect hindsight --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'`; ready script in `hermes-sync-configure/scripts/hindsight-sync.py`)
+   - Banks >3000 facts (scale as of 2026-08-14): MCP pagination works up to at least ~8600 facts. hermes (2796, 3 pages) and personal-buffer (8629, 9 pages at limit=1000) both exported cleanly via MCP on 2026-08-13 and 2026-08-14 — the earlier "times out via MCP" claim for personal-buffer is outdated. The REST API fallback still exists for when MCP genuinely times out: `http://127.0.0.1:8888`, container-IP fallback via `docker inspect hindsight --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'`; ready script in `hermes-sync-configure/scripts/hindsight-sync.py`)
 3. Save each export as: infrastructure/hermes/banks/<BANK_ID>/YYYY-MM-DD.json
 4. reflect(bank_id=BANK_ID, query="daily synthesis")   → per bank
 5. retain(bank_id=BANK_ID, content=reflect_result,     → per bank
