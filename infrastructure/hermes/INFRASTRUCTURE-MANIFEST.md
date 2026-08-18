@@ -500,6 +500,15 @@ keeps being the single inventory of what runs on the host.
 | `infrastructure/vps-guardias/censar-tailnet.sh` | Daily census of CI nodes in the tailnet (detects non-ephemeral auth key) | manual install → /usr/local/sbin | 2026-08-18 |
 | `infrastructure/vps-guardias/reciclar-tailscaled.units` | systemd oneshot + daily 04:15 timer for both guards | manual install → /etc/systemd/system | 2026-08-18 |
 
+**Host renamed 2026-08-18**: `toolset-vnic` → `vps-oracle`. The old name was
+OCI's VNIC display name and surfaced as the device name in the Claude mobile
+app. Verified safe before the change: no container uses the host's hostname,
+Hermes only carried it in past logs and transcripts, and the Funnel and its
+certificates use the Tailscale name (`toolset-oci-1-1.tail2d4c18.ts.net`),
+which is independent. `/etc/hosts` keeps BOTH names — OCI's internal
+resolution uses the long `.oraclevcn.com` form, and dropping it would leave
+sudo waiting on resolution. Backup at `/etc/hosts.antes-de-vps-oracle`.
+
 Context for the guards: tailscaled had grown to 2.2 GB RSS in 54 days while
 the CI registered one permanent tailnet node per run (763 dead nodes, purged;
 auth key reissued as ephemeral). Container memory limits applied live the
