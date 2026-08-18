@@ -475,3 +475,32 @@ Caddy puede validar un Bearer desde Infisical.
 | `infrastructure/hermes/cloned-repos.yaml` | **UPDATED** schema (TTS field, metadata). |
 | Hindsight bank `toolset` (741 facts) | **DELETED** — data was older system. `toolset-profile` (0 facts) es canónico fresco. |
 | Server-side `recall_max_tokens` | **APPLIED** a 10 bancos Hindsight: 4096 max. |
+
+---
+
+## Second tenant on the VPS: user `kirlts` (Claude Code workloads) — 2026-08-18
+
+The host gained a second, isolated user running Claude Code sessions and
+knowledge-base workloads, subordinate to the operator's notebook by design:
+its repos update by `git pull` from their real remotes, its Claude identity is
+a fast-forward clone of a private personal config repo exported from the
+notebook, and its secrets arrive inventoried through a sync script (systemd
+user timer on the notebook, 30 min). Rule enforced by tooling: nothing
+untracked-and-undeclared lives on the VPS; drift self-repairs (evidence diff
+kept) and the persistent tmux session self-relaunches — refusing to run
+without Remote Control. Control surface: the `vps` command on the notebook
+(interactive TUI: sessions, services, sync health, account/model). The bridge
+sources live in that private repo, not here; this row exists so this manifest
+keeps being the single inventory of what runs on the host.
+
+| File | Purpose | Sync to VPS | Last Updated |
+|---|---|---|---|
+| `infrastructure/vps-guardias/tailscaled-memoria.conf` | Memory ceiling + Restart=always for tailscaled (the host's only door) | manual install 2026-08-18 (CI paused); source of truth here | 2026-08-18 |
+| `infrastructure/vps-guardias/reciclar-tailscaled.sh` | Daily conditional recycle of tailscaled (>600 MB only) | manual install → /usr/local/sbin | 2026-08-18 |
+| `infrastructure/vps-guardias/censar-tailnet.sh` | Daily census of CI nodes in the tailnet (detects non-ephemeral auth key) | manual install → /usr/local/sbin | 2026-08-18 |
+| `infrastructure/vps-guardias/reciclar-tailscaled.units` | systemd oneshot + daily 04:15 timer for both guards | manual install → /etc/systemd/system | 2026-08-18 |
+
+Context for the guards: tailscaled had grown to 2.2 GB RSS in 54 days while
+the CI registered one permanent tailnet node per run (763 dead nodes, purged;
+auth key reissued as ephemeral). Container memory limits applied live the
+same day (hindsight 2g, infisical 1g) — pending in docker-compose.yml.

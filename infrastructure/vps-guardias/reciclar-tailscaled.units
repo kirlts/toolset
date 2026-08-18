@@ -1,0 +1,14 @@
+[Unit]
+Description=Recicla tailscaled si su memoria paso del umbral
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/reciclar-tailscaled.sh
+ExecStart=/usr/local/sbin/censar-tailnet.sh
+[Unit]
+Description=Revision diaria de la memoria de tailscaled
+[Timer]
+OnCalendar=*-*-* 04:15:00
+Persistent=true
+RandomizedDelaySec=300
+[Install]
+WantedBy=timers.target
