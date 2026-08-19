@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # comprobar-deriva.sh — el motor del buscador vive en DOS sitios y se separó sin que nadie lo notara.
 #
-# El contenido de cada base se sincroniza solo (sync-kb.sh, cron cada 15 min), pero el CÓDIGO del
+# El contenido de cada base se sincroniza al publicar (el gancho pre-push de la KB llama a
+# kb-sync-ahora; el cron de cada minuto queda como red), pero el CÓDIGO del
 # servidor viaja dentro de la imagen Docker, que se construye desde esta carpeta. El 2026-07-30 se
 # descubrió que la copia de acá estaba dos días atrás de la del repositorio de la base: le faltaban
 # 419 líneas, entre ellas los dos arreglos que más habían mejorado la precisión. Es decir: se

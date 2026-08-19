@@ -122,7 +122,7 @@ factual.
 | Servicio | `docker-compose.yml` → servicio `kb-mcp`. `pull_policy: build` (se construye, no vive en registry — sin esto el `compose pull` del pipeline aborta el deploy). `read_only`, `no-new-privileges`, `mem_limit: 2000m` (con 1200m el kernel mataba el contenedor en cada consulta: ~855 MB en reposo dejaban muy poco margen), sin `depends_on`. |
 | Ruta pública | `Caddyfile` → `handle_path /kb/*` → `kb-mcp:8765`, `flush_interval -1`. |
 | Clones de KB | `deploy.sh`, bloque `kb-mcp KB sync`: manifiesto `slug rama repo`, clon `--filter=blob:none` (historial completo para la recencia, 8 MB en vez de 154). |
-| Sync | `sync-kb.sh` (cron */15 min): `git pull` de cada KB, reindexa solo si cambió. Las KB son repos **privados**: `deploy.sh` corre `gh auth setup-git` en el VPS, sin lo cual el fetch falla con «could not read Username» y la KB queda congelada en silencio. |
+| Sync | `sync-kb.sh`, disparado POR LA PUBLICACIÓN: el gancho `pre-push` del repositorio de la KB llama a `/usr/local/sbin/kb-sync-ahora` (sudo acotado a esa ruta, sin parámetros) y el conector queda al día en el acto; el cron de cada minuto quedó como red. `git pull` de cada KB, reindexa solo si cambió. Las KB son repos **privados**: `deploy.sh` corre `gh auth setup-git` en el VPS, sin lo cual el fetch falla con «could not read Username» y la KB queda congelada en silencio. |
 | Modelo | Montado desde `/opt/kb-modelo-256` (int8/256, ~140 MB). |
 
 **Agregar una KB nueva son dos pasos:** una línea en el manifiesto `KB_MANIFIESTO` de

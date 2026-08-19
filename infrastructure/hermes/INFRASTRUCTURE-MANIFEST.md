@@ -32,7 +32,7 @@
 | `infrastructure/kb-mcp/README.md` | **Documento canónico del estado del servicio kb-mcp** (qué es, búsqueda híbrida, herramientas, despliegue, trampa del modelo ARM, sinergia con la estructura de la KB, auth pendiente). Leer este primero. | Repo (documentación) | 2026-07-23 |
 | `infrastructure/kb-mcp/server.py` | Servidor MCP de solo lectura sobre KBs de kb-template: híbrido léxico+semántico+grafo+índices, recencia git. Sin escritura, sin estado | Imagen construida en VPS (docker compose build kb-mcp) | 2026-07-23 |
 | `infrastructure/kb-mcp/Dockerfile` | Imagen de kb-mcp: python:3.12-slim, usuario no-root, ARM64 | docker compose build (en VPS) | 2026-07-23 |
-| `infrastructure/kb-mcp/sync-kb.sh` | git pull de la KB + reindexado. Reinicia SOLO kb-mcp y solo si cambio el HEAD | deploy.sh (paso kb-mcp) + cron (*/15 min) | 2026-07-23 |
+| `infrastructure/kb-mcp/sync-kb.sh` | git pull de la KB + reindexado. Recarga EN CALIENTE SOLO kb-mcp y solo si cambio el HEAD | deploy.sh (paso kb-mcp) + el gancho pre-push de la KB via `kb-sync-ahora` + cron cada minuto como red | 2026-08-19 |
 
 ---
 
