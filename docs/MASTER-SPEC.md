@@ -190,11 +190,20 @@ cabecera de cada herramienta, combinando lo que la KB declara (`kb/mcp.yaml`) co
 conceptos centrales deducidos del grafo. Basta la URL: el agente no necesita que se le
 explique de que trata la base.
 
-**Ciclo de vida del indice — el acoplamiento que decide que modelo se puede usar.** El indice
-semantico se reconstruye **al arrancar el proceso**, y `infrastructure/kb-mcp/sync-kb.sh` (cron cada
-15 min) **reinicia el contenedor cada vez que el contenido de alguna KB cambia**. Las dos decisiones
-viven en archivos distintos y se multiplican: el costo de arranque se paga tantas veces por dia como
-commits haya. Medido el 2026-08-07 sobre `kb-okos`: **28 reinicios en una jornada**. Con la tabla
+**Ciclo de vida del indice — el acoplamiento que decidia que modelo se podia usar, y ya no.**
+Hasta el 2026-08-19 el indice semantico solo se reconstruia **al arrancar el proceso**, y
+`infrastructure/kb-mcp/sync-kb.sh` **reiniciaba el contenedor cada vez que el contenido de alguna KB
+cambiaba**. Las dos decisiones vivian en archivos distintos y se multiplicaban: el costo de arranque
+se pagaba tantas veces por dia como commits hubiera. Medido el 2026-08-07 sobre `kb-okos`:
+**28 reinicios en una jornada**, o sea ~14 min diarios de servicio caido con un codificador real.
+
+Eso ya no ocurre: el servidor **recarga el indice EN CALIENTE** por senal, sin reiniciar el
+contenedor y sin dejar de contestar mientras rearma — medido el 2026-08-19 con 60 sondeos durante
+una recarga completa: 59 respuestas limpias de 0,14 s y una sola lenta, ninguna caida. El
+acoplamiento entre «que codificador se puede pagar» y «cuantas veces se reinicia» quedo cortado, y
+la sincronizacion la dispara ahora la publicacion misma (el gancho `pre-push` de la KB llama a
+`kb-sync-ahora`), con el cron de cada minuto como red. El parrafo de abajo describe el mundo
+anterior y se conserva porque explica POR QUE existe el cache de vectores. Con la tabla
 estatica el arranque es instantaneo y el acoplamiento es invisible; con un codificador real cuesta
 ~30 s por arranque, o sea ~14 min diarios de servicio caido. Por eso el servidor cachea los vectores
 por hash del texto (`KB_VECTORES`): un reinicio recalcula solo lo que cambio. Sin esa variable —o sin
