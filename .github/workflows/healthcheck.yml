@@ -18,7 +18,7 @@ jobs:
           for pair in \
             "/:Landing" \
             "/health:Health" \
-            "/dashboard:Dashboard" \
+            "/kb/salud:ConectorKB" \
             ":8443/:Infisical" \
             ":8787/:HermesWebUI"; do
             path="${pair%%:*}"
@@ -35,6 +35,33 @@ jobs:
           echo "failed=$FAILED" >> "$GITHUB_OUTPUT"
           [ "$FAILED" -eq 0 ] || exit 1
         id: check
+
+      # CONTESTAR NO ES SERVIR. El conector de la KB —el que consulta el fundador—
+      # puede devolver 200 con el indice vacio o sin busqueda semantica: ya paso
+      # que un fetch fallara en silencio y la base quedara congelada mientras el
+      # servicio se veia sano. Un 200 a secas no distingue eso, asi que aca se
+      # mira lo que el propio conector declara sobre lo que esta sirviendo.
+      - name: La base que sirve el conector no esta vacia ni degradada
+        run: |
+          S=$(curl -s --max-time 15 "https://${{ secrets.FUNNEL_DOMAIN }}/kb/salud" || echo '{}')
+          printf '%s\n' "$S" | head -c 400; echo
+          printf '%s\n' "$S" | python3 -c '
+          import json, sys
+          try:
+              d = json.load(sys.stdin)
+          except Exception:
+              print("::error::/kb/salud no devolvio JSON"); sys.exit(1)
+          okos = {k.get("slug"): k for k in d.get("kbs") or []}.get("okos")
+          if not okos:
+              print("::error::el conector no sirve la base okos"); sys.exit(1)
+          if (okos.get("entradas") or 0) < 50:
+              print("::error::okos con %s entradas: el indice quedo vacio o a medias" % okos.get("entradas")); sys.exit(1)
+          if not okos.get("semantica"):
+              print("::error::okos sin busqueda semantica: el conector responde degradado"); sys.exit(1)
+          if d.get("error_ultima_recarga"):
+              print("::error::la ultima recarga fallo y sigue sirviendo lo viejo: %s" % d["error_ultima_recarga"]); sys.exit(1)
+          print("okos: %s entradas, semantica ON, generacion %s" % (okos.get("entradas"), d.get("generacion")))
+          '
 
       - name: Create issue
         if: failure()
