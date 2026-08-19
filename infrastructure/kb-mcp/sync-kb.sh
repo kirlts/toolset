@@ -1,8 +1,38 @@
 #!/usr/bin/env bash
 # sync-kb.sh — actualiza los clones de las KB en /opt/kb y reindexa si alguno cambio.
-# Desplegado por deploy.sh a /home/opc/.hermes/scripts/. Cron cada 15 min.
+# Desplegado por deploy.sh a /home/opc/.hermes/scripts/. Lo dispara el gancho
+# pre-push de la KB al publicar; el cron cada minuto queda como red.
 # Acotado a proposito: solo toca /opt/kb y el contenedor kb-mcp. Nunca otros.
 set -euo pipefail
+
+# ── UNA CORRIDA A LA VEZ ──────────────────────────────────────────────────────
+# El cron pasó de cada 15 minutos a cada minuto el 2026-08-19, para que lo que
+# se captura en la base llegue al conector —y a quien lo consulta desde afuera—
+# en cerca de un minuto en vez de en un cuarto de hora. Medido: una corrida sin
+# cambios cuesta 3,4 s, así que el intervalo corto es barato; pero una CON
+# cambios tarda unos 60 s, o sea exactamente el intervalo, y sin este candado
+# dos corridas se solaparían: la segunda haría `reset --hard` sobre el clon
+# mientras la primera lo está indexando, y mandaría un segundo SIGHUP sobre una
+# recarga en curso. `flock -n` hace que la que llega tarde se retire.
+#
+# PERO NO SE RETIRA EN SILENCIO, y esa es la corrección del 2026-08-19. Desde que
+# existe el aviso al publicar (`kb-sync-ahora`, llamado por el gancho pre-push de
+# la KB), retirarse en silencio SÍ pierde algo: si se publica dos veces seguidas,
+# el segundo aviso choca con el rearmado del primero y el cambio nuevo queda
+# esperando al reloj. Se vio: el servidor sirviendo e5ccb681 con 9d8effd ya
+# publicado. Con el reloj cada quince minutos eso era invisible; con un aviso que
+# promete ser instantáneo, es la diferencia entre serlo y no serlo.
+#
+# Así que el que llega tarde deja una MARCA, y el que está corriendo la mira antes
+# de irse y vuelve a pasar. El reintento está acotado para que no pueda quedar
+# dando vueltas si alguien publica sin parar.
+PENDIENTE=/tmp/sync-kb.pendiente
+exec 9>/tmp/sync-kb.lock
+if ! flock -n 9; then
+  : > "$PENDIENTE" 2>/dev/null || true
+  exit 0
+fi
+rm -f "$PENDIENTE" 2>/dev/null || true
 
 KB_ROOT="${KB_ROOT:-/opt/kb}"
 CONTAINER="${CONTAINER:-kb-mcp}"
@@ -124,4 +154,21 @@ print(" ".join(k for k, v in esperadas.items() if c and c.get(k) != v))' 2>/dev/
   fi
 else
   log "sin cambios en ninguna KB"
+fi
+
+# ── ¿ALGUIEN PUBLICÓ MIENTRAS ESTO CORRÍA? ───────────────────────────────────
+# Si la marca está, hubo un aviso que llegó y se topó con esta corrida. Volver a
+# pasar AHORA es lo que sostiene la promesa de que publicar actualiza el conector
+# en el acto; esperar al reloj la rompe justo cuando se publica seguido.
+# El tope de tres evita que publicaciones encadenadas dejen esto girando.
+if [ -e "$PENDIENTE" ]; then
+  rm -f "$PENDIENTE" 2>/dev/null || true
+  N="${SYNC_KB_REINTENTO:-0}"
+  if [ "$N" -lt 3 ]; then
+    log "hubo una publicacion mientras esto corria; se vuelve a pasar en el acto (reintento $((N+1)))"
+    flock -u 9 2>/dev/null || true
+    exec 9>&-
+    exec env SYNC_KB_REINTENTO=$((N+1)) /bin/bash "$0"
+  fi
+  log "hubo una publicacion mientras esto corria, pero ya van $N reintentos: lo toma el reloj"
 fi

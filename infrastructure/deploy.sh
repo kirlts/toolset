@@ -688,6 +688,14 @@ fi
 # --- Deploy kb-mcp KB sync (clon de la KB + script + cron) ---
 # Bloque deliberadamente no-fatal: todo termina en `|| true` para que un fallo
 # aqui NUNCA aborte un deploy de Hermes (deploy.sh corre con set -euo pipefail).
+# SE INSTALA CON `mv`, NO CON `cp`, y la diferencia no es de estilo (2026-08-19).
+# bash lee un guion por tramos mientras lo ejecuta, asi que sobrescribir el archivo
+# EN EL SITIO mientras hay una corrida viva la hace seguir leyendo desde el
+# desplazamiento viejo del archivo nuevo: ejecuta basura. Paso ese dia — una linea
+# de comentario corrida a mitad se ejecuto como comando. `mv` es un renombre: la
+# corrida en curso conserva su archivo viejo entero y termina bien.
+# Importa mas que antes: el reloj pasa cada minuto y un rearmado dura unos 60 s,
+# asi que lo normal es que HAYA una corrida viva justo cuando se despliega.
 KB_SYNC_SRC="$(dirname "${COMPOSE_FILE}")/kb-mcp/sync-kb.sh"
 if [ -f "$KB_SYNC_SRC" ]; then
   echo "[DEPLOY] Deploying kb-mcp KB sync..."
@@ -696,10 +704,8 @@ if [ -f "$KB_SYNC_SRC" ]; then
   ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     "${SSH_HOST}" \
     "sudo mkdir -p /home/opc/.hermes/scripts && \
-     sudo cp /tmp/sync-kb.sh /home/opc/.hermes/scripts/sync-kb.sh && \
-     sudo chmod +x /home/opc/.hermes/scripts/sync-kb.sh && \
-     sudo chown opc:opc /home/opc/.hermes/scripts/sync-kb.sh && \
-     sudo rm -f /tmp/sync-kb.sh && \
+     sudo chmod 755 /tmp/sync-kb.sh && sudo chown opc:opc /tmp/sync-kb.sh && \
+     sudo mv -f /tmp/sync-kb.sh /home/opc/.hermes/scripts/sync-kb.sh && \
      echo '  sync-kb.sh deployed'" 2>/dev/null || true
   # Manifiesto de KB a servir: "slug rama repo". Agregar una KB nueva es una linea.
   # Clon partial (--filter=blob:limit=1m): historial completo de commits, y ademas los
@@ -754,10 +760,18 @@ okos master https://github.com/kirlts/kb-okos.git"
   # real: credenciales de git ausentes, el fetch aborta— deja la KB congelada en la version
   # del dia del clon y nada lo dice: el servicio responde sano, con contenido viejo. La linea
   # se reescribe si quedo apuntando a /dev/null de un despliegue anterior.
+  #
+  # CADA MINUTO, no cada quince (2026-08-19). Desde ese dia el camino normal ya no
+  # es el reloj: el repositorio de la KB avisa AL PUBLICAR, via el gancho pre-push
+  # que llama a /usr/local/sbin/kb-sync-ahora. El reloj quedo como RED, para el caso
+  # de que el aviso no llegue —sin red, servidor ocupado, publicacion desde una
+  # maquina sin la llave—; y una red que tarda un cuarto de hora deja al fundador
+  # leyendo contenido viejo sin saberlo. El costo de correrlo cada minuto es nulo
+  # cuando no hay cambios: compara el HEAD y sale.
   echo "[DEPLOY] Ensuring kb-sync cron entry..."
   ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     "${SSH_HOST}" \
-    "LINEA='*/15 * * * * bash /home/opc/.hermes/scripts/sync-kb.sh >> /var/log/kb-sync.log 2>&1'; \
+    "LINEA='* * * * * bash /home/opc/.hermes/scripts/sync-kb.sh >> /var/log/kb-sync.log 2>&1'; \
      sudo touch /var/log/kb-sync.log && sudo chown opc:opc /var/log/kb-sync.log; \
      printf '/var/log/kb-sync.log {\\n  weekly\\n  rotate 4\\n  compress\\n  missingok\\n  notifempty\\n}\\n' \
        | sudo tee /etc/logrotate.d/kb-sync > /dev/null; \
@@ -765,7 +779,7 @@ okos master https://github.com/kirlts/kb-okos.git"
        echo '  cron already set'; \
      else \
        (crontab -l 2>/dev/null | grep -v 'sync-kb.sh'; echo \"\$LINEA\") | crontab -; \
-       echo '  cron set (every 15 min, logging to /var/log/kb-sync.log)'; \
+       echo '  cron set (cada minuto, como red del aviso al publicar; log en /var/log/kb-sync.log)'; \
      fi" 2>/dev/null || true
 fi
 

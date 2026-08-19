@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# kb-sync-ahora — dispara la sincronización de las KB EN EL ACTO.
+#
+# POR QUÉ EXISTE (Martín, 2026-08-19: «yo dije INSTANTANEO, no más rápido»)
+#   Lo que se captura en la base tiene que llegar al conector —y a quien lo
+#   consulta desde afuera— en cuanto se publica, no cuando pase el reloj. El
+#   reloj de cada minuto sigue existiendo como red: si esto no llega a correr,
+#   la sincronización ocurre igual poco después.
+#
+# QUÉ HACE, Y QUÉ NO
+#   Ejecuta el mismo `sync-kb.sh` de siempre, sin argumentos y sin nada que el
+#   invocador pueda influir. No recibe parámetros: los ignora a propósito, para
+#   que estar autorizado a llamarlo no autorice a nada más. El script al que
+#   llama ya está acotado a /opt/kb y al contenedor kb-mcp, ya tiene su candado
+#   contra corridas solapadas, y ya recarga en caliente: el servicio nunca deja
+#   de contestar mientras el índice nuevo se arma.
+#
+# POR QUÉ SUELTA EL TRABAJO Y VUELVE EN EL ACTO
+#   Porque quien llama es un gancho de publicación, y esperar acá le costaría a
+#   Martín el minuto entero que tarda armar el índice CADA VEZ que publica algo.
+#   Se midió: un push pasó de dos segundos a cincuenta y ocho.
+#
+#   El trabajo se suelta ACÁ y no del lado de quien llama, y esa es la lección
+#   cara del día: soltarlo allá no funciona —git termina el gancho y mata al
+#   subproceso, con `&` y también con `setsid`, sin dejar rastro—. Acá el
+#   proceso nace de un demonio de sistema, no de git, y sobrevive.
+#
+#   Las tres bocas del proceso apuntan al registro antes de soltarlo: si
+#   quedaran colgando de la conexión que lo llamó, esa conexión no cerraría y
+#   el que llama esperaría igual, que es justo lo que se está evitando.
+#
+# QUIÉN PUEDE LLAMARLO
+#   El usuario que corre las sesiones de trabajo, a través de una regla de
+#   sudo acotada EXACTAMENTE a esta ruta y sin contraseña. No se le da sudo
+#   general ni pertenencia al grupo de contenedores —eso sería root efectivo—:
+#   se le da poder ejecutar esta única cosa, que no admite parámetros.
+set -uo pipefail
+REG=/var/log/kb-sync.log
+echo "[kb-sync-ahora $(date +%H:%M:%S)] disparado al publicar" >> "$REG"
+setsid /usr/bin/sudo -u opc /bin/bash /home/opc/.hermes/scripts/sync-kb.sh \
+  >> "$REG" 2>&1 < /dev/null &
+exit 0
