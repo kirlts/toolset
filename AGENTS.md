@@ -12,7 +12,6 @@ Contiene: identidad, memoria (recall/retain hermes bank), ruteo multi-grupo, Kan
 
 | Category | Available | Details |
 |---|---|---|---|
-| MCP Hindsight | 37 tools | recall, retain, reflect, list_banks, get_bank, etc. Via gateway, no extra auth |
 | MCP Composio | 7 tools | SEARCH_TOOLS, MULTI_EXECUTE_TOOL, etc. Via gateway |
 | WhatsApp | Bot 56936414929 | User 56994172921. Via gateway. Multi-group: 5 grupos en comunidad Hermes HUB |
 | WhatsApp Multigrupo | 6 grupos + DM | Ruteo determinista via whatsapp-router skill. Tipos: coding/research/personal/custom/announcements |
@@ -64,8 +63,6 @@ Docker sandbox available for port-isolated code execution. Deterministic routing
 No LLM judgment for routing. Routing decisions come from whatsapp-groups.yaml.
 
 ## Memory — Multi-repo Bank System
-
-Hindsight is centralized memory. Each active repo + each WhatsApp group has its own isolated bank.
 
 ### Banks
 

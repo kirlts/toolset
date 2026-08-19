@@ -436,6 +436,3 @@ Esta skill trabaja con repositorios y código. Por lo tanto:
 1. Antes de empezar, ejecuta `recall(bank="<repo-name>", query="contexto del proyecto, bugs previos, debugging history")`.
 2. Al encontrar la causa raíz y la solución, ejecuta `retain(bank="<repo-name>", content="bug: <descripción>, causa raíz: <causa>, solución: <solución>, archivos: <lista>", tags=["debug", "YYYY-MM-DD"])`.
 
-
-
-

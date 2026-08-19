@@ -35,18 +35,6 @@ Copia y commitea los siguientes archivos de `~/.hermes/` al repo `toolset/infras
 
 ---
 
-## 2. `hermes-sync-banks` — Exportación diaria de banks Hindsight
-
-| Campo | Valor |
-|---|---|
-| **Job ID** | `47b3ed7838a8` |
-| **Schedule** | Diario, 02:00 UTC (`0 2 * * *`) — 22:00 Chile |
-| **Prompt** | Descubre todos los banks, exporta a JSON, ejecuta reflect+retain diario, commitea |
-| **No-agent** | `false` (usa LLM para procesar banks) |
-| **Deliver** | `local` |
-| **Estado** | ✅ Activo |
-| **Último run** | 2026-06-28 02:19 UTC — OK |
-
 ### Qué hace
 1. Descubre todos los banks vía `list_banks()`
 2. Exporta cada bank como JSON → `infrastructure/hermes/banks/<bank>/YYYY-MM-DD.json`
@@ -108,8 +96,6 @@ Copia y commitea los siguientes archivos de `~/.hermes/` al repo `toolset/infras
 ### Qué revisa
 1. **CI/CD** — Últimos 3 runs; si alguno falló, diagnostica y sugiere corrección
 2. **Mensajes pendientes** — Respuestas sin contestar en WhatsApp >12h
-3. **Tareas pendientes** — Banks de Hindsight con work pendiente
-4. **Servicios core** — hindsight, infisical, caddy, hermes-webui, hermes-gateway
 5. **Reporte al usuario** — Resumen por WhatsApp. Si todo bien, mensaje breve. Si hay problemas, detalle.
 
 ---

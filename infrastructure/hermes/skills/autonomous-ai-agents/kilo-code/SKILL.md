@@ -19,10 +19,8 @@ Hermes NO escribe código. Punto. Toda generación de código, testeo, debugging
 
 Hermes solo:
 - Recibe la solicitud del usuario
-- Carga contexto de Hindsight (recall)
 - Construye el prompt para Kilo con instrucciones claras
 - Invoca `kilo run --auto`
-- Persiste aprendizajes en Hindsight (retain)
 - Reporta resultados al usuario
 
 Si Hermes escribe código directamente, el usuario lo corrige. **Señal de alerta:** cuando el usuario pregunta "¿Estás usando Kilo CLI para esto?" ya operaste mal.
@@ -34,7 +32,6 @@ Toda invocación a `kilo run ... --auto` DEBE incluir este preámbulo al INICIO 
 ```
 INSTRUCCIÓN PERMANENTE: 
 Sigue las reglas de la carpeta .agents/ en todos los repositorios que la contengan, así como Docs/RULES.md.
-Usa recall/retain en Hindsight con el bank_id del repo activo (el nombre del repositorio) para contexto y persistencia.
 
 [TAREA ESPECÍFICA]
 ```
@@ -58,7 +55,6 @@ Para CADA proyecto nuevo o clonado, Hermes DEBE:
 1. Clonar `.agents/` desde `kirlts/kairos` en la raíz del proyecto
 2. Crear `docs/` con MASTER-SPEC.md, TODO.md, MEMORY.md, USER-DECISIONS.md, CHANGELOG.md siguiendo `.agents/templates/`
 3. Ejecutar `/document` workflow (vía Kilo: `kilo run "Ejecuta /document según .agents/workflows/document.md" --auto`)
-4. Crear bank en Hindsight con `bank_id = nombre-del-repo` (exactamente el nombre del repo, sin descripciones)
 5. Crear skill Hermes para la capacidad permanente
 6. Push a GitHub
 
@@ -77,7 +73,6 @@ Para CADA proyecto nuevo o clonado, Hermes DEBE:
 Kilo CLI 7.3.54 construye su system prompt desde **tres fuentes**, no una:
 
 **Fuente A — `agent.build.prompt` en `kilo.jsonc` (identidad persistente):**
-Define la identidad del agente efímero. En este stack: gobernanza via `.agents/`, Hindsight memory, anti-corporate tone. Se inyecta como system message base.
 
 **Fuente B — Array `instructions` en `kilo.jsonc` (archivos de reglas):**
 Rutas relativas resueltas contra el `--dir` del proyecto. Cada archivo se lee y se concatena al system prompt. Si un archivo **no existe**, se skipea **silenciosamente** — sin warning ni error visible.
@@ -113,25 +108,11 @@ kilo run "." --dir /path --format json 2>&1 | head -5
 kilo run "." --dir /path --print-logs 2>&1 | grep -i "prompt\|instruction\|session.prompt"
 ```
 
-Kilo NO expone el system prompt completo en logs. La única forma de verificarlo es inferir de las tool calls que ejecuta. Si el agente lee `REPOMAP.md` primero y llama a `hindsight-selfhosted_recall`, las reglas se cargaron bien. Si no, falta la instrucción correspondiente en Fuente B o C.
-
 ## 🚨 REGLA CRÍTICA: Diagnóstico de Kilo Hangs
 
 Cuando Kilo CLI se cuelga (>3 min sin tool calls, solo `message.part.updated` en el log), el problema NO es siempre el tamaño del prompt. Hay DOS causas posibles.
 
 **DIAGNÓSTICO PRIMERO, ACCIÓN DESPUÉS.** No hacer cambios mientras diagnosticas. Presenta hallazgos al usuario y espera instrucciones antes de actuar.
-
-**REVISAR CONFIGURACIÓN ANTES DE CULPAR AL MODELO.** Kilo tiene un system prompt pre-inyectado (`infrastructure/kilo-system-prompt.md`) con instrucciones de recall a Hindsight. Revisa eso antes de asumir que el modelo es el problema.
-
-### Causa 1: El recall de Hindsight saturó el contexto
-
-Kilo tiene UNA INSTRUCCIÓN en su system prompt que ordena recuerdos de Hindsight al iniciar:
-```
-hindsight-selfhosted_recall(bank=<nombre-del-repo>-profile)
-```
-Sin parámetros `max_tokens` ni `budget`. Si el banco tiene >100 facts, el recall puede devolver datos masivos (>600KB en el caso del banco `toolset` con 741 facts).
-
-**AMBIGÜEDAD CONOCIDA:** El system prompt dice `bank=<...>-profile`. Pero `docs/RULES.md` (cargado como instructions file) dice "repo name as bank_id, kebab-case". Son contradictorios. Mientras no se unifiquen, el recall puede apuntar al banco equivocado.
 
 ### Causa 2: El prompt de Hermes es demasiado grande
 
@@ -182,7 +163,6 @@ Cuando el prompt contiene caracteres especiales (backticks, comillas, $, saltos 
 ```bash
 cat > /tmp/kilo-prompt.txt << 'EOF'
 INSTRUCCIÓN PERMANENTE: Sigue .agents/ y reglas kairos.
-Usa recall/retain en Hindsight con bank_id del repo activo.
 
 [TAREA con carácteres especiales: `backticks`, $variables, "comillas"]
 EOF
@@ -222,7 +202,6 @@ Para tareas complejas de análisis que requieren múltiples fases (ej: leer info
 **Estructura del prompt:**
 ```
 INSTRUCCIÓN PERMANENTE: Sigue .agents/ y reglas kairos.
-Usa recall/retain en Hindsight con bank_id del repo activo.
 
 ## MISIÓN: [Nombre del análisis]
 

@@ -6,8 +6,6 @@ category: productivity
 
 # Bitácora de Proyecto
 
-Cuando el usuario comparte información operacional sobre un proyecto (estado, decisiones, migraciones, hitos), debes registrarla en la bitácora designada — sea un Google Doc vía Drive o un archivo BITACORA.md local — no solo en Hindsight memory ni en memory() de Hermes.
-
 ## Señales de activación
 
 - El usuario dice "dejalo en bitacora", "anotalo en bitacora", "registralo"
@@ -53,8 +51,6 @@ Algunos proyectos tienen su bitácora en Google Drive (no en filesystem). El per
 
 2. **Bitácora es el destino primario, NO memory()**. Cuando el usuario dice "anota en bitácora" o "registra esto", el destino es la bitácora designada (Google Doc o BITACORA.md), no el `memory()` de Hermes. Memory es solo para preferencias de usuario y perfil. La bitácora es el archivo visible y accesible por el equipo.
 
-3. **Siempre bitácora física + Hindsight sync**: La entrada va en la bitácora designada (Google Doc o BITACORA.md local) Y opcionalmente se retiene en Hindsight como backup. La bitácora es la fuente de verdad; Hindsight es sync secundario.
-
 4. **Ubicación (solo para proyectos que usan filesystem)**: BITACORA.md va en la raíz del knowledge base del proyecto (e.g., `/opt/traza-ambiental/knowledge-base/BITACORA.md`). Si no existe KB, va en `docs/` del repo.
 
 5. **Entradas nuevas al inicio del archivo** (más reciente primero) o al final (orden cronológico). Usa orden cronológico inverso (más reciente arriba) para proyectos activos.
@@ -70,7 +66,6 @@ Algunos proyectos tienen su bitácora en Google Drive (no en filesystem). El per
 
 ## Pitfalls
 
-- No asumas que un retain() en Hindsight o un memory() es suficiente cuando el usuario pide bitácora. **La bitácora es un archivo visible en Drive o filesystem**, no memoria interna de Hermes.
 - **Usar memory() para registros operacionales** en vez de la bitácora designada. Violación documentada en 2026-07-21: Martín corrigió explícitamente "anota en la bitácora, no en tu memoria, SIEMPRE". Memory es para preferencias de usuario, no para registros de proyecto.
 - No crees la bitácora en una ubicación que el usuario no pueda ver fácilmente (e.g., dentro de `.agents/` o `.git/`).
 - Si el usuario pidió explícitamente bitácora, confirma con "Hecho, registrado en [destino]" y menciona el destino exacto (Google Doc link o ruta local).

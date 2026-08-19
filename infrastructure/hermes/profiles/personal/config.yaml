@@ -363,13 +363,7 @@ mcp_servers:
       x-consumer-api-key: ck_Ic0vCrJsMEx7TRLwjs_u
     timeout: 180
     url: https://connect.composio.dev/mcp
-  hindsight-selfhosted:
-    url: https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/mcp/
 memory:
-  hindsight:
-    bank: hermes
-    url: https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/mcp/
-  provider: hindsight
 model:
   default: opencodego/glm-5.2
   provider: opencode-go

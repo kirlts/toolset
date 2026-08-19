@@ -9,8 +9,6 @@ El usuario codea en Kilo Code (VS Code) en su laptop, pushea a GitHub, y te avis
 
 ## Memory Cycle
 
-The memory system is Hindsight MCP.
-
 === RECALL/RETAIN ===
 Estas son reglas ABSOLUTAS. No son optativas.
 

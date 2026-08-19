@@ -71,9 +71,6 @@ INFISICAL_DB_NAME=infisical
 INFISICAL_SITE_URL=http://toolset-oci:8081
 DB_CONNECTION_URI=postgresql://${INFISICAL_DB_USER:-infisical}:${INFISICAL_DB_PASSWORD:-infisical}@postgres:5432/${INFISICAL_DB_NAME:-infisical}
 OPENCODE_GO_API_KEY=${OPENCODE_GO_API_KEY}
-HINDSIGHT_API_LLM_PROVIDER=openai
-HINDSIGHT_API_LLM_MODEL=deepseek-v4-flash
-HINDSIGHT_API_LLM_BASE_URL=https://opencode.ai/zen/go/v1
 FUNNEL_DOMAIN=${FUNNEL_DOMAIN:-toolset-oci-1-1.tail2d4c18.ts.net}
 INFISICAL_PID=${INFISICAL_PID:-}
 INFISICAL_SERVICE_TOKEN=${INFISICAL_SERVICE_TOKEN:-}
@@ -263,7 +260,7 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
 # compose recree el MISMO contenedor corre una carrera con el daemon ("No such
 # container" al referenciar un ID que compose ya estaba retirando). Si el
 # contenedor quedo en Created/Exited (p.ej. porque un `up` previo aborto por la
-# espera de `hindsight`), no hay proxy que matar: basta un `up -d` normal.
+# espera de una dependencia), no hay proxy que matar: basta un `up -d` normal.
 # Ademas, el `|| true` final es obligatorio: esto es un intento de recuperacion
 # best-effort que YA se verifica despues (PORT_RETRY y el loop de servicios
 # criticos); sin el, un fallo aca disparaba `pipefail` + `set -e` y abortaba TODO
@@ -312,7 +309,7 @@ DEPLOY_FAILED=false
 # --- Verify critical services ---
 echo "[DEPLOY] Verifying critical services..."
 sleep 10
-CRITICAL="caddy hindsight infisical"
+CRITICAL="caddy infisical"
 for attempt in 1 2 3; do
   ALL_OK=true
   for svc in $CRITICAL; do
@@ -331,20 +328,6 @@ for svc in $CRITICAL; do
     "sudo docker inspect $svc --format '{{.State.Health.Status}}' 2>/dev/null || echo missing")
   if [ "$STATUS" = "healthy" ]; then echo "  ✅ $svc"; else echo "  ❌ $svc: $STATUS"; DEPLOY_FAILED=true; fi
 done
-
-# --- MCP connectivity check (critical: must survive deploys) ---
-echo "[DEPLOY] Verifying MCP connectivity..."
-MCP_INIT=$(curl -sf -X POST \
-  "https://${CADDY_DOMAIN}/hindsight/mcp/" \
-  -H "Content-Type: application/json" \
-  -H "Accept: application/json, text/event-stream" \
-  -d '{"jsonrpc":"2.0","method":"tools/call","params":{"name":"list_banks","arguments":{}},"id":1}' 2>/dev/null || echo "")
-if echo "$MCP_INIT" | grep -q "bank_id"; then
-  echo "  ✅ MCP connectivity verified (list_banks OK)"
-else
-  echo "  ❌ MCP connectivity failed"
-  DEPLOY_FAILED=true
-fi
 
 # --- Clone toolset repo on server (idempotent) ---
 echo "[DEPLOY] Syncing toolset repo on server..."
@@ -493,31 +476,13 @@ LANDING_HTML=$(cat <<EOF
 <div class="tree">
 <pre>
   <span class="pipe">├──</span> <span class="path"><a href="/">/</a></span>                        <span class="desc">Landing page &mdash; Toolset status</span>   <span class="status">✅</span>
-  <span class="pipe">├──</span> <span class="path"><a href="/health">/health</a></span>                   <span class="desc">Hindsight &mdash; Health check</span>        <span class="status">✅</span>
   <span class="pipe">├──</span> <span class="path"><a href="/api/status">/api/status</a></span>               <span class="desc">Infisical &mdash; API Health</span>           <span class="status">✅</span>
-  <span class="pipe">├──</span> <span class="path"><a href="/hindsight/health">/hindsight/health</a></span>        <span class="desc">Hindsight &mdash; API Health</span>           <span class="status">✅</span>
-  <span class="pipe">├──</span> <span class="path"><a href="/hindsight/mcp/">/hindsight/mcp/</a></span>          <span class="desc">Hindsight &mdash; MCP (harnesses)</span>      <span class="status">✅</span>
-  <span class="pipe">├──</span> <span class="path"><a href="/hindsight/docs">/hindsight/docs</a></span>          <span class="desc">Hindsight &mdash; API Docs (Swagger)</span>   <span class="status">✅</span>
-  <span class="pipe">├──</span> <span class="path"><a href="/dashboard">/dashboard</a></span>                <span class="desc">Hindsight &mdash; Control Plane</span>        <span class="status">✅</span>
   <span class="pipe">├──</span> <span class="path"><a href="/hermes/">/hermes/</a></span>                  <span class="desc">Hermes WebUI &mdash; via Caddy (mobile)</span> <span class="status">✅</span>
   <span class="pipe">├──</span> <span class="path"><a href="https://${CADDY_DOMAIN}:8443/">:8443/</a></span>                  <span class="desc">Infisical UI &mdash; Funnel directo</span>      <span class="status">✅</span>
   <span class="pipe">└──</span> <span class="path"><a href="https://${CADDY_DOMAIN}:8787/">:8787/</a></span>                  <span class="desc">Hermes WebUI &mdash; Funnel directo</span>     <span class="status">✅</span>
 </pre>
 </div>
-<p style="margin-top:1.5em;font-weight:bold;color:#f0c674;">🧠 Memory Banks</p>
-<div class="tree">
-<pre>
-  <span class="pipe">└──</span> <span class="path"><a href="/banks/toolset-profile">/banks/toolset-profile</a></span>              <span class="desc">toolset-profile &mdash; infrastructure memory bank</span>             <span class="status">✅ online</span>
-</pre>
-</div>
-<p style="margin:0.5em 0 0 1.5em;color:#888;font-size:0.85em;">
-  Los banks se nombran con el patron <code>&lt;profile&gt;-profile</code>,
-  segun <code>docs/RULES.md</code>. Sin excepciones.
-  Cada repositorio nuevo crea un bank automaticamente via MCP.
-  Abre el <a href="/dashboard" style="color:#7ec8e3;">Control Plane</a> para ver todos los banks disponibles.
-</p>
 <div class="meta">
-  <p>MCP: <code>opencodego://${CADDY_DOMAIN}/hindsight/mcp/</code></p>
   <p>Infisical UI: <a href="https://${CADDY_DOMAIN}:8443/" style="color:#7ec8e3;">https://${CADDY_DOMAIN}:8443/</a> <span class="status">(Funnel)</span></p>
   <p>Hermes WebUI: <a href="https://${CADDY_DOMAIN}:8787/" style="color:#7ec8e3;">https://${CADDY_DOMAIN}:8787/</a> <span class="status">(Funnel)</span> &bull; <a href="/hermes/" style="color:#7ec8e3;">/hermes/</a> <span class="status">(via Caddy, mobile-friendly)</span></p>
   <p>Gobernanza: <a href="https://github.com/kirlts/toolset/blob/main/docs/RULES.md" style="color:#7ec8e3;">docs/RULES.md</a></p>
@@ -1043,93 +1008,6 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
    echo '[hermes] gh token file created'"
 
  
-# --- Hindsight bank backup/restore (resilience: bank data survives volume wipe) ---
-BACKUP_DIR="${REMOTE_DIR}/backups/hindsight"
-echo "[DEPLOY] Checking Hindsight bank backup..."
-HINDSIGHT_DATA_EXISTS=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-  "${SSH_HOST}" \
-  "sudo docker inspect hindsight --format '{{.State.Running}}' 2>/dev/null || echo 'missing'" 2>/dev/null || echo "missing")
-if [ "$HINDSIGHT_DATA_EXISTS" = "true" ]; then
-  # Check if backup was done within the last hour
-  LATEST_BACKUP=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    "${SSH_HOST}" "ls -1t ${BACKUP_DIR}/*.tar.gz 2>/dev/null | head -1" 2>/dev/null || echo "")
-  SKIP_BACKUP=false
-  if [ -n "$LATEST_BACKUP" ]; then
-    BACKUP_AGE=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-      "${SSH_HOST}" "echo \$(( \$(date +%s) - \$(date -r ${LATEST_BACKUP} +%s 2>/dev/null || echo 0) ))" 2>/dev/null || echo "9999")
-    if [ "$BACKUP_AGE" -lt 3600 ] 2>/dev/null; then
-      SKIP_BACKUP=true
-    fi
-  fi
-  if [ "$SKIP_BACKUP" = "true" ]; then
-    echo "[DEPLOY][backup] Last backup <1hr old, skipping"
-  else
-    # Create timestamped backup
-    BACKUP_TS=$(date -u +"%Y%m%dT%H%M%SZ")
-     echo "[DEPLOY][backup] Creating Hindsight data backup (${BACKUP_TS})..."
-     ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-       "${SSH_HOST}" \
-        "sudo mkdir -p ${BACKUP_DIR} && \
-         sudo docker exec hindsight sh -c 'tar czf /tmp/hindsight-backup-${BACKUP_TS}.tar.gz -C /home/hindsight .pg0 --warning=no-file-changed --ignore-failed-read 2>/dev/null || true' && \
-         sudo docker cp hindsight:/tmp/hindsight-backup-${BACKUP_TS}.tar.gz ${BACKUP_DIR}/ && \
-         sudo docker exec hindsight rm /tmp/hindsight-backup-${BACKUP_TS}.tar.gz && \
-         ls -1t ${BACKUP_DIR}/*.tar.gz 2>/dev/null | tail -n +11 | xargs -r sudo rm -f && \
-         echo '[DEPLOY][backup] Done'"
-  fi
-else
-  # Try to restore from latest backup (volume was wiped or fresh deploy)
-  LATEST_BACKUP=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    "${SSH_HOST}" "ls -1t ${BACKUP_DIR}/*.tar.gz 2>/dev/null | head -1" 2>/dev/null || echo "")
-  if [ -n "$LATEST_BACKUP" ]; then
-    echo "[DEPLOY][restore] Restoring Hindsight from backup: $(basename ${LATEST_BACKUP})..."
-    HINDSIGHT_VOL=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-      "${SSH_HOST}" "sudo docker inspect hindsight --format '{{range .Mounts}}{{if eq .Destination \"/home/hindsight/.pg0\"}}{{.Source}}{{end}}{{end}}'" 2>/dev/null || echo "")
-    if [ -n "$HINDSIGHT_VOL" ]; then
-      ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-        "${SSH_HOST}" \
-        "sudo tar xzf ${LATEST_BACKUP} -C /tmp/hindsight-restore && \
-         sudo cp -a /tmp/hindsight-restore/.pg0/* ${HINDSIGHT_VOL}/ && \
-         sudo rm -rf /tmp/hindsight-restore && \
-         echo '[DEPLOY][restore] Done'"
-    else
-      echo "[DEPLOY][restore] WARNING: Could not find Hindsight data volume"
-    fi
-  else
-    echo "[DEPLOY][backup] No Hindsight data running and no backup found — skipping restore"
-  fi
-fi
-
-# --- Ensure "hermes" bank exists in Hindsight ---
-echo "[DEPLOY] Ensuring 'hermes' bank exists in Hindsight..."
-HINDSIGHT_BANKS_URL="https://${CADDY_DOMAIN}/hindsight/v1/default/banks"
-HAS_HERMES_BANK=$(curl -s "${HINDSIGHT_BANKS_URL}" 2>/dev/null | python3 -c "import sys,json; print(any(b.get('bank_id')=='hermes' for b in json.load(sys.stdin).get('banks',[])))" 2>/dev/null || echo "False")
-if [ "$HAS_HERMES_BANK" = "False" ]; then
-  echo "[DEPLOY] Creating 'hermes' bank..."
-  curl -s -X PUT "${HINDSIGHT_BANKS_URL}/hermes" \
-    -H "Content-Type: application/json" \
-    -d '{"name":"hermes","mission":"Hermes Agent memory: identity, repo knowledge, task history, rules"}' 2>/dev/null | python3 -c "import sys,json; print(f'  Bank: {json.load(sys.stdin).get(\"bank_id\",\"error\")}')" 2>/dev/null || echo "  Bank hermes already exists"
-else
-  echo "[DEPLOY] 'hermes' bank already exists"
-fi
-
-# --- Ensure all known project banks exist in Hindsight ---
-BANKS_DIR="$(dirname "${COMPOSE_FILE}")/hermes/banks"
-BANKS_DIR="$(dirname "${COMPOSE_FILE}")/hermes/banks"
-if [ -d "$BANKS_DIR" ]; then
-  echo "[DEPLOY] Ensuring project banks exist in Hindsight..."
-  for bank_id in $(ls "$BANKS_DIR"); do
-    HAS_BANK=$(curl -s "${HINDSIGHT_BANKS_URL}" 2>/dev/null | python3 -c "import sys,json; print(any(b.get('bank_id')=='$bank_id' for b in json.load(sys.stdin).get('banks',[])))" 2>/dev/null || echo "False")
-    if [ "$HAS_BANK" = "False" ]; then
-      echo "  Creating bank '$bank_id'..."
-      curl -s -X PUT "${HINDSIGHT_BANKS_URL}/${bank_id}" \
-        -H "Content-Type: application/json" \
-        -d '{"name":"'"$bank_id"'"}' 2>/dev/null > /dev/null && echo "  Bank $bank_id created" || echo "  Bank $bank_id already exists or error"
-    else
-      echo "  Bank '$bank_id' already exists"
-    fi
-  done
-fi
-
 # --- Sync profile SOUL.md files to VPS (tenant profiles excluded) ---
 echo "[DEPLOY] Syncing profile SOUL.md files to VPS..."
 PROFILES_DIR="$(dirname "${COMPOSE_FILE}")/hermes/profiles"
@@ -1166,9 +1044,6 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     sudo chattr -i /home/opc/.hermes/config.yaml 2>/dev/null || true; \
     chmod +x /tmp/inject-composio-key.py && \
     hermes config set terminal.backend local 2>/dev/null; \
-    hermes config set memory.provider hindsight 2>/dev/null; \
-    hermes config set memory.hindsight.url 'https://${CADDY_DOMAIN}/hindsight/mcp/' 2>/dev/null; \
-    hermes config set memory.hindsight.bank 'hermes' 2>/dev/null; \
     hermes config set model.default 'opencodego/deepseek-v4-flash' 2>/dev/null; \
     hermes config set model.provider 'opencode-go' 2>/dev/null; \
     python3 /tmp/inject-composio-key.py 2>&1; \
@@ -1241,17 +1116,6 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   "ln -sf /opt/toolset-repo/AGENTS.md /home/opc/AGENTS.md && \
    echo '[hermes] AGENTS.md symlink created'"
 echo "[DEPLOY] AGENTS.md symlink created."
-
-# --- Install memory consolidation cron ---
-echo "[DEPLOY] Installing memory consolidation cron..."
-ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-  "${SSH_HOST}" \
-  "CRON_CMD='*/5 * * * * /home/opc/.hermes/consolidate-memory.sh' && \
-   (crontab -l 2>/dev/null | grep -q consolidate-memory && \
-     echo '[cron] Already installed' || \
-     (crontab -l 2>/dev/null; echo \"\$CRON_CMD\") | crontab - && \
-     echo '[cron] Consolidation cron installed (every 5 min)')"
-echo "[DEPLOY] Memory consolidation cron configured."
 
 # --- Install repo-pull cron (every 5 minutes, silent unless conflict) ---
 echo "[DEPLOY] Installing repo-pull cron..."
@@ -1417,9 +1281,6 @@ FUNNEL="https://${CADDY_DOMAIN}"
 URLS=(
   "/:Landing page"
   "/health:Health check"
-  "/hindsight/health:Hindsight API"
-  "/hindsight/mcp/:MCP endpoint"
-  "/dashboard:Hindsight CP"
   "/api/v1/:Infisical API"
 )
 for entry in "${URLS[@]}"; do
@@ -1456,10 +1317,6 @@ echo "  ── Services ──────────────────�
   echo "  Services         https://${CADDY_DOMAIN}/"
   echo "  Infisical UI     https://${CADDY_DOMAIN}:8443/"
   echo "  Infisical API    https://${CADDY_DOMAIN}/api/v1/"
-  echo "  Hindsight API    https://${CADDY_DOMAIN}/hindsight/health"
-  echo "  Hindsight CP     https://${CADDY_DOMAIN}/dashboard"
-  echo "  Hindsight MCP    https://${CADDY_DOMAIN}/hindsight/mcp/"
-  echo "  API Docs         https://${CADDY_DOMAIN}/hindsight/docs"
   echo "  Hermes WebUI     https://${CADDY_DOMAIN}:8787/"
 echo ""
 echo "  ── CLI Tools (VPS) ───────────────────────"
@@ -1467,8 +1324,6 @@ echo "  ── CLI Tools (VPS) ────────────────�
   echo "  Hermes Agent     $(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "${SSH_HOST}" "hermes --version 2>/dev/null || echo 'not installed'" 2>/dev/null || echo 'not installed')"
 echo ""
 echo "  ── Internal (via Tailscale) ──────────────"
-  echo "  Hindsight API    http://${TAILSCALE_IP}:8888 (via Funnel: /hindsight/*)"
-  echo "  Hindsight CP     http://${TAILSCALE_IP}:9999 (via Funnel: /dashboard)"
   echo "  Infisical        http://${TAILSCALE_IP}:8081 (via Funnel: /api/v1/)"
 echo ""
 echo "  ── Docker Status ─────────────────────────"

@@ -9,9 +9,7 @@ La configuración de Kilo CLI vive en `~/.config/kilo/kilo.jsonc` y se versiona 
 | Campo | Propósito | Configurado |
 |-------|-----------|-------------|
 | `provider` | OpenCode Go con deepseek-v4-flash | ✅ |
-| `mcp` | Composio + Hindsight-selfhosted | ✅ |
 | `instructions` | Carga archivos markdown como system prompt | ✅ `.agents/rules/01-behavior.md`, `05-constraints.md`, `docs/RULES.md` |
-| `agent.build.prompt` | System prompt base para agente build | ✅ Identity Kairos, workflow /document, TDD, SDD, secrets Infisical, Hindsight memory |
 
 ### Provider: opencodego
 
@@ -51,7 +49,6 @@ El prompt del agente `build` cubre:
 2. **Gobernanza**: Kairos v4, Master Spec como fuente de verdad
 3. **Workflow obligatorio**: /document inicio/fin y tras cambios, TDD + SDD, /test con permiso de instalar dependencias
 4. **Secrets**: todo via Infisical, nunca .env ni hardcodeado
-5. **Hindsight**: recall/retain/reflect por bank nombrado como el repo
 6. **Calidad**: zero slop, zero fabricación, respuestas concisas
 
 ## API Key: Export al Shell
@@ -79,11 +76,8 @@ Esto asegura que cada shell interactivo tenga la variable disponible. No es nece
       "x-consumer-api-key": "{env:COMPOSIO_MCP_KEY}"
     }
   },
-  "hindsight-selfhosted": {
     "type": "remote",
-    "url": "https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/mcp/"
   }
 }
 ```
 
-Ambos MCPs se conectan automáticamente en cada sesión de Kilo CLI. Composio expone herramientas de integración (Reddit, Gmail, etc.) y Hindsight expone recall/retain/reflect para memoria persistente.

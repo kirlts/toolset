@@ -131,10 +131,6 @@ When the user asks for "non-obvious use cases" or "creative applications":
 4. **Never assume which ideas the user wants** — ask, don't commit.
 5. **Capture selected ideas only** — as EPICs in toolset's `docs/TODO.md` following the format above.
 
-## Hindsight Bank Daily Synchronization
-
-The daily sync (`hermes-sync-banks`) exports all Hindsight banks to JSON, generates a reflect+retain summary for each, and commits to git.
-
 ### Workflow
 
 For each bank (excluding `default`):
@@ -198,8 +194,6 @@ For each bank (excluding `default`):
 | **execute_code BLOCKED in cron mode** | Error: "BLOCKED: execute_code runs arbitrary local Python... Cron jobs run without a user present to approve it." | Use terminal() with python3 -c '...' or python3 << 'PYEOF' heredocs for all data processing. The terminal tool is NOT blocked in cron mode. |
 
 ### Banks to skip
-
-- `default` — legacy Hindsight system bank, empty or irrelevant. Never process.
 
 ### Current bank inventory (as of 2026-07-18)
 
@@ -374,12 +368,10 @@ The bridge's channel_directory.json is at `~/.hermes/channel_directory.json`. Th
 | Service | Command |
 |---|---|
 | All Docker containers | `docker ps --format "table {{.Names}}\t{{.Status}}"` |
-| Hindsight (Docker) | `docker ps --filter name=hindsight --format "{{.Status}}"` |
 | Infisical | `curl -sf http://localhost:8081/api/status` |
 | Caddy | `curl -sf http://localhost:8080/` (serves landing page) |
 | hermes-gateway | `systemctl is-active hermes-gateway` | Cruza con `ps aux | grep hermes.*gateway` — puede estar vivo fuera de systemd. Si Hermes no responde, ver `references/gateway-crash-diagnosis.md`. |
 | hermes-webui | `systemctl is-active hermes-webui` |
-| Hindsight MCP | Verify via MCP tool `list_banks` or `get_bank` |
 | WhatsApp Bridge | `curl -sf http://localhost:3000/messages` (returns `[]` when up) |
 | SearXNG | `curl -sf http://localhost:4000` |
 
@@ -404,7 +396,6 @@ o hermes-sync-banks). El flujo es:
 **Cómo confirmar que un SIGKILL fue restart planeado vs crash inesperado:**
 
 - Look for the **cron job context** before the kill. En journalctl, busca actividad de hermes-sync minutos antes:
-  `ERROR tools.mcp_tool: MCP tool hindsight-selfhosted/retain call failed`
   `WARNING agent.tool_executor: Tool skill_manage returned error`
   `hermes-sync: banks/file artifacts` en los commits de git
 - Los kills planeados ocurren en **pares** (double-kill) separados por ~40s
@@ -450,7 +441,6 @@ Run this when asked for a "health check" or "revision de salud":
    - **Bridge liveness**: `curl -sf http://localhost:3000/messages` — HTTP 200 = alive.
    - **Pending message detection via state.db**: Query `state.db` sessions where `source LIKE '%whatsapp%'` and `started_at > (now - 12h)`. For each session, check if the last message's role is `'user'` — this means the user sent something that may need a response. Cross-reference sequential sessions with similar titles. See `references/health-check-state-db-queries.md` for exact SQL.
    - **Check for undecryptable messages**: grep bridge.log for `No session found` in the last 12h — indicates lost messages. See `references/whatsapp-bridge-decryption-failures.md`.
-3. **Hindsight banks**: Run THREE — each bank covers a different scope:
    - `recall(bank_id="toolset-profile", query="pending, todo, pendiente, tarea", max_tokens=4096, budget="mid")` — operational tasks from toolset profile sessions
    - `recall(bank_id="toolset", query="pending, todo, pendiente, tarea", max_tokens=4096, budget="mid")` — infrastructure-level decisions and tech debt (secret migration, bridge patches, etc.)
    - `recall(bank_id="hermes", query="pending, todo, pendiente, tarea", max_tokens=4096, budget="mid")` — orchestrator-level tasks, stalled user-dependent items
@@ -479,8 +469,6 @@ When running as a cron job: the final response is automatically delivered. Do NO
 - Bridge has a known non-critical: `link-preview-js` package missing from Baileys dependencies (URL preview generation fails, messaging works). Do not flag as service-down.
 
 ### Stale Memory Detection During Health Checks
-
-When Hindsight memory recall returns pending/action items:
 
 1. For each entry dated 4+ days ago, verify against current files/state
 2. Common stale patterns:

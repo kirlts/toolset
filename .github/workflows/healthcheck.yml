@@ -18,9 +18,7 @@ jobs:
           for pair in \
             "/:Landing" \
             "/health:Health" \
-            "/hindsight/health:HindsightAPI" \
             "/dashboard:Dashboard" \
-            "/hindsight/mcp/:MCP" \
             ":8443/:Infisical" \
             ":8787/:HermesWebUI"; do
             path="${pair%%:*}"

@@ -12,68 +12,13 @@
 }
 
 :8080 {
-    # Hindsight CP (Next.js SPA) — no auth
-    handle /dashboard {
-        reverse_proxy hindsight:9999
-    }
-    handle_path /dashboard/* {
-        reverse_proxy hindsight:9999
-    }
-    handle /banks/* {
-        reverse_proxy hindsight:9999
-    }
-    handle /bank/* {
-        reverse_proxy hindsight:9999
-    }
-    handle /_next/* {
-        reverse_proxy hindsight:9999
-    }
 
-    # CP API routes — no auth
-    handle /api/version {
-        reverse_proxy hindsight:9999
-    }
-    handle /api/banks/* {
-        reverse_proxy hindsight:9999
-    }
-    handle /api/banks {
-        reverse_proxy hindsight:9999
-    }
-    handle /api/profile/* {
-        reverse_proxy hindsight:9999
-    }
-    handle /api/stats/* {
-        reverse_proxy hindsight:9999
-    }
-    handle /api/list {
-        reverse_proxy hindsight:9999
-    }
-    handle /api/recall {
-        reverse_proxy hindsight:9999
-    }
-    handle /api/reflect {
-        reverse_proxy hindsight:9999
-    }
-    handle /api/documents/* {
-        reverse_proxy hindsight:9999
-    }
-
-    # Hindsight API — no auth, flush_interval -1 for SSE streaming
-    handle /hindsight/* {
-        uri strip_prefix /hindsight
-        reverse_proxy hindsight:8888 {
-            flush_interval -1
-        }
-    }
-
-    # Swagger UI
-    handle /openapi.json {
-        reverse_proxy hindsight:8888
-    }
-
-    # Health endpoint
+    # Health endpoint — lo servía un servicio retirado el 2026-08-19.
+    # No se borra: es lo que interroga el healthcheck del propio contenedor
+    # (docker-compose: wget http://localhost:8080/health). Sin esto Caddy
+    # quedaría marcado unhealthy para siempre.
     handle /health {
-        reverse_proxy hindsight:8888
+        respond "ok" 200
     }
 
     # kb-mcp — MCP de solo lectura sobre las KB de kb-template.
@@ -147,10 +92,6 @@
     }
     handle /api/v1/* {
         reverse_proxy infisical:8080
-    }
-    # Catch-all /api/* → CP
-    handle /api/* {
-        reverse_proxy hindsight:9999
     }
 
     # Descubrimiento OAuth (RFC 8414 / RFC 9728) — 404 explicito.

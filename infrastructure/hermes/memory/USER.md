@@ -6,12 +6,10 @@ PDFs: WeasyPrint+CSS (DejaVu Sans, A4, márgenes 1.6cm, colores, portada). NO pa
 §
 Martín: odia disculpas vacías, exige autenticidad. Prefiere WWE (Oba, Roman, Cody, Jey, Brock). No tolera fórmula.
 §
-Exige: Kilo CLI para código, .agents/ de kairos obligatorio, integraciones directas con Hermes/Toolset, banks Hindsight = nombre exacto del repo.
 §
 TTS en Chat: on-demand. Regla ABSOLUTA: mensaje >= 50 palabras con contenido sustantivo DEBE incluir audio via text_to_speech como MEDIA en el mismo mensaje. Excepcion: 'solo texto'. Forzar: 'audio'.
 §
 Diseno conversacional organico, no cuestionarios. Las reglas emergen del uso, no de preguntas prefabricadas.
 §
-Cuando Martín dice 'revisa la KB' se refiere a los archivos .md en /home/opc/personal/knowledge-base/, no solo a los banks de Hindsight.
 §
 Javi: pareja de Martín, WWE co-member (Chile). Fan veterana de wrestling que detecta clichés. Muy directa, no tolera weás. Cuando dice 'callao' dejar de responder completamente.

@@ -183,7 +183,6 @@ session start, tool call, etc.).
 - Installed plugins (list in README or MASTER-SPEC)
 
 ### Tier 3: Snapshot Periodically (not per-session)
-- `MEMORY.md` + `USER.md` — export via Hindsight retain as backup
 - Cron job definitions — export JSON occasionally
 
 ### Tier 4: Don't Version

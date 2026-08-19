@@ -1,14 +1,11 @@
 ---
 name: agent-state-management
-description: "Manage an autonomous agent's evolving state across sessions, deploys, and time — catalog auto-generated artifacts, sync to version control, consolidate Hindsight memory, and persist through CI/CD."
 version: 1.0.0
 author: Toolset Personal
 license: MIT
 platforms: [linux]
 metadata:
   hermes:
-    tags: [state-management, versioning, hindsight, memory-lifecycle, ci-cd, persistence, sync]
-    related_skills: [project-orientation, hindsight-memory-lifecycle]
 ---
 
 # Agent State Management
@@ -37,7 +34,6 @@ An agent's state is not static. Skills grow, memory accumulates, identity adapts
 |---|---|---|---|
 | **MEMORY.md** | `~/.hermes/memories/MEMORY.md` | Environment notes, tool quirks, conventions | Daily or per deploy |
 | **USER.md** | `~/.hermes/memories/USER.md` | User profile, preferences, style | Daily or per deploy |
-| **Hindsight banks** | PostgreSQL (Hindsight DB) | Durable memory store (facts, observations, experiences) | Weekly JSON export |
 | **Cron job definitions** | `~/.hermes/cron/` | Scheduled job metadata | Document existence in repo |
 
 ### Tier 3: Don't Version (Runtime State)
@@ -45,8 +41,6 @@ An agent's state is not static. Skills grow, memory accumulates, identity adapts
 Session DB (`state.db`), sessions/ (transcripts), cron/output/, logs/, caches, auth tokens, WhatsApp session data, gateway state, locks.
 
 ## Session Initialization Protocol
-
-Every session must load context from Hindsight before reading files. Per `project-orientation` skill:
 
 ```
 1. Recall project bank (broad query, high budget)
@@ -83,10 +77,6 @@ This protocol only applies when the user explicitly asks about your status. For 
 
 ## Lifecycle Automation Patterns
 
-### Daily Hindsight Consolidation (Bank Sync)
-
-A cron job that exports ALL Hindsight banks to JSON, synthesizes a daily summary via reflect+retain, and commits to version control. Runs daily (currently 2 AM UTC).
-
 #### Workflow
 
 ```
@@ -95,7 +85,6 @@ A cron job that exports ALL Hindsight banks to JSON, synthesizes a daily summary
    - Banks with <200 facts: one call at limit=1000
    - Banks with 200-1000 facts: use limit=1000 (confirmed working up to ~430 facts as of 2026-07-19). If a specific bank fails with "could not be saved", retry with limit=500.
    - Banks with >1000 facts: paginate with offset=1000 (limit=1000 works for these because they paginate naturally)
-   - Banks >3000 facts (scale as of 2026-08-14): MCP pagination works up to at least ~8600 facts. hermes (2796, 3 pages) and personal-buffer (8629, 9 pages at limit=1000) both exported cleanly via MCP on 2026-08-13 and 2026-08-14 — the earlier "times out via MCP" claim for personal-buffer is outdated. The REST API fallback still exists for when MCP genuinely times out: `http://127.0.0.1:8888`, container-IP fallback via `docker inspect hindsight --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'`; ready script in `hermes-sync-configure/scripts/hindsight-sync.py`)
 3. Save each export as: infrastructure/hermes/banks/<BANK_ID>/YYYY-MM-DD.json
 4. reflect(bank_id=BANK_ID, query="daily synthesis")   → per bank
 5. retain(bank_id=BANK_ID, content=reflect_result,     → per bank
@@ -115,7 +104,6 @@ When calling `list_memories` (or any MCP tool that returns large data):
 # Cron definition (in ~/.hermes/cron/jobs.json):
 schedule: "0 2 * * *"
 prompt: >
-  Ejecuta el workflow de sincronización diaria de TODOS los banks de Hindsight:
   1. list_banks() → descubre todos (ignora "default")
   2. list_memories(limit=1000) → exporta cada bank como JSON
   3. reflect + retain diario sobre cada bank
@@ -172,8 +160,6 @@ git push
 
 ### Bank Export / Import (Versioning)
 
-Export Hindsight banks to JSON for version control backup. The current approach uses MCP tools (not curl):
-
 ```bash
 # Discovery + export via MCP tools (run in session or cron):
 # 1. list_banks() → identifies all banks (skip "default")
@@ -184,18 +170,6 @@ Export Hindsight banks to JSON for version control backup. The current approach 
 # 3. Save result to infrastructure/hermes/banks/BANK_ID/$(date -I).json
 # 4. reflect + retain daily summary per bank
 # 5. git add + commit + push
-```
-
-Full workflow documented in **Daily Hindsight Consolidation (Bank Sync)** section above.
-
-**Legacy curl approach** (alternative, non-MCP path — not currently in use):
-```bash
-# Export all banks — requires Hindsight API key
-for bank in hermes toolset; do
-  curl -s "https://funnel/banks/$bank/export" \
-    -H "Authorization: Bearer $HINDSIGHT_API_KEY" \
-    > "infrastructure/hermes/banks/$bank-$(date -I).json"
-done
 ```
 
 ### Deploy-time Post-Restore
@@ -225,8 +199,6 @@ done
 2. **Versioning secrets** — `config.yaml` can contain platform tokens (WhatsApp session keys, etc.). Strip these before committing, or use a template with secrets injected via Infisical.
 
 3. **Over-versioning runtime state** — session DB, logs, and caches change constantly and bloat the repo. Stick to the Tier 1/2 catalog above.
-
-4. **Assuming bank export is a backup** — JSON exports capture the memory content but not the embeddings or vector index. Full disaster recovery requires PostgreSQL dump of the Hindsight database.
 
 5. **Forgetting to restore skills post-deploy** — if deploy.sh overwrites `~/.hermes/skills/` without restoring from the repo, agent-created skills vanish. Always include a restore step.
 

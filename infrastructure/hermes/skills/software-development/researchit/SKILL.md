@@ -181,7 +181,6 @@ Los secrets de Composio (API key, connection_id) se manejan vía Infisical/env v
 ResearchIt puede ejecutarse como cron job semanal para entregar informes periódicos vía WhatsApp. El patrón típico:
 
 1. Cron job con skill `researchit` cargada y `deliver: origin`
-2. El prompt del cron recolecta contexto dinámico (gh CLI, banks de Hindsight) antes de invocar ResearchIt
 3. ResearchIt genera PDF en `vault/`
 4. El agente del cron encuentra el PDF más reciente (`ls -t /opt/researchit/vault/*.pdf | head -1`), verifica que existe, y lo entrega con `MEDIA:` en línea aparte (sin backticks, sin markdown alrededor de la línea MEDIA)
 

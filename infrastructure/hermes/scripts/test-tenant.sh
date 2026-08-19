@@ -29,10 +29,8 @@ check "grep -q \"^name: $TENANT\" '$PROFILE/config.yaml'" "config.yaml has tenan
 check "grep -q 'model:' '$PROFILE/config.yaml'"                  "model section exists"
 check "grep -q 'opencode-go\\|openrouter\\|groq' '$PROFILE/config.yaml'" "model provider is valid"
 
-# ── Memory: Holographic only, no Hindsight ──
+# ── Memory: Holographic only ──
 check "grep -q 'holographic' '$PROFILE/config.yaml'"            "memory.provider set to holographic"
-check "! grep -q 'hindsight' '$PROFILE/config.yaml'"            "no hindsight MCP reference"
-check "! grep -q 'hindsight-selfhosted' '$PROFILE/config.yaml'" "no hindsight-selfhosted MCP"
 
 # ── Toolsets: restricted ──
 check "! grep -qw 'docker' '$PROFILE/config.yaml'"              "no 'docker' in config"

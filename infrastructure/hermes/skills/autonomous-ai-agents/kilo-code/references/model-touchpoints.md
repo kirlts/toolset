@@ -19,8 +19,6 @@
 | `infrastructure/kilo.jsonc` | `models` | Template de config de Kilo para deploy |
 | `infrastructure/Hermes-SOUL.md` | `§Plataforma` | Template de SOUL.md que se deploya |
 | `infrastructure/hermes-skills/.../kilo-code/SKILL.md` | model references | Template de skill para deploy |
-| `infrastructure/deploy.sh` | `HINDSIGHT_API_LLM_MODEL` | Modelo para Hindsight API |
-| `infrastructure/docker-compose.yml` | `HINDSIGHT_API_LLM_MODEL` env var | Modelo para contenedor Hindsight |
 | `Hermes-integration.md` | `HERMES_LLM_MODEL` | Documentación de integración |
 | `docs/MASTER-SPEC.md` | `§3`, `§7.1` | Especificación arquitectónica |
 | `Toolset Junio 2026.md` | `§2.2`, `§4` | Especificación fundacional |
@@ -30,13 +28,6 @@
 | Ubicación | Qué contiene | Propósito |
 |---|---|---|
 | `.github/workflows/deploy.yml` | env vars | Pipeline references |
-
-## Hindsight runtime (OCI)
-
-| Ubicación | Qué contiene | Propósito |
-|---|---|---|
-| `/opt/toolset/.env` | `HINDSIGHT_API_LLM_MODEL=deepseek-v4-flash` | Config runtime de Hindsight |
-| Docker env | `HINDSIGHT_API_LLM_MODEL` | Variable del contenedor |
 
 ## Regla general
 

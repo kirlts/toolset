@@ -64,4 +64,3 @@ Los pendientes que entran a la bitácora deben cumplir:
 
 ## Caso: Perfil con Banco Único
 
-Cada perfil usa UN SOLO bank Hindsight: `<profile>-profile`. No usar el bank `hermes` desde un perfil worker. El bank `hermes` es exclusivo del orquestador default.

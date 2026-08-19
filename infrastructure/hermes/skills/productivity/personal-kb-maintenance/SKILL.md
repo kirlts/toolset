@@ -37,8 +37,6 @@ Verificar estado del filesystem (no confiar en contexto de sesiones anteriores):
 
 ### 2. Lectura de KB para análisis (REQUISITO DEL USUARIO)
 
-**Regla del usuario:** Martín exige que cualquier análisis sobre su situación se funde en la lectura REAL de los nodos de la KB, no en lo que el agente recuerde de memoria o del banco Hindsight.
-
 Leer en orden:
 1. Hubs: `Terreno.md`, `Mito.md` - arquitectura general, estadísticas
 2. Sub-hubs: `Clima.md`, `Material.md`, `Motor.md`, `Campañas.md`, `Adaptaciones.md`, `Ego.md`

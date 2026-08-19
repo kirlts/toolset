@@ -26,7 +26,6 @@ Grupo compartido entre Martin y Javi para conversar sobre WWE, luchadores, PPVs,
 | Tool | Source | Purpose |
 |---|---|---|
 | terminal | local | N/A (sin repositorio) |
-| Hindsight MCP | gateway | recall/retain/reflect (banks: wwe-profile) |
 | Composio MCP | gateway | external integrations (Reddit via Composio) |
 | standard-research | skill | Busqueda de datos actualizados sobre WWE, luchadores y eventos |
 | reddit-reporting | skill | Opinion de la comunidad desde r/SquaredCircle y r/WWE via Composio |

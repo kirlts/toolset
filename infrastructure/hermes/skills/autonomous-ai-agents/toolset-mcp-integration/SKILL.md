@@ -1,24 +1,19 @@
 ---
 name: toolset-mcp-integration
-description: "How Hermes Agent integrates with MCP services in the Toolset Personal — Hindsight (recall/retain/reflect) and Composio. Architecture, tool semantics, known issues, and operational principles."
 version: 1.2.0
 author: Toolset Personal
 license: MIT
 metadata:
   hermes:
-    tags: [toolset, mcp, hindsight, composio, infrastructure, architecture]
     related_skills: [agent-state-management, project-orientation, hermes-webui]
 ---
 
 # Toolset MCP Integration
 
-How Hermes Agent uses MCP services within the Toolset Personal infrastructure — specifically the **hindsight-selfhosted** (memory) and **composio** (third-party API gateway) MCP servers.
-
 ## MCP Server Topology
 
 | Server | URL | Tools | Status |
 |--------|-----|-------|--------|
-| `hindsight-selfhosted` | `https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/mcp/` | 37 tools (recall, retain, reflect, list_banks, get_bank, etc.) | ✅ Enabled (resolved: see CI-CD-01 Compliance) |
 | `composio` | `https://connect.composio.dev/mcp` | 7 tools (SEARCH_TOOLS, etc.) | ✅ Enabled |
 | `okos` | `https://toolset-oci-1-1.tail2d4c18.ts.net/kb/okos2026/okos/mcp` | 4 tools (consultar, leer, listar, panorama) — KB de conversio-connect/OKOS, solo lectura | ✅ Enabled (added 2026-08-08) |
 
@@ -66,31 +61,15 @@ rpc("tools/call", {"name": "consultar", "arguments": {"pregunta": "..."}})
 
 Verificar primero que el server responde: `curl -s -X POST URL -H "Content-Type: application/json" -H "Accept: application/json, text/event-stream" -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{...}}'` debe devolver `event: message` con serverInfo (nombre + versión SDK).
 
-## Tool Semantics: Memory vs MCP Hindsight Tools
-
-**This is the most common confusion point.** There are TWO separate interfaces for memory in this toolset:
-
 ### 1. Hermes `memory` tool (built-in)
 
 | Aspect | Detail |
 |--------|--------|
 | **What it is** | A built-in Hermes tool for simple key-value persistence |
-| **Backend config** | `memory.provider: hindsight` → stores into bank `hermes` |
 | **Capacity** | 2,200 chars (`memory_char_limit`) |
 | **Scope** | User profile + personal agent notes only |
 | **Bank** | Always bank `hermes` — cannot target other banks |
 | **Use for** | User preferences, environment notes, simple facts about who the user is |
-
-### 2. MCP Hindsight tools (recall / retain / reflect / list_banks / etc.)
-
-| Aspect | Detail |
-|--------|--------|
-| **What they are** | MCP-server-hosted tools from the hindsight-selfhosted server (37 tools) |
-| **How they arrive** | Injected at session start via MCP discovery from the hindsight-selfhosted MCP server |
-| **Capacity** | Unlimited (PostgreSQL + pgvector) |
-| **Scope** | Any bank in the system — `toolset`, `kairos`, `cl-concerts-db`, `evidencia-zero`, etc. |
-| **Bank targeting** | Pass `bank_id="<repo-name>"` to operate on a specific bank |
-| **Use for** | All project memory: architectural decisions, code context, task progress, lessons learned |
 
 ### Which one to use
 
@@ -109,8 +88,6 @@ Verificar primero que el server responde: `curl -s -X POST URL -H "Content-Type:
 **Never use `retain`/`recall` for user profile facts** — those go via `memory()` to the profile system.
 
 ## MCP Response Wire Formats
-
-When working with Hindsight MCP tools programmatically (e.g. from a Python script via direct HTTP), the response parsing is non-obvious:
 
 ### list_memories
 ```json
@@ -271,7 +248,6 @@ except Exception as e:
 Nivel 3: MCP tools están disponibles en la sesión?
   → Listar las tools disponibles (revisar my tool list en el system prompt)
   → Si hay tools prefijadas "mcp_composio_*" → disponibles
-  → Si solo hay "mcp_hindsight_selfhosted_*" y NO "mcp_composio_*" → no disponibles
 ```
 
 **Cinco escenarios:**
@@ -365,8 +341,6 @@ See `references/mcp-output-persistence.md` for the full pattern and file format.
 
 ## Bulk Operations: REST API vs MCP Tools
 
-When to use the Hindsight REST API directly instead of MCP tools:
-
 | Scenario | MCP Tools | REST API (`http://127.0.0.1:8888`) |
 |----------|-----------|-------------------------------------|
 | Single recall/retain/reflect | ✅ Perfect — small payloads, conversational | ❌ Overkill |
@@ -379,7 +353,6 @@ When to use the Hindsight REST API directly instead of MCP tools:
 
 ```
 Base: http://127.0.0.1:8888
-Docker container: hindsight (port 8888 mapped to host)
 ```
 
 | Endpoint | Method | Notes |
@@ -404,12 +377,6 @@ Key difference from MCP: retain with `async: false` blocks until stored and retu
 1. **Confusing `memory()` with `retain()`/`recall()`** — The most common error. `memory()` is a 2KB profile tool for the `hermes` bank only. `retain`/`recall` are the MCP tools for full bank access across all repos.
 
 2. **Making architectural claims from system prompt alone** — The SOUL.md and system prompt describe the intended architecture. The actual state is in the toolset repo. When in doubt, read the repo — not the system prompt.
-
-3. **Fixing infra locally without CI-CD-01 versioning** — Any local fix that isn't in `deploy.sh` or the versioned config is lost on next deploy. Example from 25 Jun 2026: pydantic was upgraded in the Hermes venv to unblock hindsight MCP; the fix was immediately versioned in `deploy.sh` via commit `094ec15`. Always follow this pattern: fix on host → version in repo → push.
-
-4. **Not loading this skill before investigating MCP issues** — This skill already documents the architecture, the `memory` vs `retain` semantics, known issues, and the source-of-truth hierarchy. Before investigating any MCP or Hindsight issue, load this skill with `skill_view(name="toolset-mcp-integration")` to avoid rediscovering documented facts.
-
-6. **Using `memory()` for task progress** — Task progress, project decisions, and code context belong in the project's Hindsight bank via `retain()`. The `memory` tool is for user preferences only.
 
 7. **MCP Composio tools missing in session despite config present** — If `mcp_servers.composio` exists in `config.yaml` but Composio tools don't appear, check if the key is stale:
    - **Scenario A — Key is a placeholder:** Run `grep x-consumer-api-key /home/opc/.hermes/config.yaml`. If it shows `PLACEH...PLOY`, the inject script failed. See `infrastructure-deployment` skill's `references/secret-flow-infisical.md` for the fix (was a missing `?workspaceId=` query param in the Infisical API call).
@@ -457,7 +424,5 @@ Key difference from MCP: retain with `async: false` blocks until stored and retu
 
 11. **Using MCP `list_memories` for bank exports** — MCP tool output is limited to ~500KB/200K chars before truncation or temp-file redirection. For banks with 200+ facts, `list_memories` returns 400K-800K chars which either gets truncated or double-encoded. The REST API at `http://127.0.0.1:8888` returns clean paginated JSON with no size limit. See "Bulk Operations" section above.
 
-12. **MCP tools unavailable for large batch workflows** — The daily sync of 16 banks cannot be done via MCP tools alone. The MCP tools are conversational/interactive. For batch automation, use the REST API and split the work across 3 script invocations to stay under the 600s terminal timeout. **Observed 2026-08-05: attempting the 16-bank sync via MCP `list_memories` pagination + reflect + retain blows the cron's tool-calling iteration budget (~40 calls just for exports; killed at 1/16 through the reflect+retain phase).** MCP-first is a dead end for multi-bank batch work — always route through `hermes-sync-configure/scripts/hindsight-sync.py` (REST API) with the container-IP fallback (`docker inspect hindsight --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'`) when `127.0.0.1:8888` refuses.
    **Scale threshold refinement (2026-08-12):** MCP `list_memories` pagination (limit=1000 + offset) still completes for banks up to ~2,800 facts (hermes: 2,783 → 3 pages). The failure mode is the 8K+ bank: personal-buffer (8,055 facts → 9 pages) times out via MCP even paginated. Practical split: small/medium banks (<3K facts) via MCP pagination is fine and faster than REST round-trips; only the giant bank must go through REST. Order exports small-first so one oversized bank doesn't stall the whole sync.
 
-13. **Gateway restart mid-session can drop MCP tools from the CURRENT conversation** — Observed 2026-08-08: after restarting the gateway to load a newly added MCP server (okos), the running WhatsApp conversation LOST its `mcp_hindsight_selfhosted_*` tools: retain/recall calls failed with "Tool 'mcp_hindsight_selfhosted_retain' does not exist". The new session (next message from user) had the correct toolset, but the in-flight turn was crippled. Lesson: when a gateway restart is needed to load new MCP servers, expect the current conversation's MCP toolset to be unstable — if you must retain/recall in that window, use the Hindsight REST API (`http://127.0.0.1:8888`) or `memory()` (built-in) instead of the MCP tools. Do not retry the same MCP call in a loop.

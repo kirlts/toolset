@@ -371,13 +371,7 @@ mcp_servers:
       x-api-key: ak_yNpeinf1smABGNxDhWf_
     timeout: 180
     url: https://backend.composio.dev/tool_router/trs_MQn50-FzafCa/mcp
-  hindsight-selfhosted:
-    url: https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/mcp/
 memory:
-  hindsight:
-    bank: hermes
-    url: https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/mcp/
-  provider: hindsight
 model:
   default: opencodego/deepseek-v4-flash
   provider: opencode-go

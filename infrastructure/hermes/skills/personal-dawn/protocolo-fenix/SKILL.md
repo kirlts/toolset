@@ -220,7 +220,6 @@ Cada dia, cuando Martin responde a la chispa, su feedback se divide en dos flujo
 Todo lo que Martin dice sobre su vida, sus emociones, sus reflexiones -> personal-buffer (tags pending + terreno/mito), para sesion de revision del buffer.
 
 ### Feedback meta (sobre el Protocolo Fenix)
-Todo lo que Martin dice sobre COMO se escribio la chispa: que funciono, que no, ajustes de tono, correcciones -> retain en personal-profile (tag "fenix-feedback"). Este es el banco canonico de hindsight, que perdura.
 
 ### Incorporacion en la siguiente ejecucion
 El cron 8AM del dia siguiente DEBE:

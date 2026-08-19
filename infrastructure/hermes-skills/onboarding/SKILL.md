@@ -1,6 +1,5 @@
 ---
 name: onboarding
-description: "Context-aware onboarding for WhatsApp groups and DM. Creates SOUL.md, skills config, and Hindsight bank. No predefined categories — each group defines its own identity. Optional Phase 0 extracts context from artifacts, URLs, voice messages, or conversation history. Phase 4 configures TTS per group."
 version: 5.1.0
 platforms: [linux]
 metadata:
@@ -27,7 +26,6 @@ metadata:
 | `~/.hermes/whatsapp-groups.yaml` | Group → profile mapping |
 | `~/.hermes/profiles/<name>/SOUL.md` | Per-profile identity and rules |
 | `~/.hermes/channel_aliases.json` | JID → {name, desc} resolution |
-| Hindsight `create_bank()` / `list_banks()` | Memory bank per group |
 | `.agents/templates/profile-soul.md` | SOUL.md template |
 
 ## Pre-Flight: DM Handler
@@ -160,7 +158,6 @@ This avoids asking the user for information the bridge already has.
 | Attached document (PDF, DOCX, TXT, image, audio) | `markitdown` | Hermes infra, not this skill |
 | URL | Agent fetches and extracts content | Agent's tool-use capability |
 | Voice message | STT transcription (Groq Whisper) then MarkItDown if needed | Hermes STT pipeline |
-| Prior conversation in same group | Session history from Hindsight bank | `recall(bank_id=<group-name>-profile, max_tokens=2048, budget="low")` |
 | User instructions in the `/onboarding` command itself | Parsed directly | This skill reads the message text |
 
 #### Extraction algorithm:
@@ -172,8 +169,6 @@ This avoids asking the user for information the bridge already has.
    - Repository (GitHub repo name or URL, or "none")
 3. **Infer capabilities.** From the context, the agent extracts:
    - Skills needed (names from `hermes skills list`)
-   - MCP servers beyond defaults (hindsight + composio)
-   - Constraints (what this profile MUST NOT do)
 4. **Infer operations.** From the context, the agent extracts:
    - Communication tone (technical / conversational / minimal / custom)
    - Worker profile requirements (new or default)
@@ -280,7 +275,6 @@ This avoids asking the user for information the bridge already has.
 1. **Skills:** "¿Skills para este perfil? (nombres separados por coma, 'n' para ninguna, '?' para ver disponibles)"
    - If "?": list skills from `hermes skills list` and external_skills_dirs.
    - No hay defaults por tipo (no hay tipos). El usuario define desde cero.
-2. **MCP servers:** "¿Servers MCP adicionales? ('n' para los defaults: hindsight + composio)"
 3. **Constraints:** "¿Algo que este perfil NUNCA deba hacer?"
    - Store as negative rules in SOUL.md.
    - If Phase 0 detected an override expectation (e.g., "este perfil puede editar archivos directamente"), present it explicitly:
@@ -324,18 +318,9 @@ This avoids asking the user for information the bridge already has.
 
 ## Post-Phase: Artifact Creation
 
-### Step 1: Hindsight Bank
-
-```
-list_banks() → verificar si "<name>-profile" existe.
-Si no existe:
-  create_bank(bank_id="<name>-profile", name="<name>", mission="<description>")
-```
-
 ### Step 2: Profile SOUL.md
 
 Generate from `.agents/templates/profile-soul.md` (if the template exists) or generate programmatically. The template/source already includes:
-- **CONSULT-01: Si el perfil tiene repositorio asociado, la fuente de consulta PRIMARIA debe ser la filesystem del repo (con read_file/search_files). Hindsight queda como fuente SECUNDARIA (indice de busqueda semantica). El buffer es siempre write-only. Esto evita respuestas genericas por banco Hindsight vacio.**
 - ROUTE-03: the profile operates directly (no orchestrator reporting)
 - ROUTE-03a: mandatory cross-profile delegation for out-of-scope tasks
 - ROUTE-04: Kilo CLI for repo operations (if a repo exists)
@@ -411,7 +396,6 @@ When `/onboarding` is invoked in a group that ALREADY has a profile in `whatsapp
 1. Show current config summary (name, profile, repo, skills, TTS status).
 2. Offer two options:
    - **(1) "Actualizar configuración"** — detecta qué features nuevas están disponibles vs lo que ya tiene el grupo (ej: TTS no configurado, nuevos campos en el schema). Solo ejecuta las fases correspondientes a features faltantes. Si el grupo ya tiene TTS configurado, se ofrece cambiar la configuración.
-   - **(2) "Reconfigurar desde cero"** — restart all phases (0-4). Sobrescribe todo. El bank Hindsight se preserva (no se borra).
 3. If the user chooses (1) and the only new feature is TTS: "Este grupo no tiene TTS configurado. ¿Quieres activarlo ahora? (si/no)" → ejecutar Phase 4 únicamente.
 4. If the user chooses (2): full flow, el bank existente se reutiliza (`create_bank` es idempotente).
 
@@ -423,7 +407,6 @@ When `/onboarding` is invoked in a group that ALREADY has a profile in `whatsapp
 | Profile creation fails | "No pude crear `<profile>`. Usando 'default'. ¿OK?" |
 | Skill not found | "`<skill>` no instalada. Skills disponibles: `<list>`" |
 | Git push fails | "No pude pushear. Worker funciona, cambios locales." |
-| Hindsight unreachable | "No pude crear el bank. Perfil funciona sin memoria persistente." |
 
 ## Anti-Patterns
 

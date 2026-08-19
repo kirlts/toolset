@@ -51,19 +51,6 @@ write_files:
           volumes:
             - infisical_data:/data
 
-        # --- Hindsight ---
-        # hindsight:
-        #   image: ghcr.io/vectorize-io/hindsight:latest
-        #   container_name: hindsight
-        #   restart: unless-stopped
-        #   ports:
-        #     - "127.0.0.1:8888:8888"
-        #     - "127.0.0.1:9999:9999"
-        #   environment:
-        #     HINDSIGHT_BANK_DIR: "/data"
-        #     HINDSIGHT_MCP_ENABLED: "true"
-        #   volumes:
-        #     - hindsight_data:/data
 
         # --- Apollo orchestrator (deprecated: replaced by Hermes Agent as systemd service) ---
         # apollo:
@@ -74,7 +61,6 @@ write_files:
         #     - "127.0.0.1:4000:4000"
         #   environment:
         #     INFISICAL_ADDR: "http://infisical:8080"
-        #     HINDSIGHT_ADDR: "http://hindsight:8080"
         #   depends_on:
         #     - infisical
 

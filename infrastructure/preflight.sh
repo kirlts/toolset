@@ -5,9 +5,6 @@
 set -euo pipefail
 
 FUNNEL_DOMAIN="${FUNNEL_DOMAIN:-toolset-oci-1-1.tail2d4c18.ts.net}"
-HINDSIGHT_URL="https://${FUNNEL_DOMAIN}/hindsight"
-# Local endpoint for VPS-internal calls (Funnel URL doesnt resolve from inside VPS)
-LOCAL_HINDSIGHT="http://localhost:8080/hindsight"
 REMOTE_REPO="/opt/toolset-repo"
 HERMES_HOME="/home/opc/.hermes"
 BRIDGE_JS="/usr/local/lib/hermes-agent/scripts/whatsapp-bridge/bridge.js"
@@ -59,7 +56,7 @@ check "No .env in non-ignored paths" \
 # ── Docker services (auto-discover from compose) ─────────────────────
 
 echo "  -- Docker service health --"
-CRITICAL_SERVICES=$(grep -B1 'healthcheck:' "${COMPOSE_FILE}" 2>/dev/null | grep -oP '^  \K[a-z][a-z-]+(?=:)' || echo "caddy hindsight infisical")
+CRITICAL_SERVICES=$(grep -B1 'healthcheck:' "${COMPOSE_FILE}" 2>/dev/null | grep -oP '^  \K[a-z][a-z-]+(?=:)' || echo "caddy infisical")
 for svc in $CRITICAL_SERVICES; do
   warn_check "${svc} healthy" bash -c \
     "sudo docker inspect $svc --format '{{.State.Health.Status}}' 2>/dev/null | grep -q healthy"
@@ -80,49 +77,12 @@ echo "  -- Profile integrity --"
 for profile in "${PROFILES[@]}"; do
   check "SOUL.md for profile '${profile}'" test -s "${PROFILES_DIR}/${profile}/SOUL.md"
 
-  warn_check "Bank '${profile}-profile' exists" bash -c \
-    "curl -sf ${LOCAL_HINDSIGHT}/v1/default/banks 2>/dev/null | grep -q '${profile}-profile'"
 done
 
 # ── §5.3 — MCP configuration ──────────────────────────────────────────
 
 check "MCP servers configured in yaml" \
   grep -q 'mcp_servers' "${HERMES_HOME}/config.yaml"
-
-# ── MCP 3-Step Verification ───────────────────────────────────────────
-
-echo "  -- MCP 3-Step Verification --"
-
-if curl -sf "${LOCAL_HINDSIGHT}/health" > /dev/null 2>&1; then
-  echo "    PASS MCP Step 1 (health endpoint)"
-else
-  echo "    FAIL MCP Step 1 (health endpoint)"
-  ERRORS=$((ERRORS + 1))
-fi
-
-MCP_RESULT=$(curl -s --max-time 15 -X POST "${HINDSIGHT_URL}/mcp/" \
-  -H "Content-Type: application/json" \
-  -H "Accept: application/json, text/event-stream" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"list_banks","arguments":{}}}' 2>/dev/null)
-
-if echo "$MCP_RESULT" | grep -q 'bank_id'; then
-  echo "    PASS MCP list_banks"
-else
-  echo "    FAIL MCP list_banks"
-  ERRORS=$((ERRORS + 1))
-fi
-
-# ── Kilo CLI MCP E2E ──────────────────────────────────────────────────
-
-echo "  -- Kilo CLI MCP E2E --"
-if export PATH="/usr/local/bin:/home/opc/.local/bin:$PATH" && \
-   export OPENCODE_GO_API_KEY=$(grep '^OPENCODE_GO_API_KEY=' "${HERMES_HOME}/.env" | cut -d= -f2-) && \
-   timeout 30 kilo run 'hindsight-selfhosted_list_banks' --auto --dir /home/opc 2>&1 | grep -qi 'bank'; then
-  echo "    PASS Kilo CLI MCP (list_banks via hindsight-selfhosted)"
-else
-  echo "    FAIL Kilo CLI MCP"
-  ERRORS=$((ERRORS + 1))
-fi
 
 # ── Bridge.js injection verification ─────────────────────────────────
 
@@ -186,11 +146,6 @@ check "Skills directory populated" bash -c \
 # ── Context file ──────────────────────────────────────────────────
 
 check "AGENTS.md exists" test -s "${REMOTE_REPO}/AGENTS.md"
-
-# ── Memory consolidation cron ────────────────────────────────────
-
-warn_check "Memory consolidation cron installed" bash -c \
-  "crontab -l 2>/dev/null | grep -q consolidate-memory"
 
 # ── Summary ──────────────────────────────────────────────────────────
 

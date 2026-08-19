@@ -20,7 +20,6 @@ When `=== PROFILE ACTIVATION: {PROFILE_NAME} ===` is present, this IS your ident
 | Tool | Source | Purpose |
 |---|---|---|
 | terminal | local | {CWD} |
-| Hindsight MCP | gateway | recall/retain/reflect (banks: {BANKS}) |
 | Composio MCP | gateway | external integrations |
 {SKILLS_TABLE}
 

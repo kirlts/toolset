@@ -19,15 +19,6 @@ Two competing causes were identified:
 ### Cause 2 (confirmed trigger): Prompt too large
 The prompt Hermes passed to Kilo was ~4,000 words with exact line-by-line replacements. deepseek-v4-flash treated this as a text generation task (produce analysis/explanation) rather than an execution task (produce tool calls). The model never reached the point of executing tool calls because it was busy generating explanatory text.
 
-### Cause 1 (systemic risk): Hindsight recall flooding
-Kilo's system prompt (`infrastructure/kilo-system-prompt.md`) instructs:
-```
-Al iniciar: hindsight-selfhosted_recall(bank=<nombre-del-repo>-profile)
-```
-This recall has NO max_tokens or budget parameters. Even though it didn't execute in this incident (Cause 2 prevented it), if it HAD executed against a large bank, the context could have been flooded.
-
-**Conclusive test:** `recall(bank="toolset", max_tokens=16384, budget="high")` returned 629,549 characters (>600KB). If Kilo had executed this recall before processing the user prompt, the combined context would have exceeded the model's effective working memory.
-
 ### Additional contributing factor: Bank naming ambiguity
 The system prompt says `bank=<...>-profile` but `docs/RULES.md` (loaded as a Kilo instructions file) says "use repo name as bank_id, kebab-case". These are contradictory. Depending on which instruction Kilo follows, it could recall from `toolset` (741 facts) or `toolset-profile` (2 facts).
 

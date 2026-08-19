@@ -14,7 +14,6 @@ Hermes Gateway (systemd) → SOUL.md (deterministic routing)
     │                 → research-worker (researchit repo)
     │                 → default (personal orchestrator)
     │
-    ├─ Hindsight (self-hosted MCP memory, per-repo + per-group banks)
     ├─ Composio (OAuth gateway: Gmail, Reddit, GitHub, Figma)
     └─ Kilo CLI (code subagent for >50-line tasks)
 ```

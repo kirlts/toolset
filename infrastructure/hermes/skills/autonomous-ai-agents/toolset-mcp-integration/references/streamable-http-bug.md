@@ -11,10 +11,7 @@ The `mcp` package in the Hermes venv already included `client.streamable_http` (
 ## Original Error
 
 ```
-hermes mcp test hindsight-selfhosted
-Transport: HTTP → https://toolset-oci-1-1.tail2d4c18.ts.net/hindsight/mcp/
 Auth: none
-✗ Connection failed (7176ms): MCP server 'hindsight-selfhosted' requires HTTP
   transport but mcp.client.streamable_http is not available. Upgrade the mcp
   package to get HTTP support.
 ```
@@ -47,10 +44,8 @@ Note: `pip` binary is stripped from the Hermes install, but `python3 -m pip` wor
 $VENV/bin/python3 -c "from mcp.client import streamable_http; print('OK')"
 
 # 2. Test MCP connection
-hermes mcp test hindsight-selfhosted
 # Expected: ✓ Connected (177ms)  ✓ Tools discovered: 32
 
-# 3. Confirm 32 hindsight tools now available
 # Tools include: retain, recall, reflect, list_banks, create_bank, get_bank,
 # list_memories, get_memory, update_memory, invalidate_memory, list_documents,
 # list_tags, get_bank_stats, update_bank, delete_bank, clear_memories,
@@ -84,13 +79,10 @@ This runs after the Hermes venv is installed/updated, so it survives CI/CD deplo
 
 ```bash
 echo "=== MCP server status ==="
-hermes mcp list 2>/dev/null | grep hindsight
 echo ""
 echo "=== Transport test ==="
-hermes mcp test hindsight-selfhosted 2>&1 | tail -5
 echo ""
 echo "=== Tools actually loaded ==="
-hermes tools list 2>/dev/null | grep -i "recall\|retain\|reflect\|list_banks\|get_bank" || echo "No hindsight MCP tools detected in session"
 ```
 
 ## Original Discovery

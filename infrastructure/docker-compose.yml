@@ -66,37 +66,6 @@ services:
     networks:
       - toolset-net
 
-  hindsight:
-    image: ghcr.io/vectorize-io/hindsight:latest
-    container_name: hindsight
-    restart: unless-stopped
-    ports:
-      - "127.0.0.1:8888:8888"
-      - "127.0.0.1:9999:9999"
-    healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:8888/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 90s
-    depends_on:
-      infisical:
-        condition: service_started
-    environment:
-      HINDSIGHT_API_LLM_PROVIDER: ${HINDSIGHT_API_LLM_PROVIDER:-openai}
-      HINDSIGHT_API_LLM_API_KEY: ${OPENCODE_GO_API_KEY}
-      HINDSIGHT_API_LLM_MODEL: ${HINDSIGHT_API_LLM_MODEL:-deepseek-v4-flash}
-      HINDSIGHT_API_LLM_BASE_URL: ${HINDSIGHT_API_LLM_BASE_URL:-https://opencode.ai/zen/go/v1}
-      HINDSIGHT_API_HOST: 0.0.0.0
-      HINDSIGHT_API_PORT: 8888
-      HF_HUB_OFFLINE: "1"
-      HINDSIGHT_API_MCP_STATELESS: "true"
-      HINDSIGHT_REQUEST_TIMEOUT_SECONDS: "120"
-    volumes:
-      - hindsight_data:/home/hindsight/.pg0
-    networks:
-      - toolset-net
-
   caddy:
     image: caddy:2-alpine
     container_name: caddy
@@ -110,8 +79,6 @@ services:
       retries: 10
       start_period: 30s
     depends_on:
-      hindsight:
-        condition: service_healthy
       infisical:
         condition: service_started
     environment:
@@ -255,4 +222,3 @@ volumes:
   pg_data:
   redis_data:
   infisical_data:
-  hindsight_data:

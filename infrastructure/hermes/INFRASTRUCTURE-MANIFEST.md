@@ -33,7 +33,6 @@
 | `infrastructure/kb-mcp/server.py` | Servidor MCP de solo lectura sobre KBs de kb-template: híbrido léxico+semántico+grafo+índices, recencia git. Sin escritura, sin estado | Imagen construida en VPS (docker compose build kb-mcp) | 2026-07-23 |
 | `infrastructure/kb-mcp/Dockerfile` | Imagen de kb-mcp: python:3.12-slim, usuario no-root, ARM64 | docker compose build (en VPS) | 2026-07-23 |
 | `infrastructure/kb-mcp/sync-kb.sh` | git pull de la KB + reindexado. Reinicia SOLO kb-mcp y solo si cambio el HEAD | deploy.sh (paso kb-mcp) + cron (*/15 min) | 2026-07-23 |
-| `infrastructure/Caddyfile` | **Enrutado HTTP unico del VPS** (`:8080`, detras del Funnel): dashboard y API de Hindsight, Infisical, `/kb/*` (kb-mcp con direcciones-capacidad), `/okos-mapa/*` (prototipo estatico del mapa OKOS, publico) y la landing como catch-all. Corre con `admin off`: **no admite reload en caliente**, se aplica reiniciando el contenedor | deploy.sh (`tee` + validacion en el contenedor + `docker restart caddy` solo si cambio) | 2026-08-08 |
 
 ---
 
@@ -45,7 +44,6 @@
 | **external_skills_dirs** | skills en infrastructure/hermes-skills/ (cargados desde /opt/toolset-repo) |
 | **Cron (populate-channel-aliases)** | channel_aliases.json (cada 10 min) |
 | **Cron (hermes-sync-files)** | backup de ~/.hermes/ config al repo (diario) |
-| **Cron (hermes-sync-banks)** | exportacion de banks Hindsight al repo (diario) |
 
 ---
 
@@ -154,7 +152,6 @@ pierde precision a medida que el usuario acumula datos propios sobre las persona
 modela, y sin un ciclo de re-verificacion no tiene forma de saber que envejecio. Se
 conservan de esta sesion los arreglos de infraestructura que NO son de encuadre:
 `mem_limit` 2000m (OOM en cada consulta), el invariante de skills del preflight, y el
-rename del contenedor hindsight. El resto de esta entrada queda como registro historico.
 
 **kb-mcp: recurso nuevo `encuadre`, perfiles de decision servidos por MCP.** Un perfil
 dice como decide una persona del entorno de trabajo, que necesita ver para aceptar algo y
@@ -264,7 +261,6 @@ Verificado. El dry-run de `up -d --remove-orphans` no recrea otros servicios.
 ### Session 10 — kb-mcp evoluciona a multi-KB con busqueda hibrida
 
 Sobre la base de la Session 9. Sin tocar Hermes en ningun momento (verificado tras cada
-paso: /health, /dashboard, /hermes/, el MCP de Hindsight y `hermes -z` responden).
 
 **Cambios funcionales:**
 - **Multi-KB en un proceso.** Un solo modelo de embeddings cargado, N indices. Cada KB
@@ -364,8 +360,6 @@ Caddy puede validar un Bearer desde Infisical.
 | `scripts/generate-kilo-config.py` | **CREATED** — reads kilo-system-prompt.md, injects into kilo.jsonc `agent.build.prompt` field. |
 | `infrastructure/kilo.jsonc` | **UPDATED** — removed `kilo-prompt.md` from `instructions` array. System prompt now exclusively via `agent.build.prompt` (auto-generated). Escape sequences fixed for valid JSON. |
 | `infrastructure/kilo-prompt.md` | **DEPRECATED** — replaced by kilo-system-prompt.md. No longer referenced in kilo.jsonc `instructions`. |
-| `infrastructure/deploy.sh` | **UPDATED** — added kilo.jsonc regeneration from kilo-system-prompt.md (via generate-kilo-config.py) if source changed. Transfers kilo.jsonc to VPS for Kilo CLI config. Hindsight backup tar uses `--warning=no-file-changed` to prevent abort on hot backup. |
-| `infrastructure/preflight.sh` | **UPDATED** — bank check uses list endpoint with grep -q profile name (not JSON parsing). Docker healthcheck filter only for compose services. Hindsight API check via localhost:8888 (not Funnel). WebUI check via Caddy proxy (port 8787 redirect). |
 | `.github/workflows/deploy.yml` | **UPDATED** — preflight runs via single SSH on VPS (not local runner). SSH mux timeout increased for reliability. |
 
 ### Session 5 — Patch-bridge fix + Governance enforcement
@@ -435,8 +429,6 @@ Caddy puede validar un Bearer desde Infisical.
 | infrastructure/deploy.sh | ADDED: GROQ_API_KEY to .env, ffmpeg static binary install for audio STT |
 | infrastructure/hermes/config.yaml | CHANGED: stt.provider to groq, groq.model to whisper-large-v3-turbo |
 | .github/workflows/deploy.yml | ADDED: GROQ_API_KEY secret to Deploy and Sync secrets steps |
-| infrastructure/kilo.jsonc | ADDED: timeout 120000ms for hindsight-selfhosted MCP server |
-| infrastructure/hermes/config.yaml | ADDED: timeout 120s for hindsight-selfhosted MCP server |
 | infrastructure/hermes-skills/kilo-code/SKILL.md | REWRITTEN v2.0.0: governance-based delegation over line thresholds |
 | infrastructure/hermes-skills/group-onboarding/SKILL.md | REWRITTEN v4.1.0: added Phase 0 Context Ingestion |
 | .agents/templates/profile-soul.md | CHANGED: ROUTE-04 universal Kilo CLI (no line threshold) |
@@ -473,8 +465,6 @@ Caddy puede validar un Bearer desde Infisical.
 | `infrastructure/hermes/scripts/populate-channel-aliases.sh` | **EXTENDED** auto-cleanup orphaned WhatsApp groups. |
 | `infrastructure/hermes/config.yaml` | **FIXED** TTS enabled (es-CL-LorenzoNeural), fallback_providers qwen3.7-plus, reasoning_full=true, reasoning_effort=xhigh. |
 | `infrastructure/hermes/cloned-repos.yaml` | **UPDATED** schema (TTS field, metadata). |
-| Hindsight bank `toolset` (741 facts) | **DELETED** — data was older system. `toolset-profile` (0 facts) es canónico fresco. |
-| Server-side `recall_max_tokens` | **APPLIED** a 10 bancos Hindsight: 4096 max. |
 
 ---
 
@@ -512,4 +502,3 @@ sudo waiting on resolution. Backup at `/etc/hosts.antes-de-vps-oracle`.
 Context for the guards: tailscaled had grown to 2.2 GB RSS in 54 days while
 the CI registered one permanent tailnet node per run (763 dead nodes, purged;
 auth key reissued as ephemeral). Container memory limits applied live the
-same day (hindsight 2g, infisical 1g) — pending in docker-compose.yml.

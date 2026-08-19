@@ -27,13 +27,6 @@ Usar Kilo CLI para generar docs/ desde templates de .agents/templates/:
 kilo run "Ejecuta /document según .agents/workflows/document.md" --auto
 ```
 
-## Paso 4: Crear bank en Hindsight
-
-```bash
-mcp_hindsight_selfhosted_create_bank(bank_id="<repo>", name="<repo>")
-```
-**Regla:** bank_id SIEMPRE es exactamente el nombre del repo. No descripciones, no nombres largos.
-
 ## Paso 5: Crear skill Hermes
 
 ```bash
