@@ -12,6 +12,9 @@ jobs:
   check:
     name: Check
     runs-on: ubuntu-latest
+    # Corre cada cinco minutos: un colgado aca se apila. Ver la nota de topes en
+    # deploy.yml — el tope por omision son seis horas.
+    timeout-minutes: 5
     steps:
       - run: |
           FAILED=0

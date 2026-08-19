@@ -41,13 +41,35 @@ env:
   REMOTE_DIR: /opt/toolset
   SSH_OPTS: -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ControlMaster=auto -o ControlPath=~/.ssh/cm-%r@%h:%p -o ControlPersist=600
 
+# TOPES DE TIEMPO — puestos el 2026-08-19, y no son decorativos.
+#
+# Ese dia el despliegue quedo colgado tres veces sin cerrar nunca: 45 minutos en
+# `apt-get install`, 13 en la instalacion de Tailscale, con los comandos de ese
+# paso topados en un minuto por su cuenta. El tope por omision de un trabajo de
+# GitHub son SEIS HORAS, asi que un colgado quema cuota hasta expirar y deja los
+# despliegues siguientes en cola detras — uno espero 45 minutos a que se
+# destrabara el anterior. Y como el trabajo que se colgo fue el de verificacion
+# POSTERIOR, el despliegue ocurrio sin que nadie comprobara que quedo bien: el
+# verde nunca llego.
+#
+# Los numeros salen de medir la ultima corrida exitosa, no de intuicion:
+# Validate 0,5 min · OpenTofu 1,2 · Deploy 6,6 · Preflight 0,7. Cada tope deja
+# margen de sobra para variacion legitima —una imagen que se reconstruye, un
+# espejo lento— y aun asi corta MUY por debajo de las seis horas. Fallar rapido y
+# en rojo es mejor que colgarse en amarillo: un rojo se ve y se reintenta.
+#
+# Los pasos que DESCARGAN algo llevan ademas su propio tope, porque son los que
+# se colgaron: asi el rojo apunta al paso culpable en vez de al trabajo entero.
+
 jobs:
   validate-configs:
     name: Validate Configs
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - run: sudo apt-get update -qq && sudo apt-get install -y -qq yamllint jq 2>/dev/null
+      - timeout-minutes: 4
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq yamllint jq 2>/dev/null
       - run: bash -n infrastructure/deploy.sh
       - run: python3 -c "import yaml; yaml.safe_load(open('infrastructure/hermes/config.yaml')); print('OK')"
       - run: python3 scripts/validate-kilo-config.py infrastructure/kilo.jsonc
@@ -57,6 +79,7 @@ jobs:
     needs: validate-configs
     if: ${{ !inputs.skip_opentofu }}
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - run: |
@@ -66,7 +89,8 @@ jobs:
           printf "[DEFAULT]\nuser=%s\nfingerprint=%s\ntenancy=%s\nregion=sa-valparaiso-1\nkey_file=%s\n" \
             "${{ secrets.OCI_USER_OCID }}" "${{ secrets.OCI_FINGERPRINT }}" \
             "${{ secrets.OCI_TENANCY_OCID }}" "$HOME/.oci/gh_key.pem" > ~/.oci/config
-      - run: python3 -m pip install --user oci-cli 2>/dev/null || true
+      - timeout-minutes: 4
+        run: python3 -m pip install --user oci-cli 2>/dev/null || true
       - run: echo "$HOME/.local/bin" >> $GITHUB_PATH
       - name: Download remote state
         working-directory: ${{ env.INFRA_DIR }}
@@ -108,6 +132,7 @@ jobs:
     needs: validate-configs
     if: ${{ !inputs.skip_deploy && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
@@ -129,6 +154,7 @@ jobs:
           echo "changed files: $(echo "$CHANGED" | tr '\n' ' ')"
 
       - name: Tailscale
+        timeout-minutes: 4
         run: |
           curl -fsSL https://tailscale.com/install.sh | sh 2>/dev/null
           sudo tailscale up --authkey="${{ secrets.TAILSCALE_AUTH_KEY }}" --hostname="actions-runner" --timeout=60s 2>&1
@@ -227,10 +253,12 @@ jobs:
     needs: deploy-services
     if: ${{ !inputs.skip_preflight && github.ref == 'refs/heads/main' && needs.deploy-services.result == 'success' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - name: Tailscale
+        timeout-minutes: 4
         run: |
           curl -fsSL https://tailscale.com/install.sh | sh 2>/dev/null
           sudo tailscale up --authkey="${{ secrets.TAILSCALE_AUTH_KEY }}" --hostname="actions-runner" --timeout=60s 2>&1
