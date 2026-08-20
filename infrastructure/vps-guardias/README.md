@@ -15,5 +15,6 @@ had silently killed two of Hindsight's port proxies.
 | `censar-tailnet.sh` | `/usr/local/sbin/` | daily census of CI nodes in the tailnet; a rising count means the auth key stopped being ephemeral |
 | `reciclar-tailscaled.units` | `/etc/systemd/system/` (split in two) | oneshot service + daily 04:15 timer running both scripts |
 
+| `sudoers-kirlts-claude` | `/etc/sudoers.d/` (0440) | full elevation for the account Claude Code runs as, so a session born inside the VPS can administer like one that SSHes in from the notebook (2026-08-20). Validate with `visudo -cf` before installing |
 Also applied that day (live `docker update`, pending in compose): memory
 limits hindsight=2g, infisical=1g.

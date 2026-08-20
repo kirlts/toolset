@@ -1,0 +1,13 @@
+# Installs to /etc/sudoers.d/kirlts-claude (mode 0440, root:root).
+# Validate with `visudo -cf` BEFORE installing: a malformed file breaks sudo for
+# everyone, and on this host Tailscale is the only door in.
+#
+# kirlts is the account Claude Code runs under on this host. Granting it full
+# elevation levels the two ways a session can reach this machine:
+#   · a session that SSHes in from the notebook with the OS password: administers.
+#   · a session BORN inside the VPS (the ones opened from the phone through the
+#     Remote Control devices): had exactly one NOPASSWD command, kb-sync-ahora.
+# That asymmetry was invisible from inside — the same AI administered or not
+# depending on where it had come from, so it either declared work blocked that it
+# could do, or assumed powers it did not have. Measured 2026-08-20.
+kirlts ALL=(ALL) NOPASSWD: ALL
