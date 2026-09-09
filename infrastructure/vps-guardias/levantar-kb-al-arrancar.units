@@ -1,0 +1,9 @@
+[Unit]
+Description=Deja el servidor de la base sirviendo tras un arranque, y publica el 443
+After=docker.service tailscaled.service
+Wants=docker.service tailscaled.service
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/levantar-kb-al-arrancar.sh
+[Install]
+WantedBy=multi-user.target
