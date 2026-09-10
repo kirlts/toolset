@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# instrumento: ¿cómo levanto el servidor MCP de esta base de conocimiento a mano, sobre una KB local, para probar sus herramientas consultar/leer/listar/panorama en vivo?
+# se-corre-asi: python3 tools/kb-mcp/server.py --kb .
 """
 Servidor MCP de solo lectura para KBs construidas con kb-template.
 
@@ -206,6 +208,44 @@ def _subentradas_con_campos(cuerpo: str) -> list[tuple[str, dict]]:
                 break          # la ficha es el bloque contiguo que sigue al título
         fuera.append((titulo, campos))
     return fuera
+
+
+_CERRADAS = ("resuelto", "aceptado")
+
+
+def sub_cerrada(crudo: str) -> bool:
+    """¿La sección declara un estado que ya cerró? Se lee de su propia ficha."""
+    m = re.search(r"^-\s+\*\*Estado:\*\*\s*(.+?)\s*$", crudo or "", re.M)
+    return bool(m) and m.group(1).strip().lower() in _CERRADAS
+
+
+def sub_antiguedad(crudo: str) -> str:
+    """Clave de orden por fecha: más nueva primero. Sin fecha, última entre sus pares.
+
+    Los dos campos son el par que declara `kb/validate.config.yaml` —`Verificado` si se comprobó
+    contra el sistema, `Declarado` si alguien lo dijo—, y hay exactamente uno por ficha, así que se
+    toma el que esté. Cada dígito se invierte para que un `min` ordene descendente sin convertir a
+    número; una fecha ausente devuelve el carácter más alto y por eso pierde contra cualquier fecha.
+    Perder no la descarta: el rank la sigue defendiendo en el tercer criterio.
+    """
+    m = re.search(r"^-\s+\*\*(?:Verificado|Declarado):\*\*\s*'?(\d{4}-\d{2}-\d{2})", crudo or "", re.M)
+    if not m:
+        return "￿"
+    return "".join(chr(ord("9") - (ord(c) - ord("0"))) if c.isdigit() else c for c in m.group(1))
+
+
+def clave_de_desempate(crudo: str, posicion: int) -> tuple:
+    """Los tres criterios con que se elige QUÉ SECCIÓN se sirve, en orden y en un solo lugar.
+
+    Vive a nivel de módulo —y no dentro del método que la usa— para que su batería pueda ejercitar
+    exactamente lo que corre: `python3 tools/test_desempate_de_seccion.py`. Un criterio probado
+    contra una copia de sí mismo no prueba nada.
+
+    El orden es: estado (vigente antes que cerrada) · fecha (más nueva antes que más vieja) ·
+    relevancia. Y es un DESEMPATE, no un reordenamiento: quien llama ya filtró las mejores por
+    calce, así que acá solo se elige entre candidatas que la relevancia ya había aceptado.
+    """
+    return (sub_cerrada(crudo), sub_antiguedad(crudo), posicion)
 
 
 def subentradas(cuerpo: str) -> list[tuple[str, str]]:
@@ -1494,20 +1534,25 @@ class Indice:
             # tres consultas dirigidas se servía una sección `resuelto` del día anterior mientras la
             # vigente quedaba en el puesto 2 y en el 6, sin siquiera enumerarse.
             #
-            # Se traen las cuatro mejores por rank y se prefiere la que NO está cerrada, respetando
-            # el rank dentro de cada grupo. Es un desempate, no un reordenamiento: una sección
-            # vigente solo le gana a una resuelta que ya estaba entre las mejores por relevancia, y
-            # el caso normal —una sola candidata— no cambia en nada.
+            # Se traen las cuatro mejores por rank y se desempata con dos comparaciones que el índice
+            # ya tiene: primero se prefiere la que NO está cerrada, y entre las que empatan en eso,
+            # la de fecha más nueva. Es un desempate, no un reordenamiento: solo se elige dentro de
+            # las que YA estaban entre las mejores por relevancia, y el caso normal —una sola
+            # candidata— no cambia en nada.
+            #
+            # LA SEGUNDA COMPARACIÓN, LA FECHA, se agregó el 2026-08-27 y faltaba desde que se puso
+            # la primera. Sin ella, dos secciones vigentes sobre lo mismo —una medición y su
+            # re-medición posterior, que es un patrón corriente en esta base— se elegían por puro
+            # calce de palabras, y la vieja gana cuando repite más veces la palabra de la consulta.
+            # Servirle a un consumidor autónomo la cifra vieja teniendo la nueva al lado es la peor
+            # forma en que esta base puede fallar: ejecuta lo que se le afirma y no tiene forma de
+            # dudar.
             filas = self.db.execute(
                 "SELECT sub, crudo FROM subdocs WHERE subdocs MATCH ? AND nombre = ? "
                 "ORDER BY rank LIMIT 4", (consulta_fts, nombre)).fetchall()
             fila = None
             if filas:
-                def _cerrada(crudo: str) -> bool:
-                    m = re.search(r"^-\s+\*\*Estado:\*\*\s*(.+?)\s*$", crudo or "", re.M)
-                    return bool(m) and m.group(1).strip().lower() in ("resuelto", "aceptado")
-                fila = min(enumerate(filas),
-                           key=lambda par: (_cerrada(par[1][1]), par[0]))[1]
+                fila = min(enumerate(filas), key=lambda par: clave_de_desempate(par[1][1], par[0]))[1]
             if fila and fila[0]:
                 plano = " ".join(fila[1].split())
                 tope = 2600 if extendido else 1800
