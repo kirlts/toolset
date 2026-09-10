@@ -137,6 +137,15 @@ print(" ".join(k for k, v in esperadas.items() if c and c.get(k) != v))' 2>/dev/
     # Un arranque legitimo tarda hasta ~160 s con el codificador y el cache frio. No se hace nada:
     # se dice, y el proximo ciclo —quince minutos— lo encuentra resuelto o lo vuelve a decir.
     log "ALERTA: $CONTAINER no responde /kb/salud. NO se reinicia: puede estar arrancando o en reemplazo. Se reintenta en el proximo ciclo."
+  elif [ -n "$gen_ahora" ]; then
+    # LA GENERACION EXISTE Y NO CAMBIO EN 120 s: la recarga sigue, no es una imagen vieja. Hasta el
+    # 2026-09-10 este caso caia en la rama de abajo y REINICIABA el contenedor: en el VPS (dos
+    # nucleos) una recarga tarda 120-125 s y dos publicaciones seguidas la estiran mas, asi que el
+    # 2026-09-10 a las 15:26 el reinicio corto el servicio cuatro minutos (arranque frio de 237 s)
+    # con el servidor sano y a punto de terminar. Reiniciar es lo que este guion dejo de hacer el
+    # 2026-08-08 por ese mismo costo, y no vuelve por un plazo vencido. Se deja dicho y lo toma el
+    # proximo ciclo, que va a ver la generacion nueva.
+    log "ALERTA: $CONTAINER sigue recargando tras 120 s (generacion $gen_antes sin cambiar). NO se reinicia: la recarga tarda mas con publicaciones seguidas. Lo toma el proximo ciclo."
   else
     # CONTESTA pero sin declarar generacion: imagen anterior a la recarga en caliente. Ahi si.
     log "$CONTAINER contesta pero no publica generacion (imagen vieja); se reinicia como antes"
