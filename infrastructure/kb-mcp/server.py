@@ -234,7 +234,28 @@ def sub_antiguedad(crudo: str) -> str:
     return "".join(chr(ord("9") - (ord(c) - ord("0"))) if c.isdigit() else c for c in m.group(1))
 
 
-def clave_de_desempate(crudo: str, posicion: int) -> tuple:
+_EPISODIO = re.compile(
+    r"\b(que paso|que ocurrio|que sucedio|estuvo|estuvieron|quedo|quedaron|hubo|"
+    r"se cayo|se rompio|se resolvio|se arreglo|se cerro|se apago|paso con|ocurrio|sucedio|"
+    r"respondia|respondio|servia|sirvio|cayo|murio|rompio|"
+    r"incidente|episodio|historia de|"
+    r"por que\b[^?]{0,60}?\b(?:cayo|fallo|rompio|murio|paro|respondia|respondio|servia|sirvio|"
+    r"quedo|estuvo|hubo|se apago|se cerro)|"
+    r"cuando\b[^?]{0,40}?\b(?:se cayo|fallo|se rompio|paro|se resolvio|se arreglo|se cerro|se apago))\b")
+
+
+def pregunta_por_episodio(pregunta: str) -> bool:
+    """¿La pregunta es por algo que PASÓ —un episodio, su causa, su cierre— y no por el estado actual?
+
+    Se lee del tiempo verbal y de los sustantivos de incidente, sobre la pregunta normalizada (sin
+    acentos, en minúsculas). «qué pasó con el servidor esta semana», «por qué respondía 200 con el
+    proceso muerto», «cuándo se cayó» son por episodio; «cuántas funciones son alcanzables hoy»,
+    «qué hacer cuando el servidor responde 200» no lo son, aunque nombren el mismo tema.
+    """
+    return bool(_EPISODIO.search(normalizar(pregunta)))
+
+
+def clave_de_desempate(crudo: str, posicion: int, episodio: bool = False) -> tuple:
     """Los tres criterios con que se elige QUÉ SECCIÓN se sirve, en orden y en un solo lugar.
 
     Vive a nivel de módulo —y no dentro del método que la usa— para que su batería pueda ejercitar
@@ -244,7 +265,20 @@ def clave_de_desempate(crudo: str, posicion: int) -> tuple:
     El orden es: estado (vigente antes que cerrada) · fecha (más nueva antes que más vieja) ·
     relevancia. Y es un DESEMPATE, no un reordenamiento: quien llama ya filtró las mejores por
     calce, así que acá solo se elige entre candidatas que la relevancia ya había aceptado.
+
+    CON `episodio` MANDA LA RELEVANCIA SOLA. Medido el 2026-09-09 (evaluación 2026-09-09-1916):
+    ante «el servidor remoto de la base estuvo caído tres días sin que nada lo vigilara», la sección
+    que lo cuenta —resuelta, porque el episodio se resolvió— calzaba mejor que cualquier otra (bm25
+    −30,0 contra −24,6 de la vigente siguiente) y el criterio de estado la degradaba igual, así que
+    se servía una sección vigente de otro tema. Para una pregunta por un episodio la respuesta
+    correcta está cerrada por definición; degradarla es esconderla. Se probó también degradar solo
+    cuando la vigente calza casi igual (un margen sobre el bm25) y se descartó con medición: ante
+    «cuántas funciones de borde son alcanzables sin cuenta» la cerrada del 2026-07-31 calza mejor
+    (−17,7) que la vigente del 2026-09-02 (−15,0) y ahí la vigente ES la respuesta; ningún margen
+    separa los dos casos, el tiempo verbal de la pregunta sí.
     """
+    if episodio:
+        return (posicion,)
     return (sub_cerrada(crudo), sub_antiguedad(crudo), posicion)
 
 
@@ -1424,9 +1458,10 @@ class Indice:
             return ""
         return "\n*Otras secciones de este documento:* " + " · ".join(fuera[:8])
 
-    def extracto(self, nombre: str, consulta_fts: str, extendido: bool = False) -> str:
+    def extracto(self, nombre: str, consulta_fts: str, extendido: bool = False,
+                 pregunta: str | None = None) -> str:
         """Sirve el pasaje, y garantiza que el límite declarado viaje con él."""
-        texto = self._extracto_bruto(nombre, consulta_fts, extendido)
+        texto = self._extracto_bruto(nombre, consulta_fts, extendido, pregunta)
         nodo = self.nodos.get(nombre)
         if nodo is None:
             return texto
@@ -1519,7 +1554,8 @@ class Indice:
             return ""
         return "\n\n*Otras secciones de este documento:* " + " · ".join(fuera[:12])
 
-    def _extracto_bruto(self, nombre: str, consulta_fts: str, extendido: bool = False) -> str:
+    def _extracto_bruto(self, nombre: str, consulta_fts: str, extendido: bool = False,
+                        pregunta: str | None = None) -> str:
         # Primero: la SUB-ENTRADA que mejor calza, servida entera. Es la unidad atómica de
         # esta base —título, ficha de campos y evidencia— así que servirla completa entrega
         # la respuesta en vez de una ventana adivinada alrededor de una coincidencia. Las
@@ -1552,7 +1588,11 @@ class Indice:
                 "ORDER BY rank LIMIT 4", (consulta_fts, nombre)).fetchall()
             fila = None
             if filas:
-                fila = min(enumerate(filas), key=lambda par: clave_de_desempate(par[1][1], par[0]))[1]
+                # LA PREGUNTA CRUDA decide si es por episodio; la consulta FTS ya viene expandida y
+                # sin su tiempo verbal. Cuando no llega (un camino que no es `consultar`), no lo es.
+                episodio = pregunta_por_episodio(pregunta or "")
+                fila = min(enumerate(filas),
+                           key=lambda par: clave_de_desempate(par[1][1], par[0], episodio))[1]
             if fila and fila[0]:
                 plano = " ".join(fila[1].split())
                 tope = 2600 if extendido else 1800
@@ -2824,6 +2864,25 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
                            in zip(F[nom], _mu, _sg, _w)) + _b
             ganadores = sorted(cabeza, key=lambda x: (-_score(x), -puntaje[x]))[:n]
 
+        # LA SECCIÓN QUE MEJOR CALZA ENTRA AUNQUE SU ENTRADA NO HAYA GANADO. El orden de arriba
+        # puntúa ENTRADAS, y una entrada grande diluye la sección que contesta: «qué necesitan que
+        # yo consiga para destrabar al equipo» tiene su respuesta literal en una nota de «Accesos
+        # requeridos» (bm25 de sección −28,4, la siguiente −20,6) y la entrada no entraba entre las
+        # servidas. Medido el 2026-09-10 sobre las 97 preguntas juzgadas: la entrada correcta iba
+        # primera en 48; la entrada de la sección que mejor calza era la correcta en 34; alguna de las
+        # dos, en 57. No se toca el primer lugar —el reordenador entrenado lo decide— y la entrada de
+        # la mejor sección entra SEGUNDA cuando faltaba, desplazando a la última. Respeta el ámbito.
+        try:
+            mejor_sub = idx.db.execute(
+                "SELECT nombre FROM subdocs WHERE subdocs MATCH ? ORDER BY rank LIMIT 1",
+                (args[0],)).fetchone()
+        except sqlite3.OperationalError:
+            mejor_sub = None
+        if (mejor_sub and mejor_sub[0] in idx.nodos and mejor_sub[0] not in ganadores
+                and (not polo or idx.nodos[mejor_sub[0]].polo == polo)):
+            ganadores.insert(min(1, len(ganadores)), mejor_sub[0])
+            ganadores = ganadores[:n]
+
             # ── EL REORDENADOR NEURONAL: ELIGE CUÁLES, NO EN QUÉ ORDEN ──────────────────────
             # Medido el 2026-08-09 sobre las 81 preguntas juzgadas, con cabeza de 20 y salida de 6:
             #
@@ -3071,7 +3130,7 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
         partes = [redirigir + aviso + f"{len(ganadores)} documento(s) sobre «{pregunta}»\n"]
         for nom in ganadores:
             partes.append(
-                f"### {idx.fuente(idx.nodos[nom])}\n{idx.extracto(nom, args[0], extendido)}")
+                f"### {idx.fuente(idx.nodos[nom])}\n{idx.extracto(nom, args[0], extendido, pregunta)}")
             if vecinos := idx.relacionados(nom)[:12 if extendido else 6]:
                 partes.append(f"*Conecta con:* {', '.join(vecinos)}")
             partes.append("")
