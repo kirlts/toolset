@@ -146,7 +146,7 @@ DEFINICIONAL = re.compile(r"\b(que es|qué es|que son|qué son|quien es|quién e
 # preguntas juzgadas, quitarlo mejora 3 de 4: nota correcta servida 29→30%, top-3 55→57, fuera del
 # listado 19→17, primer lugar igual. El entrenador lo vuelve a poner positivo porque optimiza
 # primer lugar sobre el subconjunto de entrenamiento; si se reentrena, revisar contra esta nota.
-RANKER_PESOS = {'kb': 'okos', 'mu': [0.351663, 4.062396, 0.546557, 0.081794, 0.034301, 0.0, 0.542179, 0.94143, 0.100488], 'sigma': [0.126125, 4.938254, 0.252806, 0.236047, 0.182001, 1e-06, 0.23785, 0.115645, 0.135562], 'w': [0.085658, 0.415418, 0.180627, 1.218747, -0.401717, 0.0, 0.0, -0.075452, 0.013916], 'b': -1.938051}
+RANKER_PESOS = {"kb": "okos", "n": 97, "fecha": "2026-09-09", "mu": [0.465729, 13.351839, 0.69049, 0.121627, 0.034946, 0.0, 0.440108, 1.046035, 0.106179], "sigma": [0.144753, 10.008397, 0.247764, 0.24567, 0.183644, 1e-06, 0.370661, 0.213222, 0.129043], "w": [0.879465, -0.163906, 0.639531, 1.471422, -0.402945, 0.0, -0.154651, 0.539261, 0.522159], "b": -2.613882}
 
 FICHA_CAMPO = re.compile(r"^-\s+\*\*[^*]+:\*\*.*$", re.MULTILINE)
 
