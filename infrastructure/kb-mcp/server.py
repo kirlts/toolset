@@ -146,7 +146,7 @@ DEFINICIONAL = re.compile(r"\b(que es|qué es|que son|qué son|quien es|quién e
 # preguntas juzgadas, quitarlo mejora 3 de 4: nota correcta servida 29→30%, top-3 55→57, fuera del
 # listado 19→17, primer lugar igual. El entrenador lo vuelve a poner positivo porque optimiza
 # primer lugar sobre el subconjunto de entrenamiento; si se reentrena, revisar contra esta nota.
-RANKER_PESOS = {"kb": "okos", "n": 97, "fecha": "2026-09-09", "mu": [0.465729, 13.351839, 0.69049, 0.121627, 0.034946, 0.0, 0.440108, 1.046035, 0.106179], "sigma": [0.144753, 10.008397, 0.247764, 0.24567, 0.183644, 1e-06, 0.370661, 0.213222, 0.129043], "w": [0.879465, -0.163906, 0.639531, 1.471422, -0.402945, 0.0, -0.154651, 0.539261, 0.522159], "b": -2.613882}
+RANKER_PESOS = {"kb": "okos", "n": 113, "fecha": "2026-09-21", "mu": [0.451592, 14.26004, 0.700354, 0.112401, 0.029963, 0.0, 0.46794, 1.053485, 0.100926], "sigma": [0.152622, 9.706073, 0.236165, 0.230581, 0.170484, 1e-06, 0.385849, 0.209786, 0.121649], "w": [0.28679, 0.221291, 0.489213, 0.928863, -0.063867, 0.0, -0.252224, 0.589169, 0.403731], "b": -2.22402}
 
 FICHA_CAMPO = re.compile(r"^-\s+\*\*[^*]+:\*\*.*$", re.MULTILINE)
 
@@ -3075,7 +3075,18 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
         # calla: se NOMBRA el filtro que corresponde sin pegar la lista. El lector se lleva la orden
         # exacta para su intención y la respuesta sigue siendo sobre su tema.
         trae_tema = bool(por_nombre)
-        if POR_PROPIEDAD.search(pregunta) or desde_f:
+        # LA PUERTA LA ABRE TAMBIÉN LA DEDUCCIÓN, y eso cierra una clase entera de defecto en vez
+        # del verbo de turno. El comentario de `_POR_PROPIEDAD` ya lo dice con todas las letras:
+        # «es la tercera vez que una lista de verbos se separa de su gemela y el efecto es el
+        # mismo: media función entiende la pregunta y la otra media no la deja pasar». Esta es la
+        # cuarta, y se arregla la forma y no el caso: si `deducir_filtro` entiende la pregunta,
+        # el detector no tiene por qué descartarla — son las dos mitades de la misma decisión.
+        # Medido el 2026-09-21 (evaluación 2026-09-20-2336) sobre 35 consultas: 6 discrepaban,
+        # y TRES de esas seis devolvían secciones con estado y ninguna abierta, entre ellas la
+        # pregunta más literal que existe, «qué planes están abiertos y cuál conviene tomar
+        # primero», que es la que hace el consumidor que ejecuta lo que la base afirma.
+        _ded = deducir_filtro(pregunta)
+        if POR_PROPIEDAD.search(pregunta) or desde_f or _ded[0] or _ded[1]:
             # Decirle al lector «usá otra herramienta» es peor que usarla por él: en una
             # pregunta por propiedad la respuesta exacta ya se puede calcular acá, y hacerlo
             # ahorra un viaje y evita que se quede con el resultado aproximado, que es
