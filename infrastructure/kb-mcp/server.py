@@ -2196,7 +2196,26 @@ def deducir_filtro(pregunta: str) -> tuple[str | None, str | None]:
     # contestar otra pregunta. Medido el 2026-08-06.
     # Va DESPUÉS de las ramas de negación y de `falta|queda` a propósito: «qué falta para lograr X»
     # ya se resolvió como abierto ahí, y esta no puede ganarle.
-    if re.search(rf"({_TERMINADO})", q):
+    #
+    # UN VERBO DE TERMINAR EN UNA CLÁUSULA DE PROPÓSITO («para X», «a fin de X») DESCRIBE EL
+    # COMPLEMENTO, NO EL ESTADO DEL SUJETO. «Qué planes PARA ARREGLAR problemas hay» pregunta por
+    # planes —que existen, abiertos, ninguno terminado por nombrarse ahí—, y el «arreglar» de la
+    # subordinada le ganaba al sujeto: `re.search` lo encontraba en cualquier parte de la oración y
+    # devolvía `resuelto`, el inverso de lo que se preguntó. Reproducido el 2026-09-22:
+    # `deducir_filtro('que planes para arreglar problemas hay')` daba `('resuelto', None)`. Es la
+    # brecha que la sub-entrada de la base («Un verbo de terminar en una cláusula subordinada le
+    # gana al sujeto») dejó vigente a propósito: dos parches anteriores —«qué falta para cerrar la
+    # compra», arriba, y la lista compartida de verbos— resolvieron su caso cada uno, no la clase.
+    #
+    # Antes de buscar el verbo, se descarta cualquier tramo «para <hasta dos palabras> VERBO» o «a
+    # fin de <hasta dos palabras> VERBO» cuyo verbo sea de terminar o de arrancar —la subordinada
+    # de propósito—. «Que sirvan para resolver X» cae en el mismo tramo, porque el «para» sigue
+    # ahí. Lo que queda es el resto de la oración, y solo si TODAVÍA tiene un verbo de terminar se
+    # contesta `resuelto`: «qué se arregló esta semana» y «qué planes se cerraron» no tienen ese
+    # conector y no pierden nada.
+    q_sin_proposito = re.sub(
+        rf"\b(para|a\s+fin\s+de)\s+(\w+\s+){{0,2}}({_TERMINADO}|{_ARRANCADO})\w*", " ", q)
+    if re.search(rf"({_TERMINADO})", q_sin_proposito):
         return "resuelto", None
     # `propuesto` es un estado real del corpus —17 planes esperando decisión de Martín, o sea justo
     # los que el sistema de delegación NO puede empezar— y no tenía rama: preguntarlo devolvía los
@@ -2235,7 +2254,13 @@ def deducir_filtro(pregunta: str) -> tuple[str | None, str | None]:
     if re.search(r"\b(preguntar|preguntarle|pedirle|consultarle|reclamarle)\b"
                  r".{0,24}\b(fundador|direcci[oó]n|project\s*manager|\bpm\b|jefe)", q):
         return None, "requerido"
-    if re.search(r"problema|riesgo|falla|defecto|hallazgo", q):
+    # LA MISMA GUARDA QUE YA PROTEGE A LA RAMA DE NEGACIÓN (arriba, «Y SOLO SI LA PREGUNTA NO
+    # NOMBRA OTRO TIPO»), y por la misma razón: sin ella, «qué planes para arreglar problemas hay»
+    # —una vez descartada la subordinada de arriba— caía acá por la palabra «problemas» y
+    # contestaba `vigente`+`hallazgo` a una pregunta cuyo sujeto es «planes». Es el mismo defecto
+    # —el complemento le gana al sujeto—, solo que en la rama afirmativa en vez de la negada.
+    if (re.search(r"problema|riesgo|falla|defecto|hallazgo", q)
+            and not re.search(r"\bplan|pedido|acceso|pregunta|compromiso|tarea", q)):
         return "vigente", "hallazgo"
     return None, None
 
