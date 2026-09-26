@@ -306,7 +306,7 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
 
 DEPLOY_FAILED=false
 
-# --- Sync kb-mcp server code (server.py + Dockerfile) ---
+# --- Sync kb-mcp server code (server.py + Dockerfile), SIN CORTAR EL SERVICIO ---
 # VA ANTES DE VERIFICAR LOS SERVICIOS CRITICOS, Y NO AL FINAL. El 2026-09-10 este bloque vivia al
 # final del guion: el bootstrap de Infisical fallo (salida 7) y el despliegue murio sin llegar aca,
 # asi que el servidor de la base quedo sirviendo el codigo de agosto aunque el commit habia entrado
@@ -317,20 +317,37 @@ DEPLOY_FAILED=false
 # anterior en silencio (deploy verde ≠ contenedor actualizado, el mismo patron de
 # fallo silencioso de HEU-006). Bloque deliberadamente no-fatal (`|| true` en todo)
 # y condicionado por checksum: si el codigo remoto ya es identico no toca NADA (ni
-# build ni restart — cero riesgo para lo que esta corriendo). Solo reconstruye
-# cuando hay diferencia real, y verifica la salud del contenedor despues.
+# build ni recambio — cero riesgo para lo que esta corriendo). Solo reconstruye
+# cuando hay diferencia real.
+#
+# HASTA EL 2026-09-26 ESTO HACIA `docker compose up -d kb-mcp` EN EL LUGAR, que para el
+# contenedor viejo, lo saca y recien arranca el nuevo — con la cache de vectores fria,
+# medido entre 60 y 71s sin que el servidor conteste nada (ver el comentario de
+# desplegar-sin-caida.sh). Ese servidor es la puerta del fundador (UD-004/D5 de kb-okos,
+# `KB_TOKEN_PUBLICADO`), que puede entrar en cualquier momento — no hay ventana. Ahora el
+# recambio lo hace desplegar-sin-caida.sh: levanta el contenedor nuevo al lado, lo prueba
+# con una llamada MCP real, y solo si contesta lo hace responder al nombre `kb-mcp` (con
+# el viejo todavia respondiendolo tambien, nunca un instante sin nadie) antes de bajar al
+# viejo. Ensayado el 2026-09-26 contra un par de contenedores de prueba: 0 fallas en 195
+# sondeos cada 0.2s durante el recambio.
 KB_MCP_SRC="$(dirname "${COMPOSE_FILE}")/kb-mcp"
 # vivo.py se sumo el 2026-09-25: server.py importa `esta_retirado` desde ahi (ver el
 # comentario del Dockerfile). Sin sumarlo tambien aca, el checksum nunca lo detecta,
 # nunca se copia al remoto, y el build de la imagen falla con ModuleNotFoundError —el
 # mismo patron de "el codigo fuente cambio y el despliegue no se entero" que este
-# bloque entero existe para cerrar (DT-012).
-if [ -f "$KB_MCP_SRC/server.py" ] && [ -f "$KB_MCP_SRC/Dockerfile" ] && [ -f "$KB_MCP_SRC/vivo.py" ]; then
+# bloque entero existe para cerrar (DT-012). desplegar-sin-caida.sh entra al mismo
+# checksum por la misma razon: si cambia el mecanismo de despliegue sin que cambie
+# server.py, el checksum viejo no lo detectaria y el servidor seguiria recambiandose
+# con el guion desactualizado.
+if [ -f "$KB_MCP_SRC/server.py" ] && [ -f "$KB_MCP_SRC/Dockerfile" ] && [ -f "$KB_MCP_SRC/vivo.py" ] \
+   && [ -f "$KB_MCP_SRC/desplegar-sin-caida.sh" ]; then
   echo "[DEPLOY] Syncing kb-mcp server code..."
-  KB_MCP_LOCAL_SUM=$(cat "$KB_MCP_SRC/server.py" "$KB_MCP_SRC/Dockerfile" "$KB_MCP_SRC/vivo.py" | md5sum | awk '{print $1}')
+  KB_MCP_LOCAL_SUM=$(cat "$KB_MCP_SRC/server.py" "$KB_MCP_SRC/Dockerfile" "$KB_MCP_SRC/vivo.py" \
+    "$KB_MCP_SRC/desplegar-sin-caida.sh" | md5sum | awk '{print $1}')
   KB_MCP_REMOTE_SUM=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     "${SSH_HOST}" \
-    "cat /opt/toolset/kb-mcp/server.py /opt/toolset/kb-mcp/Dockerfile /opt/toolset/kb-mcp/vivo.py 2>/dev/null | md5sum | awk '{print \$1}'" \
+    "cat /opt/toolset/kb-mcp/server.py /opt/toolset/kb-mcp/Dockerfile /opt/toolset/kb-mcp/vivo.py \
+      /opt/toolset/kb-mcp/desplegar-sin-caida.sh 2>/dev/null | md5sum | awk '{print \$1}'" \
     2>/dev/null || echo "unreachable")
   if [ "$KB_MCP_LOCAL_SUM" = "$KB_MCP_REMOTE_SUM" ]; then
     echo "[DEPLOY]   kb-mcp code unchanged; container untouched."
@@ -339,29 +356,20 @@ if [ -f "$KB_MCP_SRC/server.py" ] && [ -f "$KB_MCP_SRC/Dockerfile" ] && [ -f "$K
   else
     scp -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
       "$KB_MCP_SRC/server.py" "$KB_MCP_SRC/Dockerfile" "$KB_MCP_SRC/vivo.py" \
+      "$KB_MCP_SRC/desplegar-sin-caida.sh" \
       "${SSH_HOST}:/tmp/" 2>/dev/null || true
     ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
       "${SSH_HOST}" \
       "sudo cp /tmp/server.py /opt/toolset/kb-mcp/server.py && \
        sudo cp /tmp/Dockerfile /opt/toolset/kb-mcp/Dockerfile && \
        sudo cp /tmp/vivo.py /opt/toolset/kb-mcp/vivo.py && \
-       rm -f /tmp/server.py /tmp/Dockerfile /tmp/vivo.py && \
+       sudo cp /tmp/desplegar-sin-caida.sh /opt/toolset/kb-mcp/desplegar-sin-caida.sh && \
+       sudo chmod +x /opt/toolset/kb-mcp/desplegar-sin-caida.sh && \
+       rm -f /tmp/server.py /tmp/Dockerfile /tmp/vivo.py /tmp/desplegar-sin-caida.sh && \
        cd ${REMOTE_DIR} && \
-       sudo docker compose build kb-mcp 2>&1 | tail -1 && \
-       sudo docker compose up -d kb-mcp 2>&1 | tail -1" 2>/dev/null \
-      && echo "[DEPLOY]   kb-mcp rebuilt with new code." \
-      || echo "[DEPLOY]   ⚠️  kb-mcp rebuild fallo; el contenedor sigue con la version anterior (no bloqueante)."
-    # Verificacion post-cambio explicita: healthy en <=300s o advertencia visible. El servidor tarda
-    # unos 4 minutos en armar su indice en este VPS (238 s medidos el 2026-09-10): con 90 s el aviso
-    # salia siempre y era falso.
-    ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-      "${SSH_HOST}" \
-      "for i in \$(seq 1 60); do \
-         sudo docker ps --format '{{.Status}}' --filter name=kb-mcp | grep -q '(healthy)' && exit 0; \
-         sleep 5; \
-       done; exit 1" 2>/dev/null \
-      && echo "[DEPLOY]   kb-mcp healthy post-rebuild." \
-      || echo "[DEPLOY]   ⚠️  kb-mcp NO reporta healthy tras el rebuild — revisar 'docker logs kb-mcp'."
+       sudo REMOTE_DIR=${REMOTE_DIR} bash kb-mcp/desplegar-sin-caida.sh" 2>&1 | tail -20 \
+      && echo "[DEPLOY]   kb-mcp recambiado sin corte." \
+      || echo "[DEPLOY]   ⚠️  el recambio sin corte fallo; el contenedor sigue con la version anterior (no bloqueante — desplegar-sin-caida.sh nunca toca al viejo si el nuevo no contesta sano)."
   fi
 fi
 
