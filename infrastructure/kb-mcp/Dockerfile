@@ -101,7 +101,18 @@ RUN pip install --no-cache-dir "uvicorn>=0.30" "starlette>=0.37"
 
 USER kb
 WORKDIR /app
-COPY server.py /app/server.py
+
+# server.py hace `from vivo import esta_retirado` resolviendo la ruta con
+# `Path(__file__).resolve().parent.parent` — asi vive en el repo canonico
+# (kb-okos: tools/kb-mcp/server.py + tools/vivo.py, dos directorios arriba). La
+# copia se agrego el 2026-09-24 en kb-okos y hasta ahora esta imagen solo copiaba
+# server.py: desplegar el archivo sincronizado sin este cambio habria roto el
+# arranque con ModuleNotFoundError. Se replica la misma forma relativa acá:
+# server.py un nivel bajo /app (en app/kb-mcp/), vivo.py directo en /app, para que
+# el mismo calculo de rutas de sys.path encuentre el modulo sin tocar una linea
+# del archivo canonico.
+COPY server.py /app/kb-mcp/server.py
+COPY vivo.py /app/vivo.py
 
 # Directorio que contiene una o varias KB (cada subdir con knowledge-base/ es una).
 # Cada KB se sirve bajo /<slug>/mcp; no hay KB por defecto en la raiz.
@@ -138,4 +149,4 @@ EXPOSE 8765
 # —lo que elimina los 9 a 49 segundos en que la base no contestaba en cada cambio de
 # contenido, 28 veces el 2026-08-07—. Comprobado: con `sh -c` sin `exec`, la senal no
 # produce ninguna recarga y `/kb/salud` sigue en la misma generacion.
-CMD ["sh", "-c", "exec python /app/server.py --kbs $KB_ROOT --transport streamable-http --host 0.0.0.0 --port 8765"]
+CMD ["sh", "-c", "exec python /app/kb-mcp/server.py --kbs $KB_ROOT --transport streamable-http --host 0.0.0.0 --port 8765"]
