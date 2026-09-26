@@ -236,14 +236,25 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   "cd ${REMOTE_DIR} && sudo docker compose pull 2>&1" | sed 's/^/  [PULL] /'
 
 # --- Port cleanup (prevent "address already in use" from zombie processes) ---
+# 8080 SE SACO DE ESTA LIMPIEZA INCONDICIONAL. Es el puerto de Caddy — el UNICO frente
+# del conector del fundador (UD-004/D5 de kb-okos), que no puede tener ninguna caida en
+# ningun momento. Medido el 2026-09-26: este `fuser -k 8080/tcp` corria en CUALQUIER
+# despliegue de esta infraestructura, tocara o no tocara kb-mcp, y mataba el
+# docker-proxy que sostiene el puerto de un Caddy sano y corriendo — el paso de mas
+# abajo, "Verify Caddy port binding", lo detectaba roto un momento despues y lo
+# recreaba, con la puerta del fundador devolviendo 502 durante ese hueco (~20s
+# medidos). Ese mismo paso de mas abajo YA comprueba la salud primero y solo
+# interviene si de verdad esta sordo — es la forma correcta, condicional, de resolver
+# el "docker-proxy colgado" que este cleanup preventivo pretendia evitar. 8888 y 9999
+# no son de Caddy (puertos sueltos de pruebas manuales/sandboxes) y se siguen matando
+# sin condicion, porque no sirven nada que el fundador use.
 echo "[DEPLOY] Cleaning up ports..."
 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   "${SSH_HOST}" \
   "sudo fuser -k 8888/tcp 2>/dev/null || true; \
    sudo fuser -k 9999/tcp 2>/dev/null || true; \
-   sudo fuser -k 8080/tcp 2>/dev/null || true; \
-   sleep 3"
-echo "[DEPLOY] Ports cleaned."
+   sleep 1"
+echo "[DEPLOY] Ports cleaned (8080/Caddy excluido — su propio paso de verificacion decide)."
 
 # --- Recreate changed services ---
 # kb-mcp QUEDA AFUERA A PROPOSITO. Este `up -d` generico no sabe nada de recambios sin

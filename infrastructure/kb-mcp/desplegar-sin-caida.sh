@@ -60,9 +60,22 @@ fi
 # KB_FECHA_SUBENTRADA) que docker-compose.yml solo declara como default. Clonar el
 # contenedor VIVO es la unica forma de no perder un ajuste que ya esta en produccion
 # y no en este archivo (mismo principio que "los nombres salen de la base viva").
+# El healthcheck se lee de `docker compose config`, NO del contenedor vivo: si el
+# contenedor vivo ya lo perdiera por lo que sea (paso exactamente el 2026-09-26, en el
+# primer swap de este mecanismo, que todavia no clonaba el healthcheck), clonarlo DE ESE
+# contenedor perpetuaria el hueco para siempre. `docker-compose.yml` es la fuente que se
+# corrige a mano y de la que todo lo demas se supone que sale — asi que este paso se
+# autorepara solo con que alguien arregle el compose, sin que nadie tenga que tocar un
+# contenedor corriendo.
+HEALTHCHECK_JSON=$(docker compose config --format json | python3 -c '
+import json, sys
+d = json.load(sys.stdin)
+print(json.dumps((d.get("services") or {}).get("kb-mcp", {}).get("healthcheck") or {}))
+')
+
 RUN_ARGS_FILE=$(mktemp)
-docker inspect "$CONTENEDOR" --format '{{json .}}' | python3 -c '
-import json, sys, shlex
+docker inspect "$CONTENEDOR" --format '{{json .}}' | HEALTHCHECK_JSON="$HEALTHCHECK_JSON" python3 -c '
+import json, sys, shlex, os
 c = json.load(sys.stdin)
 args = []
 for e in c["Config"]["Env"]:
@@ -80,13 +93,12 @@ for k, v in (hc.get("Tmpfs") or {}).items():
     args += ["--tmpfs", f"{k}:{v}"]
 for s in (hc.get("SecurityOpt") or []):
     args += ["--security-opt", s]
-# EL HEALTHCHECK TAMBIEN SE CLONA. Se olvido la primera vez (2026-09-26): el contenedor
-# nuevo salia sin el, asi que nunca aparecia "(healthy)"/"(unhealthy)" en `docker ps` ni
-# en nada que dependa de `docker inspect --format {{.State.Health.Status}}` — exactamente
-# lo que este mismo guion usa mas abajo para decidir si el viejo esta sano antes de tocarlo
-# en una corrida futura, y lo que otros scripts de esta maquina (sync-kb.sh) tambien miran.
-hcheck = c["Config"].get("Healthcheck") or {}
-test = hcheck.get("Test") or []
+# EL HEALTHCHECK SE TOMA DE `docker compose config` (HEALTHCHECK_JSON), NO del
+# contenedor vivo — ver el comentario mas arriba de por que. Formato de compose:
+# test=["CMD",...], y timeout/interval/start_period ya vienen como "5s"/"30s" (listos
+# para pasarlos directo a `docker run`, sin convertir nanosegundos).
+hcheck = json.loads(os.environ.get("HEALTHCHECK_JSON") or "{}")
+test = hcheck.get("test") or []
 if test and test[0] not in ("NONE",):
     if test[0] == "CMD-SHELL":
         cmd = test[1] if len(test) > 1 else ""
@@ -96,15 +108,14 @@ if test and test[0] not in ("NONE",):
         cmd = " ".join(shlex.quote(p) for p in test[1:])
     if cmd:
         args += ["--health-cmd", cmd]
-        ns_a_s = lambda ns: f"{int(ns // 1_000_000_000)}s"
-        if hcheck.get("Interval"):
-            args += ["--health-interval", ns_a_s(hcheck["Interval"])]
-        if hcheck.get("Timeout"):
-            args += ["--health-timeout", ns_a_s(hcheck["Timeout"])]
-        if hcheck.get("StartPeriod"):
-            args += ["--health-start-period", ns_a_s(hcheck["StartPeriod"])]
-        if hcheck.get("Retries"):
-            args += ["--health-retries", str(hcheck["Retries"])]
+        if hcheck.get("interval"):
+            args += ["--health-interval", hcheck["interval"]]
+        if hcheck.get("timeout"):
+            args += ["--health-timeout", hcheck["timeout"]]
+        if hcheck.get("start_period"):
+            args += ["--health-start-period", hcheck["start_period"]]
+        if hcheck.get("retries"):
+            args += ["--health-retries", str(hcheck["retries"])]
 print(" ".join(shlex.quote(a) for a in args))
 ' > "$RUN_ARGS_FILE"
 RUN_ARGS=$(cat "$RUN_ARGS_FILE")
