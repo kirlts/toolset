@@ -3304,7 +3304,8 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
                       "Tipo": str(m.get("tipo", "")),
                       "Publicable": "sí" if m.get("publicable") else "no"}
             for campo, clave in (("Verificado", "verificado"), ("Declarado", "declarado"),
-                                 ("Checkpoint", "checkpoint"), ("Vence", "vence")):
+                                 ("Checkpoint", "checkpoint"), ("Vence", "vence"),
+                                 ("Cerrado", "cerrado")):
                 if m.get(clave):
                     unidad[campo] = str(m.get(clave))
             if not secciones:
@@ -3359,8 +3360,17 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
                         return ("«fuente» es `verificacion` (lo comprobado contra el sistema) o "
                                 "`declaracion` (lo que alguien dijo). Son las dos mitades del par "
                                 "sobre el que descansa esta base.")
-                fecha = (campos.get("Verificado") or campos.get("Declarado")
-                         or campos.get("Checkpoint") or "")
+                # `Cerrado` va primero: es la fecha en que se comprobó que un plan quedó
+                # resuelto (CURADURIA §7.1, chequeo 21), y por diseño puede quedar muy
+                # posterior al último `Checkpoint` —un plan puede pasar semanas sin que
+                # nadie le toque el checkpoint y cerrarse recién al final—. Sin esto,
+                # `desde` usaba el checkpoint viejo y un plan resuelto AYER podía quedar
+                # invisible a una ventana reciente: medido el 2026-09-26,
+                # `listar(tipo="plan", estado="resuelto", desde="2026-09-12")` contra el
+                # nivel del fundador contestaba "nada cumple ese filtro" con trece planes
+                # publicables cerrados en esa ventana, todos con checkpoint anterior al 12.
+                fecha = (campos.get("Cerrado") or campos.get("Verificado")
+                         or campos.get("Declarado") or campos.get("Checkpoint") or "")
                 # LA HORA SALE DEL HISTORIAL, no de la ficha. La ficha guarda el DÍA, y con esta
                 # base recibiendo del orden de setenta publicaciones diarias el día no discrimina
                 # nada: preguntar por lo de hoy devuelve cincuenta cosas sin orden interno. La marca
@@ -3455,8 +3465,16 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
             #    2026-08-06, el campo no aparecía en NINGUNO de los 62 renglones de las cinco
             #    secciones. `_hermanas_de` sí lo imprime: la información llegaba por un camino y no
             #    por el otro, que es la peor forma de un hueco porque parece cubierto.
+            # `Cerrado` va antes que `Checkpoint` acá también, EN LA MISMA PRIORIDAD que la
+            # de `fecha` unas líneas arriba: un plan resuelto casi siempre conserva su
+            # `Checkpoint` viejo junto al `Cerrado` nuevo (`cerrar` no lo toca a propósito), y
+            # sin este orden la ficha etiquetaba el valor que de verdad se usó para filtrar
+            # —el cierre— con el nombre del campo que se ignoró. Se habría leído «Checkpoint
+            # 2026-09-25» apuntando a un `checkpoint:` real de `2026-08-28`: la etiqueta
+            # mintiendo sobre su propio valor.
             campo_fecha = ("Verificado" if campos.get("Verificado") else
                            "Declarado" if campos.get("Declarado") else
+                           "Cerrado" if campos.get("Cerrado") else
                            "Checkpoint" if campos.get("Checkpoint") else "")
             tipo_mostrado = campos.get("Tipo")
             if not tipo_mostrado and tipo_archivo:
