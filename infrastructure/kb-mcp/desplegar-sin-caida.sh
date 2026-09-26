@@ -80,6 +80,31 @@ for k, v in (hc.get("Tmpfs") or {}).items():
     args += ["--tmpfs", f"{k}:{v}"]
 for s in (hc.get("SecurityOpt") or []):
     args += ["--security-opt", s]
+# EL HEALTHCHECK TAMBIEN SE CLONA. Se olvido la primera vez (2026-09-26): el contenedor
+# nuevo salia sin el, asi que nunca aparecia "(healthy)"/"(unhealthy)" en `docker ps` ni
+# en nada que dependa de `docker inspect --format {{.State.Health.Status}}` — exactamente
+# lo que este mismo guion usa mas abajo para decidir si el viejo esta sano antes de tocarlo
+# en una corrida futura, y lo que otros scripts de esta maquina (sync-kb.sh) tambien miran.
+hcheck = c["Config"].get("Healthcheck") or {}
+test = hcheck.get("Test") or []
+if test and test[0] not in ("NONE",):
+    if test[0] == "CMD-SHELL":
+        cmd = test[1] if len(test) > 1 else ""
+    else:
+        # --health-cmd de `docker run` siempre corre por shell (no hay forma exec-array),
+        # asi que el resto del Test se re-arma como una linea de shell bien citada.
+        cmd = " ".join(shlex.quote(p) for p in test[1:])
+    if cmd:
+        args += ["--health-cmd", cmd]
+        ns_a_s = lambda ns: f"{int(ns // 1_000_000_000)}s"
+        if hcheck.get("Interval"):
+            args += ["--health-interval", ns_a_s(hcheck["Interval"])]
+        if hcheck.get("Timeout"):
+            args += ["--health-timeout", ns_a_s(hcheck["Timeout"])]
+        if hcheck.get("StartPeriod"):
+            args += ["--health-start-period", ns_a_s(hcheck["StartPeriod"])]
+        if hcheck.get("Retries"):
+            args += ["--health-retries", str(hcheck["Retries"])]
 print(" ".join(shlex.quote(a) for a in args))
 ' > "$RUN_ARGS_FILE"
 RUN_ARGS=$(cat "$RUN_ARGS_FILE")

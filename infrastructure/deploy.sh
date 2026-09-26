@@ -246,12 +246,22 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
 echo "[DEPLOY] Ports cleaned."
 
 # --- Recreate changed services ---
-echo "[DEPLOY] Recreating services..."
+# kb-mcp QUEDA AFUERA A PROPOSITO. Este `up -d` generico no sabe nada de recambios sin
+# corte: si compose ve que la imagen resuelta para el servicio "kb-mcp" ya no coincide
+# con la del contenedor corriendo (p.ej. porque alguien reconstruyo el tag localmente,
+# aunque sea para un ensayo — comprobado el 2026-09-26), lo RECREA EN EL LUGAR aca mismo,
+# antes de que el bloque dedicado a kb-mcp (mas abajo, con desplegar-sin-caida.sh) llegue
+# siquiera a correr. Eso peso exactamente esa falla: el paso generico bajo el contenedor
+# viejo y el nuevo tardo 126s en indexar antes de escuchar — de 1 a 2 minutos de la puerta
+# del fundador (UD-004/D5 de kb-okos) respondiendo 502, con el mecanismo sin corte todavia
+# sin haber tocado nada. kb-mcp SOLO se recrea por su propio bloque, nunca por este.
+echo "[DEPLOY] Recreating services (kb-mcp excluded — it has its own no-downtime path)..."
 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   "${SSH_HOST}" \
     "sudo systemctl stop hermes-webui 2>/dev/null || true && \
      cd ${REMOTE_DIR} && \
-    docker compose up -d --remove-orphans 2>&1 && \
+    OTROS=\$(docker compose config --services | grep -vx kb-mcp | tr '\n' ' ') && \
+    docker compose up -d --remove-orphans \$OTROS 2>&1 && \
     sudo systemctl start hermes-webui 2>/dev/null || true" | sed 's/^/  [UP] /'
 
 # --- Verify Caddy port binding (docker-proxy often drops it) ---
@@ -1274,7 +1284,8 @@ if [ "$DEPLOY_FAILED" = "true" ]; then
     "if [ -f ${ROLLBACK_FILE} ]; then \
        echo '  Restoring previous docker-compose.yml...'; \
        sudo cp ${ROLLBACK_FILE} ${REMOTE_DIR}/docker-compose.yml && \
-       cd ${REMOTE_DIR} && sudo docker compose up -d --remove-orphans 2>&1 && \
+       cd ${REMOTE_DIR} && OTROS=\$(docker compose config --services | grep -vx kb-mcp | tr '\n' ' ') && \
+       sudo docker compose up -d --remove-orphans \$OTROS 2>&1 && \
        echo '  Rollback complete'; \
      else \
        echo '  No rollback file available — manual recovery required'; \
@@ -1306,7 +1317,8 @@ if [ -f "$PREFLIGHT_SCRIPT" ]; then
     ssh "${SSH_HOST}" \
       "if [ -f ${ROLLBACK_FILE} ]; then \
          sudo cp ${ROLLBACK_FILE} ${REMOTE_DIR}/docker-compose.yml && \
-         cd ${REMOTE_DIR} && sudo docker compose up -d --remove-orphans 2>&1; \
+         cd ${REMOTE_DIR} && OTROS=\$(docker compose config --services | grep -vx kb-mcp | tr '\n' ' ') && \
+         sudo docker compose up -d --remove-orphans \$OTROS 2>&1; \
        fi"
   fi
 fi
