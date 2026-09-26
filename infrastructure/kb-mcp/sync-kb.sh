@@ -66,100 +66,62 @@ done
 salud_de() {
   sudo docker exec "$CONTAINER" python3 -c 'import urllib.request;print(urllib.request.urlopen("http://127.0.0.1:8765/salud",timeout=4).read().decode())' 2>/dev/null || true
 }
-# La generacion del indice. Sube de a uno cada vez que el servidor lo reconstruye.
-# Un servidor viejo no la publica y esto devuelve vacio, que es como se detecta.
-generacion_de() {
+
+# UNA CAPACIDAD APAGADA NO SE QUEJA SOLA, asi que se le pregunta cada vez. Criterio de Martin,
+# 2026-08-09: «esto no puede depender de que yo me acuerde de que existen estos componentes».
+# Cada mejora del buscador se enciende con una variable de entorno —a proposito: corren en el
+# camino de servir y cada una se encendio con su numero medido— pero un despliegue que no
+# arrastre una de esas variables deja el buscador PEOR respondiendo exactamente igual de sano.
+# Esto corre en cada sync sin que nadie lo pida, que es la unica forma de que se note.
+apagadas() {
   printf '%s' "${1:-}" | python3 -c 'import json,sys
-try: print(json.load(sys.stdin).get("generacion",""))
-except Exception: print("")' 2>/dev/null || true
-}
-
-if [ "$cambio" -eq 1 ]; then
-  # ── RECARGA EN CALIENTE, no reinicio ────────────────────────────────────────────────
-  # Hasta el 2026-08-08 esto hacia `docker restart` y la base NO CONTESTABA A NADIE mientras
-  # levantaba: ~9 s con el modelo estatico y ~49 s con un codificador. Por 28 cambios de
-  # contenido en un dia son entre 4 y 23 minutos diarios de servicio caido, en tandas, mientras
-  # alguien pregunta. Era ademas lo que volvia indesplegable al codificador.
-  #
-  # Ahora se le manda SIGHUP: el servidor construye el indice nuevo EN UN HILO mientras sigue
-  # atendiendo con el viejo, y solo cuando el nuevo esta entero cambia el puntero. Medido con el
-  # servidor bajo carga, tres recargas seguidas: 0 peticiones fallidas de 150.
-  #
-  # QUE TENDRIA QUE PASAR PARA QUE ESTO DIJERA QUE NO. Tres cosas, y las tres se distinguen:
-  #   · el contenido nuevo no se puede indexar  -> la generacion NO sube y /salud trae
-  #     `error_ultima_recarga`. Se dice ALERTA con el error, y la base sigue sirviendo lo viejo.
-  #   · la imagen es vieja y no sabe de SIGHUP  -> la generacion no sube Y no hay error. Ahi se
-  #     cae al reinicio de antes, que es correcto para esa imagen, y se dice en el log.
-  #   · el contenedor no responde                -> ALERTA, igual que antes.
-  antes_salud=$(salud_de)
-  gen_antes=$(generacion_de "$antes_salud")
-
-  sudo docker kill -s HUP "$CONTAINER" >/dev/null 2>&1 || true
-
-  salud=""; gen_ahora=""
-  for _ in $(seq 1 24); do   # hasta 120 s: en el VPS reconstruir cuesta ~12 s con cache
-    sleep 5
-    salud=$(salud_de)
-    gen_ahora=$(generacion_de "$salud")
-    case "$salud" in *'"recargando": true'*) continue ;; esac
-    [ -n "$gen_ahora" ] && [ "$gen_ahora" != "$gen_antes" ] && break
-    case "$salud" in *'"error_ultima_recarga": "'*) break ;; esac
-  done
-
-  # UNA CAPACIDAD APAGADA NO SE QUEJA SOLA, asi que se le pregunta cada vez. Criterio de Martin,
-  # 2026-08-09: «esto no puede depender de que yo me acuerde de que existen estos componentes».
-  # Cada mejora del buscador se enciende con una variable de entorno —a proposito: corren en el
-  # camino de servir y cada una se encendio con su numero medido— pero un despliegue que no
-  # arrastre una de esas variables deja el buscador PEOR respondiendo exactamente igual de sano.
-  # Esto corre cada quince minutos sin que nadie lo pida, que es la unica forma de que se note.
-  apagadas() {
-    printf '%s' "${1:-}" | python3 -c 'import json,sys
 try: c = json.load(sys.stdin).get("capacidades") or {}
 except Exception: sys.exit(0)
 esperadas = {"recencia_por_subentrada": True, "fecha_por_subentrada": True}
 print(" ".join(k for k, v in esperadas.items() if c and c.get(k) != v))' 2>/dev/null || true
-  }
+}
 
-  if [ -n "$gen_ahora" ] && [ "$gen_ahora" != "$gen_antes" ]; then
+if [ "$cambio" -eq 1 ]; then
+  # ── RECAMBIO DE CONTENEDOR, no SIGHUP ───────────────────────────────────────────────
+  # Hasta el 2026-08-08 un cambio de contenido hacia `docker restart` y la base NO CONTESTABA
+  # A NADIE mientras levantaba. Desde esa fecha y hasta el 2026-09-26 se le mandaba SIGHUP: el
+  # servidor armaba el indice nuevo EN UN HILO del MISMO proceso que atiende HTTP, mientras
+  # seguia sirviendo con el viejo. Eso midio "0 peticiones fallidas de 150" con el modelo
+  # estatico liviano — pero el 2026-09-26, sondeando la puerta del fundador cada 1s durante una
+  # recarga real con el modelo semantico pesado que corre hoy en produccion
+  # (sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2), la recarga tardo 212s y,
+  # cerca del final —el paso mas caro del ranking semantico—, 7 llamadas `initialize` SEGUIDAS
+  # fallaron por timeout, recuperandose al instante cuando la recarga termino. Causa: el hilo
+  # que arma el indice compite por GIL/CPU con el hilo que atiende HTTP, y el VPS tiene solo 2
+  # nucleos — `os.nice(10)` adentro del proceso no alcanza a proteger al que sirve cuando los
+  # dos comparten el mismo interprete.
+  #
+  # Ahora el contenido nuevo se sirve exactamente como un cambio de CODIGO: un contenedor
+  # aparte arma su indice completo — sin compartir proceso, ni GIL, con el que esta sirviendo —
+  # y solo si contesta una llamada MCP real (`initialize`+`listar`) se lo swapea al alias de red
+  # compartido; si nunca contesta sano, el viejo no se toca. Es el mismo
+  # desplegar-sin-caida.sh que ya prueba cada despliegue de codigo (0 fallas en 869 sondeos
+  # contra un par de contenedores de prueba, y confirmado sin corte en produccion real): se
+  # reusa tal cual, en vez de mantener un segundo mecanismo de recarga. Su propio candado
+  # (`/tmp/kb-mcp-swap.lock`) evita que este camino se pise con un despliegue de codigo
+  # concurrente.
+  antes_salud=$(salud_de)
+  SWAP_SALIO=0
+  SWAP_LOG=$(sudo REMOTE_DIR=/opt/toolset bash /opt/toolset/kb-mcp/desplegar-sin-caida.sh 2>&1) || SWAP_SALIO=$?
+  printf '%s\n' "$SWAP_LOG" | sed 's/^/[kb-sync] /'
+  salud=$(salud_de)
+
+  if [ "$SWAP_SALIO" -eq 0 ] && [ -n "$salud" ]; then
     off=$(apagadas "$salud")
     [ -n "$off" ] && log "ALERTA: el buscador corre con capacidades APAGADAS ($off). Se midio que sirven; alguien las perdio en un despliegue."
-    log "$CONTAINER recargado EN CALIENTE, sin cortar el servicio (generacion $gen_antes -> $gen_ahora): $salud"
-  elif printf '%s' "$salud" | grep -q '"error_ultima_recarga": "'; then
-    log "ALERTA: la recarga de $CONTAINER FALLO y sigue sirviendo la generacion $gen_antes. El contenido nuevo NO esta indexado: $salud"
-  elif [ -z "$salud" ]; then
-    # NO CONTESTAR NO ES «IMAGEN VIEJA», y confundirlos hizo daño el 2026-08-09 a las 02:17. La
-    # rama de abajo existe para una imagen anterior a la recarga en caliente, que SI contesta pero
-    # sin declarar su generacion. Cuando /salud no contesta NADA la causa es otra —el contenedor
-    # esta arrancando, o alguien lo esta reemplazando— y reiniciarlo ahi es pelearse con quien
-    # este trabajando: eso fue exactamente lo que paso, un despliegue en curso y este guion
-    # reiniciando encima, dejando el servicio caido y una ALERTA que culpaba a la imagen.
-    #
-    # Un arranque legitimo tarda hasta ~160 s con el codificador y el cache frio. No se hace nada:
-    # se dice, y el proximo ciclo —quince minutos— lo encuentra resuelto o lo vuelve a decir.
-    log "ALERTA: $CONTAINER no responde /kb/salud. NO se reinicia: puede estar arrancando o en reemplazo. Se reintenta en el proximo ciclo."
-  elif [ -n "$gen_ahora" ]; then
-    # LA GENERACION EXISTE Y NO CAMBIO EN 120 s: la recarga sigue, no es una imagen vieja. Hasta el
-    # 2026-09-10 este caso caia en la rama de abajo y REINICIABA el contenedor: en el VPS (dos
-    # nucleos) una recarga tarda 120-125 s y dos publicaciones seguidas la estiran mas, asi que el
-    # 2026-09-10 a las 15:26 el reinicio corto el servicio cuatro minutos (arranque frio de 237 s)
-    # con el servidor sano y a punto de terminar. Reiniciar es lo que este guion dejo de hacer el
-    # 2026-08-08 por ese mismo costo, y no vuelve por un plazo vencido. Se deja dicho y lo toma el
-    # proximo ciclo, que va a ver la generacion nueva.
-    log "ALERTA: $CONTAINER sigue recargando tras 120 s (generacion $gen_antes sin cambiar). NO se reinicia: la recarga tarda mas con publicaciones seguidas. Lo toma el proximo ciclo."
+    log "$CONTAINER recargado SIN CORTAR el servicio (recambio de contenedor por contenido nuevo): $salud"
+  elif [ "$SWAP_SALIO" -ne 0 ]; then
+    # desplegar-sin-caida.sh nunca toca al viejo si el nuevo no contesta sano (ver su propio
+    # freno de salud): que esto falle significa que el contenido nuevo NO quedo indexado, y el
+    # contenedor de antes sigue sirviendo el contenido de ANTES, sin corte.
+    log "ALERTA: el recambio de $CONTAINER por contenido nuevo FALLO (codigo $SWAP_SALIO). El contenido nuevo NO quedo servido; el contenedor sigue con el de antes: $antes_salud"
   else
-    # CONTESTA pero sin declarar generacion: imagen anterior a la recarga en caliente. Ahi si.
-    log "$CONTAINER contesta pero no publica generacion (imagen vieja); se reinicia como antes"
-    sudo docker restart "$CONTAINER" >/dev/null
-    for _ in $(seq 1 12); do
-      salud=$(salud_de)
-      [ -n "$salud" ] && break
-      sleep 5
-    done
-    if [ -n "$salud" ]; then
-      log "$CONTAINER reindexado y verificado: $salud"
-    else
-      log "ALERTA: $CONTAINER no respondio /kb/salud tras el reinicio"
-    fi
+    log "ALERTA: $CONTAINER no responde /kb/salud tras el recambio (aunque el guion de recambio salio en 0)."
   fi
 else
   log "sin cambios en ninguna KB"

@@ -35,6 +35,21 @@
 # sync-kb.sh, comprobar-deriva.sh, el healthcheck de compose -- ya asume).
 set -euo pipefail
 
+# CANDADO COMPARTIDO: desde el 2026-09-26 este script lo invocan DOS caminos que no se
+# conocen entre sí -- deploy.sh (cuando cambia server.py/Dockerfile/vivo.py) y sync-kb.sh
+# (cuando cambia el CONTENIDO de una KB; hasta esa fecha sync-kb.sh mandaba SIGHUP y
+# armaba el índice nuevo en un hilo del propio proceso servidor, lo que competía por
+# GIL/CPU con el hilo que atiende HTTP en el VPS de 2 núcleos -- medido: 212s de recarga
+# y 7 fallas de `initialize` seguidas cerca del final, con el modelo semántico pesado).
+# Sin un candado acá, dos corridas a la vez podrían levantar cada una su propio
+# "-next-$$", agregar el alias compartido casi al mismo tiempo, y pisarse en el paso
+# final de sacar "al viejo" y renombrar -- una de las dos terminaría con
+# "name already in use" o removiendo el contenedor equivocado. Bloqueante (no -n): la
+# corrida que llega segunda ESPERA a que la primera termine su recambio entero antes de
+# empezar el suyo, nunca corre en paralelo con otra sobre el mismo kb-mcp.
+exec 9>/tmp/kb-mcp-swap.lock
+flock 9
+
 REMOTE_DIR="${REMOTE_DIR:-/opt/toolset}"
 RED="${KB_MCP_RED:-toolset_toolset-net}"
 CONTENEDOR="${KB_MCP_CONTAINER:-kb-mcp}"
@@ -173,6 +188,61 @@ if [ "$listo" != "1" ]; then
   docker logs --tail 40 "$NUEVO" 2>&1 | sed 's/^/    /' || true
   docker rm -f "$NUEVO" >/dev/null 2>&1 || true
   exit 1
+fi
+
+# SEGUNDO FRENO: el chequeo de arriba conecta por loopback (Host: 127.0.0.1:8765), que SIEMPRE
+# esta en KB_ALLOWED_HOSTS y por eso NUNCA prueba la proteccion anti-DNS-rebinding del SDK de MCP
+# (TransportSecuritySettings, server.py) contra el Host que Caddy de verdad reenvia -- el dominio
+# publico del Funnel. Un ensayo real el 2026-09-26 contra un PAR DE CONTENEDORES DE PRUEBA (nunca
+# kb-mcp ni la etiqueta kb-mcp:1) probo exactamente este hueco: un contenedor de prueba, con un
+# `docker-compose.yml` de ensayo que dejaba el servicio con el mismo NOMBRE de servicio "kb-mcp"
+# que el real (aunque con otro `container_name`), quedo con el alias "kb-mcp" tambien —Compose
+# agrega el nombre del SERVICIO como alias de red SIEMPRE, ademas de cualquier alias explicito o
+# de `container_name`— y Caddy repartio peticiones reales del fundador hacia el, que las rechazo
+# con 421 (Misdirected Request) porque su KB_ALLOWED_HOSTS no incluia el dominio publico. Esto NO
+# le puede pasar a un recambio real (clona el env del contenedor vivo, que ya trae el dominio
+# publico) pero SI le pasaria a un primer arranque con un compose mal escrito, y el freno de
+# arriba no lo hubiera cazado porque solo habla por loopback. Asi que antes de tomar el alias se
+# repite la MISMA llamada `initialize`, una vez por cada host de KB_ALLOWED_HOSTS -- leido del
+# propio $NUEVO, nunca de este archivo, porque lo que importa es con que arranco de verdad -- con
+# ese Host exacto en la cabecera. Si KB_ALLOWED_HOSTS esta vacia (seguridad de transporte
+# apagada), no hay nada que probar.
+HOSTS_NUEVO=$(docker exec "$NUEVO" printenv KB_ALLOWED_HOSTS 2>/dev/null || true)
+if [ -n "$HOSTS_NUEVO" ]; then
+  log "probando cada Host de KB_ALLOWED_HOSTS contra $NUEVO antes de darle el alias: $HOSTS_NUEVO"
+  TODOS_OK=1
+  IFS=',' read -ra _HOSTS <<< "$HOSTS_NUEVO"
+  for h in "${_HOSTS[@]}"; do
+    h="$(echo "$h" | xargs)"
+    [ -n "$h" ] || continue
+    R=$(docker exec -e HOST_A_PROBAR="$h" "$NUEVO" python3 -c '
+import urllib.request, json, os, sys
+host = os.environ["HOST_A_PROBAR"]
+req = urllib.request.Request("http://127.0.0.1:8765/okos/mcp", method="POST",
+    headers={"Content-Type": "application/json",
+             "Accept": "application/json, text/event-stream", "Host": host},
+    data=json.dumps({"jsonrpc": "2.0", "id": 1, "method": "initialize",
+                      "params": {"protocolVersion": "2024-11-05", "capabilities": {},
+                                 "clientInfo": {"name": "desplegar-sin-caida-host-check",
+                                                "version": "1"}}}).encode())
+try:
+    r = urllib.request.urlopen(req, timeout=5)
+    body = r.read().decode()
+    print("OK" if "result" in body else "SIN_RESULT:" + body[:150])
+except urllib.error.HTTPError as e:
+    print(f"HTTP_{e.code}")
+except Exception as e:
+    print("ERR:" + str(e)[:150])
+' 2>/dev/null || echo "EXC")
+    log "  Host '$h' -> $R"
+    [ "$R" = "OK" ] || TODOS_OK=0
+  done
+  if [ "$TODOS_OK" != "1" ]; then
+    log "❌ $NUEVO rechazo al menos un Host de su propia KB_ALLOWED_HOSTS (arriba el detalle)."
+    log "   Se aborta SIN tocar $CONTENEDOR ni la red -- el viejo sigue sirviendo, cero corte."
+    docker rm -f "$NUEVO" >/dev/null 2>&1 || true
+    exit 1
+  fi
 fi
 
 log "$NUEVO esta sano. Agregandole el alias '$CONTENEDOR' (ahora los dos lo responden)..."
