@@ -320,12 +320,17 @@ DEPLOY_FAILED=false
 # build ni restart — cero riesgo para lo que esta corriendo). Solo reconstruye
 # cuando hay diferencia real, y verifica la salud del contenedor despues.
 KB_MCP_SRC="$(dirname "${COMPOSE_FILE}")/kb-mcp"
-if [ -f "$KB_MCP_SRC/server.py" ] && [ -f "$KB_MCP_SRC/Dockerfile" ]; then
+# vivo.py se sumo el 2026-09-25: server.py importa `esta_retirado` desde ahi (ver el
+# comentario del Dockerfile). Sin sumarlo tambien aca, el checksum nunca lo detecta,
+# nunca se copia al remoto, y el build de la imagen falla con ModuleNotFoundError —el
+# mismo patron de "el codigo fuente cambio y el despliegue no se entero" que este
+# bloque entero existe para cerrar (DT-012).
+if [ -f "$KB_MCP_SRC/server.py" ] && [ -f "$KB_MCP_SRC/Dockerfile" ] && [ -f "$KB_MCP_SRC/vivo.py" ]; then
   echo "[DEPLOY] Syncing kb-mcp server code..."
-  KB_MCP_LOCAL_SUM=$(cat "$KB_MCP_SRC/server.py" "$KB_MCP_SRC/Dockerfile" | md5sum | awk '{print $1}')
+  KB_MCP_LOCAL_SUM=$(cat "$KB_MCP_SRC/server.py" "$KB_MCP_SRC/Dockerfile" "$KB_MCP_SRC/vivo.py" | md5sum | awk '{print $1}')
   KB_MCP_REMOTE_SUM=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     "${SSH_HOST}" \
-    "cat /opt/toolset/kb-mcp/server.py /opt/toolset/kb-mcp/Dockerfile 2>/dev/null | md5sum | awk '{print \$1}'" \
+    "cat /opt/toolset/kb-mcp/server.py /opt/toolset/kb-mcp/Dockerfile /opt/toolset/kb-mcp/vivo.py 2>/dev/null | md5sum | awk '{print \$1}'" \
     2>/dev/null || echo "unreachable")
   if [ "$KB_MCP_LOCAL_SUM" = "$KB_MCP_REMOTE_SUM" ]; then
     echo "[DEPLOY]   kb-mcp code unchanged; container untouched."
@@ -333,13 +338,14 @@ if [ -f "$KB_MCP_SRC/server.py" ] && [ -f "$KB_MCP_SRC/Dockerfile" ]; then
     echo "[DEPLOY]   ⚠️  no se pudo leer el codigo remoto; kb-mcp queda como esta (no bloqueante)."
   else
     scp -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-      "$KB_MCP_SRC/server.py" "$KB_MCP_SRC/Dockerfile" \
+      "$KB_MCP_SRC/server.py" "$KB_MCP_SRC/Dockerfile" "$KB_MCP_SRC/vivo.py" \
       "${SSH_HOST}:/tmp/" 2>/dev/null || true
     ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
       "${SSH_HOST}" \
       "sudo cp /tmp/server.py /opt/toolset/kb-mcp/server.py && \
        sudo cp /tmp/Dockerfile /opt/toolset/kb-mcp/Dockerfile && \
-       rm -f /tmp/server.py /tmp/Dockerfile && \
+       sudo cp /tmp/vivo.py /opt/toolset/kb-mcp/vivo.py && \
+       rm -f /tmp/server.py /tmp/Dockerfile /tmp/vivo.py && \
        cd ${REMOTE_DIR} && \
        sudo docker compose build kb-mcp 2>&1 | tail -1 && \
        sudo docker compose up -d kb-mcp 2>&1 | tail -1" 2>/dev/null \

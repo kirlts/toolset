@@ -45,6 +45,16 @@ from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 from mcp.server.transport_security import TransportSecuritySettings
 
+# LA RESPUESTA A «¿ESTÁ RETIRADO?» VIVE EN vivo.py (este mismo directorio `tools/`), no acá.
+# Este archivo la armaba a mano (`meta.get("retirado") is True`), y esa forma es más estricta
+# de lo que la base realmente escribe: `kb.py` graba `retirado` como booleano de YAML en casi
+# todos los casos, pero también existe la forma string `"true"` según qué verbo escribió el
+# encabezado (ver el docstring de `vivo.esta_retirado`). Un documento retirado con esa forma
+# string se habría seguido indexando y sirviendo por este buscador — el consumidor nuevo que
+# hereda el defecto por omisión que ese módulo existe para evitar.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from vivo import esta_retirado  # noqa: E402
+
 # UN ANALIZADOR MORFOLÓGICO POR HILO, y no uno solo compartido. Snowball guarda estado
 # mutable adentro del objeto: usarlo desde dos hilos a la vez corrompe ese estado y sale
 # `IndexError: string index out of range` en cualquier palabra, no en una en particular.
@@ -889,7 +899,7 @@ class Indice:
                 cuerpo = texto[m.end():]
             else:
                 cuerpo = texto
-            if isinstance(meta, dict) and meta.get("retirado") is True:
+            if esta_retirado(meta):
                 # Retirada: fuera de servicio con etiqueta. No se indexa en NINGUN
                 # nivel; git conserva el archivo y su historia. Es la disposicion
                 # final del ciclo de curaduria, no un borrado.
