@@ -53,6 +53,19 @@
         uri strip_prefix /kb/{$KB_TOKEN_COMPLETO}
         reverse_proxy kb-mcp:8765 {
             flush_interval -1
+            # SIN keepalive AL BACKEND, A PROPOSITO. El recambio sin caida de kb-mcp
+            # (desplegar-sin-caida.sh) saca al contenedor viejo de la red mientras Caddy
+            # puede tener una conexion ya abierta y en el pool hacia el (mismo mecanismo
+            # con que Compose reparte replicas). Medido el 2026-09-26 en produccion: sin
+            # esto, 2 peticiones reales fallaron con "use of closed network connection"
+            # justo en el instante del recambio, aunque las conexiones NUEVAS ya resolvian
+            # bien al contenedor nuevo — el problema era una conexion vieja reusada, no el
+            # mecanismo de alias en si. Sin keepalive cada peticion abre su propia conexion
+            # y nunca hereda una hacia un contenedor que ya no esta: el costo es una
+            # conexion TCP mas por llamada, sin importancia para el volumen de este backend.
+            transport http {
+                keepalive off
+            }
         }
     }
     # Acceso del fundador — MISMA forma visible que el acceso total: /kb/<secreto>/okos/mcp.
@@ -65,6 +78,19 @@
         rewrite * /okos-publicado/mcp
         reverse_proxy kb-mcp:8765 {
             flush_interval -1
+            # SIN keepalive AL BACKEND, A PROPOSITO. El recambio sin caida de kb-mcp
+            # (desplegar-sin-caida.sh) saca al contenedor viejo de la red mientras Caddy
+            # puede tener una conexion ya abierta y en el pool hacia el (mismo mecanismo
+            # con que Compose reparte replicas). Medido el 2026-09-26 en produccion: sin
+            # esto, 2 peticiones reales fallaron con "use of closed network connection"
+            # justo en el instante del recambio, aunque las conexiones NUEVAS ya resolvian
+            # bien al contenedor nuevo — el problema era una conexion vieja reusada, no el
+            # mecanismo de alias en si. Sin keepalive cada peticion abre su propia conexion
+            # y nunca hereda una hacia un contenedor que ya no esta: el costo es una
+            # conexion TCP mas por llamada, sin importancia para el volumen de este backend.
+            transport http {
+                keepalive off
+            }
         }
     }
     # Las rutas desnudas de okos dejan de existir hacia afuera.
@@ -78,6 +104,19 @@
     handle_path /kb/* {
         reverse_proxy kb-mcp:8765 {
             flush_interval -1
+            # SIN keepalive AL BACKEND, A PROPOSITO. El recambio sin caida de kb-mcp
+            # (desplegar-sin-caida.sh) saca al contenedor viejo de la red mientras Caddy
+            # puede tener una conexion ya abierta y en el pool hacia el (mismo mecanismo
+            # con que Compose reparte replicas). Medido el 2026-09-26 en produccion: sin
+            # esto, 2 peticiones reales fallaron con "use of closed network connection"
+            # justo en el instante del recambio, aunque las conexiones NUEVAS ya resolvian
+            # bien al contenedor nuevo — el problema era una conexion vieja reusada, no el
+            # mecanismo de alias en si. Sin keepalive cada peticion abre su propia conexion
+            # y nunca hereda una hacia un contenedor que ya no esta: el costo es una
+            # conexion TCP mas por llamada, sin importancia para el volumen de este backend.
+            transport http {
+                keepalive off
+            }
         }
     }
 
