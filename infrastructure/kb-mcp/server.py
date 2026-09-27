@@ -2125,6 +2125,20 @@ def deducir_desde(pregunta: str, hoy: str) -> str | None:
     # pregunta con «esta semana» acotaba bien. Es la forma más natural en castellano para la ventana
     # que el informe semanal necesita, y es la que dirección usa. Se agrega a la rama que ya existe
     # —siete días, la misma unidad— en vez de inventar una ventana nueva.
+    # «LAS ÚLTIMAS DOS SEMANAS» Y «ESTA QUINCENA» — medido el 2026-09-27 preguntando como el
+    # fundador por su conector: «qué terminaste en las últimas dos semanas» no traía ventana y
+    # servía las 393 secciones resueltas de toda la historia como «la respuesta exacta»; lo mismo
+    # con «esta quincena». Es la pregunta más probable de quien quiere saber qué hizo alguien en
+    # una quincena. Semanas con número (en dígito o palabra) son número × 7; la quincena, 14; «las
+    # últimas semanas» sin número nombra la unidad en plural y toma dos, igual que «los últimos
+    # días» tomó siete: el corte queda impreso en el criterio de `listar` y el lector puede pedir otro.
+    _NUM = {"una": 1, "un": 1, "dos": 2, "tres": 3, "cuatro": 4, "cinco": 5, "seis": 6}
+    m_s = re.search(r"[uú]ltim[ao]s?\s+(\d+|una|un|dos|tres|cuatro|cinco|seis)\s+semanas?", q)
+    if m_s:
+        n_s = int(m_s.group(1)) if m_s.group(1).isdigit() else _NUM[m_s.group(1)]
+        return (base - _dt.timedelta(days=7 * n_s)).isoformat()
+    if re.search(r"quincena|[uú]ltimas\s+semanas|estas\s+(dos\s+)?semanas", q):
+        return (base - _dt.timedelta(days=14)).isoformat()
     if re.search(r"(esta|[uú]ltima)\s+semana|semana\s+pasada|[uú]ltimos\s+siete\s+d[ií]as"
                  r"|(los\s+[uú]ltimos|estos)\s+d[ií]as", q):
         return (base - _dt.timedelta(days=7)).isoformat()
