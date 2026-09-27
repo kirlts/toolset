@@ -70,6 +70,25 @@ services:
     image: caddy:2-alpine
     container_name: caddy
     restart: unless-stopped
+    # PRIORIDAD DE CPU POR ENCIMA DEL RESTO DE LA MAQUINA, no solo de kb-mcp. Caddy es la
+    # puerta del fundador (UD-004/D5 de kb-okos) y de todo lo demas que este VPS expone --
+    # nunca puede ser el que se queda sin turno de CPU. `--cpus`/`--cpuset-cpus` en
+    # desplegar-sin-caida.sh ya topan al contenedor NUEVO de kb-mcp mientras arma su indice
+    # (hasta 225s, 100% CPU sin ese tope), pero un tope ahi solo protege de KB-MCP: este VPS
+    # corre ademas Hermes, Infisical, y proyectos enteros ajenos (devalis, traza-ambiental)
+    # en los mismos 2 nucleos, y CUALQUIERA de ellos puede competir por el mismo turno que
+    # Caddy. `cpu_shares` (1024 es el valor por omision de todo contenedor sin esto) es una
+    # PRIORIDAD relativa, no un tope: sin contencion no cambia nada -- Caddy sigue usando lo
+    # que necesite -- pero bajo contencion real el kernel le da a Caddy ~4x el turno de
+    # cualquier otro contenedor sin este ajuste. Medido el 2026-09-26/27: incluso con el
+    # contenedor nuevo de kb-mcp topado a 1 nucleo fijo, sondeando la puerta del fundador
+    # cada 1s durante una recarga de contenido siguio apareciendo 1 falla ("remote end
+    # closed connection"/IncompleteRead) por recarga -- nunca en el instante del recambio de
+    # alias, siempre durante la espera de hasta 225s. No se pudo aislar una causa mas
+    # especifica (se descarto reinicio de Caddy, ruido de fondo de la maquina en reposo,
+    # agotamiento de conntrack, y no aparecio nada en dmesg/journalctl de docker en la
+    # ventana exacta): queda como mitigacion adicional, no como arreglo probado en cero.
+    cpu_shares: 4096
     ports:
       - "127.0.0.1:8080:8080"
     healthcheck:
