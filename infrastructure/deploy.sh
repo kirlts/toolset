@@ -137,6 +137,32 @@ else
   echo "[DEPLOY] WARNING: Caddyfile not found at $CADDYFILE"
 fi
 
+# --- Apply Caddy's cgroup limits (cpuset/cpu_shares/memory) live, never by recreating it ---
+# Caddy es tan sensible a esto como kb-mcp (ver el comentario de "Recreate services" mas
+# abajo, que ya excluye a kb-mcp por la misma razon): el `docker compose up -d` generico
+# recrea CUALQUIER servicio cuya config resuelta cambio, y una recreacion de Caddy corta
+# cualquier conexion en vuelo mientras arranca de cero -- es la puerta publica del
+# fundador (UD-004/D5 de kb-okos), nunca puede tener ese hueco. Medido el 2026-09-27:
+# agregar `cpuset` a docker-compose.yml (para que el kb-mcp activo deje de compartir
+# nucleo con el candidato en armado, ver desplegar-sin-caida.sh) disparo justo esta
+# recreacion generica -- Caddy todavia no estaba excluido de "OTROS" porque hasta ese
+# commit su compose nunca habia cambiado un valor de cgroup -- y la puerta quedo sin
+# contestar ~11s (sondeada cada 1s: 8 fallas seguidas, "TLS unexpected eof", con Caddy
+# logueando "serving initial configuration" -- arranque de cero, no una recarga).
+# aplicar-recursos-caddy.sh aplica esos mismos valores con `docker update` sobre el
+# contenedor VIVO -- sin tocar su proceso ni soltar una conexion -- y por eso Caddy
+# se saca de "OTROS" mas abajo, igual que kb-mcp.
+echo "[DEPLOY] Applying Caddy resource limits live (no restart)..."
+scp -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  "$(dirname "$0")/aplicar-recursos-caddy.sh" "${SSH_HOST}:/tmp/aplicar-recursos-caddy.sh"
+ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  "${SSH_HOST}" \
+  "sudo mv -f /tmp/aplicar-recursos-caddy.sh ${REMOTE_DIR}/aplicar-recursos-caddy.sh && \
+   sudo chmod +x ${REMOTE_DIR}/aplicar-recursos-caddy.sh && \
+   cd ${REMOTE_DIR} && sudo REMOTE_DIR=${REMOTE_DIR} bash aplicar-recursos-caddy.sh" \
+  | sed 's/^/  [CADDY-CPU] /' \
+  || echo "[DEPLOY]   ⚠️  no se pudieron aplicar los recursos de Caddy en vivo (no bloqueante; sigue con los de antes)."
+
 # --- Transfer Hermes artifacts (SOUL.md, config.yaml, memory) from repo to instance ---
 HERMES_REPO_DIR="$(dirname "$0")/hermes"
 if [ -d "$HERMES_REPO_DIR" ]; then
@@ -271,7 +297,7 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   "${SSH_HOST}" \
     "sudo systemctl stop hermes-webui 2>/dev/null || true && \
      cd ${REMOTE_DIR} && \
-    OTROS=\$(docker compose config --services | grep -vx kb-mcp | tr '\n' ' ') && \
+    OTROS=\$(docker compose config --services | grep -vxE 'kb-mcp|caddy' | tr '\n' ' ') && \
     docker compose up -d --remove-orphans \$OTROS 2>&1 && \
     sudo systemctl start hermes-webui 2>/dev/null || true" | sed 's/^/  [UP] /'
 
@@ -1304,7 +1330,7 @@ if [ "$DEPLOY_FAILED" = "true" ]; then
     "if [ -f ${ROLLBACK_FILE} ]; then \
        echo '  Restoring previous docker-compose.yml...'; \
        sudo cp ${ROLLBACK_FILE} ${REMOTE_DIR}/docker-compose.yml && \
-       cd ${REMOTE_DIR} && OTROS=\$(docker compose config --services | grep -vx kb-mcp | tr '\n' ' ') && \
+       cd ${REMOTE_DIR} && OTROS=\$(docker compose config --services | grep -vxE 'kb-mcp|caddy' | tr '\n' ' ') && \
        sudo docker compose up -d --remove-orphans \$OTROS 2>&1 && \
        echo '  Rollback complete'; \
      else \
@@ -1337,7 +1363,7 @@ if [ -f "$PREFLIGHT_SCRIPT" ]; then
     ssh "${SSH_HOST}" \
       "if [ -f ${ROLLBACK_FILE} ]; then \
          sudo cp ${ROLLBACK_FILE} ${REMOTE_DIR}/docker-compose.yml && \
-         cd ${REMOTE_DIR} && OTROS=\$(docker compose config --services | grep -vx kb-mcp | tr '\n' ' ') && \
+         cd ${REMOTE_DIR} && OTROS=\$(docker compose config --services | grep -vxE 'kb-mcp|caddy' | tr '\n' ' ') && \
          sudo docker compose up -d --remove-orphans \$OTROS 2>&1; \
        fi"
   fi
