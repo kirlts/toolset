@@ -136,10 +136,25 @@ print(" ".join(shlex.quote(a) for a in args))
 RUN_ARGS=$(cat "$RUN_ARGS_FILE")
 rm -f "$RUN_ARGS_FILE"
 
-log "levantando $NUEVO al lado de $CONTENEDOR, con la config clonada y la imagen nueva..."
+# TOPE DE CPU AL NUEVO, para que armar el indice no le saque nucleos al que esta sirviendo.
+# El VPS tiene 2 nucleos (`nproc`) compartidos con Caddy y todo lo demas que corre ahi -- nunca
+# solo con kb-mcp. Medido el 2026-09-26/27, DESPUES de reemplazar el SIGHUP por este mismo
+# recambio de contenedor: sondeando la puerta del fundador cada 1s, 1 falla de 189 en una recarga
+# de contenido liviana (sin otra cosa corriendo) y 3 de 834 en un despliegue grande con mas
+# contencion -- las cuatro "remote end closed connection", TODAS durante la espera de hasta 225s
+# a que $NUEVO termine de armar su indice (nunca en el instante del recambio de alias, que dio
+# CERO fallas en las dos corridas). `os.nice(10)` en server.py ya baja la prioridad del hilo que
+# arma el indice DENTRO de un mismo proceso, pero acá son dos CONTENEDORES en el mismo kernel:
+# nice no alcanza a proteger a $CONTENEDOR (ni a Caddy, que es otro contenedor mas compitiendo por
+# los mismos 2 nucleos) de que un proceso Python/torch a pleno use el 100% de los dos núcleos
+# durante ~225s. `--cpus` es un tope duro de cgroup, no una prioridad: garantiza que a $NUEVO
+# nunca le toque MAS que esto, dejando el resto de la maquina con margen real incluso si $NUEVO
+# satura lo suyo entero. KB_MCP_NEXT_CPUS por si hace falta ajustarlo sin tocar este archivo.
+CPUS_NUEVO="${KB_MCP_NEXT_CPUS:-1}"
+log "levantando $NUEVO al lado de $CONTENEDOR, con la config clonada, la imagen nueva y tope de ${CPUS_NUEVO} CPU..."
 docker rm -f "$NUEVO" >/dev/null 2>&1 || true
 # shellcheck disable=SC2086
-eval docker run -d --name "$NUEVO" --network "$RED" $RUN_ARGS "$IMG_TAG" >/dev/null
+eval docker run -d --name "$NUEVO" --network "$RED" --cpus="$CPUS_NUEVO" $RUN_ARGS "$IMG_TAG" >/dev/null
 
 log "esperando que $NUEVO conteste una llamada MCP real (initialize + listar), hasta 300s..."
 listo=0
