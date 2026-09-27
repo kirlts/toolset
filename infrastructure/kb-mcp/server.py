@@ -2147,6 +2147,26 @@ def deducir_desde(pregunta: str, hoy: str) -> str | None:
     return None
 
 
+# UN PLAZO QUE NO SE PUDO ACOTAR SE DICE, no se calla. Medido el 2026-09-27 preguntando como el
+# fundador: «qué terminaste en las últimas dos semanas» no traía ventana y servía toda la historia
+# como respuesta exacta, sin ninguna señal de que el plazo pedido se había ignorado. Ya se enseñaron
+# las semanas y la quincena; lo que queda es la forma: cualquier plazo que el deductor no traduzca
+# («últimamente», «este trimestre», «hace un tiempo») llega con un aviso de que NO se filtró por
+# fecha, y con la orden exacta para acotarlo. El aviso nunca inventa una fecha.
+_NOMBRA_PLAZO = re.compile(
+    r"\b(semanas?|quincenas?|mes(es)?|trimestres?|semestres?|años?|d[ií]as|"
+    r"[uú]ltimamente|recientemente|hace\s+(poco|un\s+tiempo|unos?|varias?|\d+)|"
+    r"desde\s+(el|la|hace|que))\b", re.I)
+
+
+def aviso_de_plazo(pregunta: str, desde: str | None) -> str:
+    """Un renglón si la pregunta nombra un plazo y no se pudo traducir a fecha; vacío si no."""
+    if desde or not _NOMBRA_PLAZO.search(pregunta or ""):
+        return ""
+    return ("⚠ Tu pregunta nombra un plazo que no supe traducir a una fecha, así que esta "
+            "respuesta NO está filtrada por fecha. Para acotarla: listar(desde=\"AAAA-MM-DD\").\n\n")
+
+
 def deducir_filtro(pregunta: str) -> tuple[str | None, str | None]:
     """De una pregunta por propiedad, el `(estado, tipo)` con que se contesta exacta.
 
@@ -3187,7 +3207,8 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
                              "todo lo que cumple, así que puede faltarte algo. Abajo va lo que "
                              "encontró la búsqueda sobre tu tema; para la lista exacta y completa "
                              f"—de todos los temas— usá `{orden}`.\n\n")
-        partes = [redirigir + aviso + f"{len(ganadores)} documento(s) sobre «{pregunta}»\n"]
+        partes = [redirigir + aviso_de_plazo(pregunta, desde_f) + aviso
+                  + f"{len(ganadores)} documento(s) sobre «{pregunta}»\n"]
         for nom in ganadores:
             partes.append(
                 f"### {idx.fuente(idx.nodos[nom])}\n{idx.extracto(nom, args[0], extendido, pregunta)}")
