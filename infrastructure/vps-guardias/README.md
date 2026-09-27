@@ -30,3 +30,23 @@ file, so nothing reapplied it. Cost: three days of an unreachable knowledge base
 for every remote consumer, unnoticed because nothing watched it. The watching
 now lives in kb-okos (`tools/base_responde.py`, a permanent sweep check); this
 guard is the other half — that it comes back on its own.
+
+| `renovar-cert-funnel.sh` | `/usr/local/sbin/` | daily: asks Tailscale for the current cert for the Funnel hostname, writes it to `/opt/toolset/certs/`, restarts Caddy only if the cert actually changed |
+| `renovar-cert-funnel.units` | `/etc/systemd/system/` (split in two) | oneshot service + daily 05:00 timer |
+
+Why `renovar-cert-funnel.*` exists (2026-09-27): the public :443 Funnel used to
+have tailscaled terminate the TLS itself, in its own userspace network stack
+(gVisor) — that path carries a known upstream bug
+(`tailscale/tailscale#18916`): Nagle plus the client's delayed ACK stall the
+handshake by ~220ms, twice per connection, because the ServerHello and the
+rest of the flight go out as separate writes. Measured on the public path
+(from outside the tailnet, against the real Funnel IPs): median TLS time
+~900ms, with 1–3% of probes failing outright. Moving TLS termination into
+Caddy (a real Linux socket, not gVisor) and having Tailscale forward :443 as
+raw TCP to Caddy's own HTTPS listener (`:8091`, see `Caddyfile`) removes that
+stall — the geography (the Funnel's nearest ingress region is in the US, this
+host is in Brazil) still costs a real round trip, but the bug's extra ~440ms
+no longer piles on top of it. Caddy needs its own copy of the cert Tailscale
+already issues for the hostname (`tailscale cert`), and unlike tailscaled's
+internal copy, this one does not renew itself — this guard is what keeps it
+current.

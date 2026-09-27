@@ -18,7 +18,11 @@ set -uo pipefail
 
 COMPOSE_DIR=/opt/toolset
 SERVICIO=kb-mcp
-PUERTO_CADDY=http://localhost:8080
+# Desde el 2026-09-27 el 443 va como TCP crudo hasta el puerto donde Caddy termina su
+# propia TLS (:8091), no como modo HTTPS de tailscaled hacia :8080 — ver Caddyfile y
+# deploy.sh para el porque (bug tailscale/tailscale#18916, ~220ms de pausa por Nagle +
+# ACK retrasado, dos veces por cada handshake del Funnel publico).
+PUERTO_CADDY_TLS=8091
 
 log() { logger -t levantar-kb "$*"; echo "[levantar-kb] $*"; }
 
@@ -45,11 +49,12 @@ fi
 # que no es peor que ninguno. Y con la ruta absoluta, porque el PATH de systemd es minimo.
 TS=/usr/bin/tailscale
 [ -x "$TS" ] || TS="$(command -v tailscale || echo /usr/bin/tailscale)"
-if "$TS" funnel status 2>/dev/null | grep -qF "proxy $PUERTO_CADDY"; then
+if "$TS" funnel status 2>/dev/null | grep -qF "tcp://127.0.0.1:${PUERTO_CADDY_TLS}"; then
   log "el 443 ya esta publicado"
 else
-  log "el 443 no esta publicado: restaurandolo hacia $PUERTO_CADDY"
-  "$TS" funnel --bg --https=443 "$PUERTO_CADDY" >/dev/null 2>&1 \
+  log "el 443 no esta publicado: restaurandolo hacia Caddy:${PUERTO_CADDY_TLS} (TCP crudo)"
+  "$TS" funnel --https=443 off >/dev/null 2>&1 || true  # por si quedo en el modo viejo
+  "$TS" funnel --bg --tcp=443 "$PUERTO_CADDY_TLS" >/dev/null 2>&1 \
     || log "ALERTA: no se pudo restaurar la publicacion del 443"
 fi
 

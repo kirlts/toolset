@@ -1186,16 +1186,25 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
      echo '[cron] repo-pull cron installed (every 5 min)')"
 echo "[DEPLOY] Repo-pull cron configured."
 
-FUNNEL_TARGET="http://localhost:8080"
-echo "[DEPLOY] Ensuring Tailscale Funnel -> Caddy (${FUNNEL_TARGET})..."
+# Raw TCP hasta Caddy en :8091, donde Caddy mismo termina la TLS con el certificado de
+# Tailscale (ver Caddyfile). NO "--https=443 http://localhost:8080": ese modo hace que
+# tailscaled termine la TLS con su propio stack en espacio de usuario, y ahi vive un bug
+# conocido (tailscale/tailscale#18916) que agrega ~220ms de pausa por Nagle+ACK retrasado,
+# DOS veces por handshake — medido el 2026-09-27 en el camino publico del Funnel.
+FUNNEL_LOCAL_PORT="8091"
+echo "[DEPLOY] Ensuring Tailscale Funnel -> Caddy (TLS propia, :${FUNNEL_LOCAL_PORT})..."
 CURRENT_FUNNEL=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   "${SSH_HOST}" "sudo tailscale funnel status 2>&1" || echo "")
-if echo "$CURRENT_FUNNEL" | grep -q "localhost:8080"; then
-  echo "[DEPLOY] Tailscale Funnel already targets Caddy"
+if echo "$CURRENT_FUNNEL" | grep -q "tcp://127.0.0.1:${FUNNEL_LOCAL_PORT}"; then
+  echo "[DEPLOY] Tailscale Funnel already forwards raw TCP to Caddy:${FUNNEL_LOCAL_PORT}"
 else
-  echo "[DEPLOY] Configuring Tailscale Funnel on :443 -> Caddy..."
+  echo "[DEPLOY] Configuring Tailscale Funnel on :443 -> raw TCP -> Caddy:${FUNNEL_LOCAL_PORT}..."
+  # Si el 443 seguia en modo HTTPS (config vieja), primero se limpia: los dos modos no
+  # coexisten en el mismo puerto.
   ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    "${SSH_HOST}" "sudo tailscale funnel --bg ${FUNNEL_TARGET} 2>&1" | sed 's/^/  /'
+    "${SSH_HOST}" "sudo tailscale funnel --https=443 off 2>&1" | sed 's/^/  /' || true
+  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    "${SSH_HOST}" "sudo tailscale funnel --bg --tcp=443 ${FUNNEL_LOCAL_PORT} 2>&1" | sed 's/^/  /'
 fi
 
 # --- Ensure Infisical Funnel on :8443 (Infisical Web UI, separate from CP _next/*) ---

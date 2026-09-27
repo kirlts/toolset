@@ -11,7 +11,11 @@
     }
 }
 
-:8080 {
+# Todas las rutas viven en un snippet para poder servirlas por dos puertos: el 8080 de
+# siempre (HTTP plano, lo que ya usan el healthcheck del contenedor y el tailnet interno)
+# y el 8091 (HTTPS, Caddy termina la TLS con el certificado de Tailscale — ver mas abajo
+# por que existe este segundo puerto).
+(rutas_principales) {
 
     # Health endpoint — lo servía un servicio retirado el 2026-08-19.
     # No se borra: es lo que interroga el healthcheck del propio contenedor
@@ -163,4 +167,30 @@
         try_files {path} index.html
         file_server
     }
+}
+
+:8080 {
+    import rutas_principales
+}
+
+# --- Puerto 8091: HTTPS con Caddy terminando la TLS, para que el 443 publico de Tailscale
+# Funnel deje de pasar por el terminador TLS de tailscaled (gVisor) y pase raw TCP hasta aca.
+#
+# POR QUE EXISTE (medido el 2026-09-27, hallazgo "El Funnel publico agrega 700ms-1,3s de TLS
+# por un bug conocido de tailscaled, ademas del salto geografico a NYC"). El modo anterior
+# (`tailscale funnel --https=443 http://localhost:8080`) hace que tailscaled TERMINE la TLS
+# el mismo, con su stack de red en espacio de usuario (gVisor) — ahi Nagle esta prendido y sin
+# `TCP_NODELAY`, y el issue publico tailscale/tailscale#18916 documenta exactamente este patron:
+# el ServerHello sale en un paquete chico y el resto del vuelo (certificado+finished) en otro,
+# y el ACK retrasado del cliente (200ms) mas Nagle esperando ese ACK antes de mandar el segundo
+# paquete generan ~220ms de pausa, DOS VECES por handshake. Terminar la TLS en Caddy (socket real
+# de Linux, no gVisor) saca esa pausa de la ecuacion — el salto geografico del Funnel hacia la
+# region de ingreso mas cercana (NYC) sigue estando, pero deja de sumarse el bug.
+#
+# El certificado NO se genera aca: lo emite y renueva `tailscale cert` (mismo mecanismo que usa
+# tailscaled para el modo HTTPS de siempre), un guion aparte lo escribe en el host
+# (`vps-guardias/renovar-cert-funnel.sh`) y este bloque solo lo lee, montado de solo lectura.
+:8091 {
+    tls /etc/caddy/certs/funnel.crt /etc/caddy/certs/funnel.key
+    import rutas_principales
 }

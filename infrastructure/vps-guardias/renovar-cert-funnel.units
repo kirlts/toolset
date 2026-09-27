@@ -1,0 +1,13 @@
+[Unit]
+Description=Renueva el certificado de Tailscale para Caddy (puerto 8091 del Funnel)
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/renovar-cert-funnel.sh
+[Unit]
+Description=Revision diaria del certificado del Funnel
+[Timer]
+OnCalendar=*-*-* 05:00:00
+Persistent=true
+RandomizedDelaySec=300
+[Install]
+WantedBy=timers.target
