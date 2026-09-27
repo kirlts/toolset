@@ -150,11 +150,29 @@ rm -f "$RUN_ARGS_FILE"
 # durante ~225s. `--cpus` es un tope duro de cgroup, no una prioridad: garantiza que a $NUEVO
 # nunca le toque MAS que esto, dejando el resto de la maquina con margen real incluso si $NUEVO
 # satura lo suyo entero. KB_MCP_NEXT_CPUS por si hace falta ajustarlo sin tocar este archivo.
+#
+# `--cpus` SOLO NO ALCANZÓ. Con el tope puesto y ensayado (0 fallas en 259 sondeos aislados),
+# la producción real siguió mostrando 1 falla de ~280-834 en cada recarga -- menos que antes,
+# pero no cero. Un sondeo idle (sin ninguna recarga en curso) dio 0 fallas en 219, así que no es
+# ruido de fondo de la maquina: sigue siendo esta recarga. La sospecha: `--cpus=1` es un TOPE
+# (cgroup CFS bandwidth), no una RESERVA -- no impide que el kernel programe a $NUEVO en
+# CUALQUIERA de los 2 nucleos cuando le toca su turno, así que en el instante exacto en que le
+# toca correr puede seguir empujando a lo que sea que Caddy o $CONTENEDOR tengan programado en
+# ESE nucleo particular. `--cpuset-cpus` fija a $NUEVO a un núcleo FIJO (el último de la maquina)
+# y nunca lo deja tocar los demás -- deja al menos un núcleo entero fuera de su alcance por
+# construcción, no por cupo. El resto de la maquina (Caddy, $CONTENEDOR, y todo lo demás que
+# corre acá -- este VPS no es solo kb-mcp) sigue sin pinning propio, así que puede usar
+# cualquier núcleo LIBRE de $NUEVO. En una maquina de 1 núcleo esto no cambia nada (no hay
+# adonde pinnear aparte): ahí `--cpus` sigue siendo la única defensa posible.
 CPUS_NUEVO="${KB_MCP_NEXT_CPUS:-1}"
-log "levantando $NUEVO al lado de $CONTENEDOR, con la config clonada, la imagen nueva y tope de ${CPUS_NUEVO} CPU..."
+NUCLEOS=$(nproc)
+NUCLEO_NUEVO=$(( NUCLEOS > 1 ? NUCLEOS - 1 : 0 ))
+CPUSET_ARGS=()
+[ "$NUCLEOS" -gt 1 ] && CPUSET_ARGS=(--cpuset-cpus="$NUCLEO_NUEVO")
+log "levantando $NUEVO al lado de $CONTENEDOR, con la config clonada, la imagen nueva, tope de ${CPUS_NUEVO} CPU y ${NUCLEOS} nucleo(s) en la maquina (nucleo ${NUCLEO_NUEVO} para $NUEVO)..."
 docker rm -f "$NUEVO" >/dev/null 2>&1 || true
 # shellcheck disable=SC2086
-eval docker run -d --name "$NUEVO" --network "$RED" --cpus="$CPUS_NUEVO" $RUN_ARGS "$IMG_TAG" >/dev/null
+eval docker run -d --name "$NUEVO" --network "$RED" --cpus="$CPUS_NUEVO" "${CPUSET_ARGS[@]}" $RUN_ARGS "$IMG_TAG" >/dev/null
 
 log "esperando que $NUEVO conteste una llamada MCP real (initialize + listar), hasta 300s..."
 listo=0
