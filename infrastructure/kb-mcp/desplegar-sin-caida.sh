@@ -158,18 +158,35 @@ rm -f "$RUN_ARGS_FILE"
 # (cgroup CFS bandwidth), no una RESERVA -- no impide que el kernel programe a $NUEVO en
 # CUALQUIERA de los 2 nucleos cuando le toca su turno, así que en el instante exacto en que le
 # toca correr puede seguir empujando a lo que sea que Caddy o $CONTENEDOR tengan programado en
-# ESE nucleo particular. `--cpuset-cpus` fija a $NUEVO a un núcleo FIJO (el último de la maquina)
-# y nunca lo deja tocar los demás -- deja al menos un núcleo entero fuera de su alcance por
-# construcción, no por cupo. El resto de la maquina (Caddy, $CONTENEDOR, y todo lo demás que
-# corre acá -- este VPS no es solo kb-mcp) sigue sin pinning propio, así que puede usar
-# cualquier núcleo LIBRE de $NUEVO. En una maquina de 1 núcleo esto no cambia nada (no hay
-# adonde pinnear aparte): ahí `--cpus` sigue siendo la única defensa posible.
+# ESE nucleo particular. `--cpuset-cpus` fija a $NUEVO a un núcleo FIJO y nunca lo deja tocar los
+# demás -- deja al menos un núcleo entero fuera de su alcance por construcción, no por cupo.
+#
+# EL BUG QUE SE MEDÍA COMO "RESIDUAL" Y RESULTÓ SER OTRO: medido el 2026-09-27 con
+# `docker inspect`, el $CONTENEDOR que YA ESTABA SIRVIENDO (el que quedó de un recambio
+# anterior) tenía cpuset=1 -- EL MISMO núcleo que este script le asigna a CADA candidato nuevo,
+# siempre calculado igual (`nucleos-1`). Como el contenedor activo conserva el cpuset con el que
+# nació hasta que lo reemplazan, cada candidato nuevo termina compitiendo por UN SOLO núcleo
+# contra el propio proceso que está respondiendo al fundador en ese instante -- exactamente lo
+# opuesto de lo que el comentario de Caddy en docker-compose.yml (cpu_shares) intenta mitigar
+# desde afuera sin poder aislar la causa. Confirmado en producción el 2026-09-27 08:35-08:50Z:
+# de 48 recambios en la noche, los que armaron el índice en ~210-250s (contra ~95-125s de los
+# demás) no correlacionan con el tamaño del contenido que cambió -- correlacionan con compartir
+# ese único núcleo con lo que en ese momento respondía tráfico real.
+#
+# EL ARREGLO: dos roles de núcleo, no uno. `NUCLEO_SERVIR` (el mismo que Caddy, ver
+# docker-compose.yml) es donde corre SIEMPRE lo que contesta -- Caddy y el contenedor activo--,
+# nunca lo que arma un índice. `NUCLEO_CONSTRUIR` es donde nace CADA candidato mientras arma el
+# suyo. Antes de darle el alias (más abajo, una vez sano) se lo repinea a NUCLEO_SERVIR con
+# `docker update`: para cuando empieza a responder tráfico real ya está en el núcleo que comparte
+# con Caddy, nunca en el que usará el PRÓXIMO candidato. Así el candidato en construcción jamás
+# le saca ciclos a quien responde, sea cual sea -- ni al de ahora ni al de la próxima vuelta.
 CPUS_NUEVO="${KB_MCP_NEXT_CPUS:-1}"
 NUCLEOS=$(nproc)
-NUCLEO_NUEVO=$(( NUCLEOS > 1 ? NUCLEOS - 1 : 0 ))
+NUCLEO_SERVIR="${KB_MCP_SERVE_CPU:-0}"
+NUCLEO_CONSTRUIR=$(( NUCLEOS > 1 ? NUCLEOS - 1 : 0 ))
 CPUSET_ARGS=()
-[ "$NUCLEOS" -gt 1 ] && CPUSET_ARGS=(--cpuset-cpus="$NUCLEO_NUEVO")
-log "levantando $NUEVO al lado de $CONTENEDOR, con la config clonada, la imagen nueva, tope de ${CPUS_NUEVO} CPU y ${NUCLEOS} nucleo(s) en la maquina (nucleo ${NUCLEO_NUEVO} para $NUEVO)..."
+[ "$NUCLEOS" -gt 1 ] && CPUSET_ARGS=(--cpuset-cpus="$NUCLEO_CONSTRUIR")
+log "levantando $NUEVO al lado de $CONTENEDOR, con la config clonada, la imagen nueva, tope de ${CPUS_NUEVO} CPU y ${NUCLEOS} nucleo(s) en la maquina (nucleo ${NUCLEO_CONSTRUIR} para construir, nucleo ${NUCLEO_SERVIR} para servir una vez sano)..."
 docker rm -f "$NUEVO" >/dev/null 2>&1 || true
 # shellcheck disable=SC2086
 eval docker run -d --name "$NUEVO" --network "$RED" --cpus="$CPUS_NUEVO" "${CPUSET_ARGS[@]}" $RUN_ARGS "$IMG_TAG" >/dev/null
@@ -278,7 +295,12 @@ except Exception as e:
   fi
 fi
 
-log "$NUEVO esta sano. Agregandole el alias '$CONTENEDOR' (ahora los dos lo responden)..."
+log "$NUEVO esta sano. Repineandolo al nucleo de servir (${NUCLEO_SERVIR}, el mismo de Caddy) ANTES"
+log "de darle trafico real -- para que no vuelva a compartir nucleo con el proximo candidato:"
+if [ "$NUCLEOS" -gt 1 ]; then
+  docker update --cpuset-cpus="$NUCLEO_SERVIR" "$NUEVO" >/dev/null
+fi
+log "Agregandole el alias '$CONTENEDOR' (ahora los dos lo responden)..."
 docker network disconnect "$RED" "$NUEVO"
 docker network connect --alias "$NUEVO" --alias "$CONTENEDOR" "$RED" "$NUEVO"
 

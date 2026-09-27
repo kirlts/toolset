@@ -88,7 +88,21 @@ services:
     # especifica (se descarto reinicio de Caddy, ruido de fondo de la maquina en reposo,
     # agotamiento de conntrack, y no aparecio nada en dmesg/journalctl de docker en la
     # ventana exacta): queda como mitigacion adicional, no como arreglo probado en cero.
+    #
+    # LA CAUSA MAS ESPECIFICA SE ENCONTRO DESPUES, EL 2026-09-27: `docker inspect` mostro que
+    # el kb-mcp que YA ESTABA SIRVIENDO tenia cpuset=1 -- el MISMO nucleo que
+    # desplegar-sin-caida.sh le asigna a cada candidato nuevo mientras arma su indice al 94-100%
+    # de CPU. Como el contenedor activo conserva el cpuset con que nacio, cada candidato termina
+    # compitiendo por UN SOLO nucleo contra el propio proceso que responde al fundador -- eso
+    # explicaba las fallas residuales mejor que cualquier ruido de la maquina. `cpuset_cpus` fija
+    # a Caddy al nucleo "0" (KB_MCP_SERVE_CPU en desplegar-sin-caida.sh, mismo valor) para que
+    # SIEMPRE responda desde el nucleo reservado a "lo que sirve" -- ese script repinea ahi
+    # mismo al candidato de kb-mcp justo antes de darle el alias, para que tambien el kb-mcp
+    # activo viva siempre en este nucleo y nunca en el que usa el proximo candidato en armar su
+    # indice. `cpu_shares` se conserva como segunda capa (ayuda si algun dia esto corre en una
+    # maquina de un solo nucleo, donde no hay nada que pinear).
     cpu_shares: 4096
+    cpuset: "${KB_MCP_SERVE_CPU:-0}"
     ports:
       - "127.0.0.1:8080:8080"
       - "127.0.0.1:8091:8091"
