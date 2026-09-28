@@ -816,7 +816,7 @@ def _coercer(v):
     return t
 
 
-def recortar_subentradas(cuerpo: str, campo: str, valor) -> str:
+def recortar_subentradas(cuerpo: str, campo: str, valor, cerrados_de: tuple = ()) -> str:
     """Quita las sub-entradas cuya ficha declara `campo` con un valor distinto de `valor`.
 
     Una entrada agrupa un sujeto entero, asi que puede mezclar contenido de distinta
@@ -842,6 +842,13 @@ def recortar_subentradas(cuerpo: str, campo: str, valor) -> str:
         campos = {k.strip().lower(): v for k, v in FICHA.findall(cuerpo[m.start():fin])}
         declarado = campos.get(campo.strip().lower())
         if declarado is not None and _coercer(declarado) != _coercer(valor):
+            fuera.append((m.start(), fin))
+        # SOLO LO CERRADO, para los tipos que el nivel declara en `solo_cerrados` (Martín,
+        # 2026-09-28: «prefiero que esto nunca muestre los hallazgos que no están cerrados»). Un
+        # hallazgo abierto sale del nivel aunque su ficha diga publicable: la marca decide si algo
+        # PUEDE mostrarse, el cierre decide si ya corresponde.
+        elif cerrados_de and str(campos.get("tipo", "")).strip().lower() in cerrados_de \
+                and str(campos.get("estado", "")).strip().lower() != "resuelto":
             fuera.append((m.start(), fin))
     for ini, fin in reversed(fuera):
         cuerpo = cuerpo[:ini] + cuerpo[fin:]
@@ -1328,6 +1335,14 @@ class Indice:
         leer, los vecinos y el panorama recorren `self.nodos`."""
         vista = copy.copy(self)
         visibles = {n: nd for n, nd in self.nodos.items() if nd.meta.get(campo) == valor}
+        # Los tipos que este nivel sólo muestra cerrados salen de su propia declaración en
+        # kb/mcp.yaml (`solo_cerrados`), buscada por el mismo campo y valor: así la regla alcanza a
+        # todo lo que recorta por este camino —el servidor, el informe, las evaluaciones, la mesa—
+        # sin que cada uno tenga que acordarse de pasarla.
+        cerrados_de: tuple = ()
+        for cfg_n in (self.cfg.niveles or {}).values():
+            if isinstance(cfg_n, dict) and cfg_n.get("campo") == campo and cfg_n.get("valor", True) == valor:
+                cerrados_de = tuple(str(x).strip().lower() for x in (cfg_n.get("solo_cerrados") or []))
         # Y dentro de cada entrada visible, se recorta lo que declare otra visibilidad.
         # Se hace ACA, sobre el cuerpo, y no al servir el extracto: asi ninguna funcion
         # que lea `cuerpo` mas adelante puede olvidarse del recorte. `menciona` se
@@ -1335,7 +1350,7 @@ class Indice:
         # citada solo dentro de lo recortado seguiria saliendo en «Conecta con».
         vista.nodos = {}
         for n, nd in visibles.items():
-            recortado = recortar_subentradas(nd.cuerpo, campo, valor)
+            recortado = recortar_subentradas(nd.cuerpo, campo, valor, cerrados_de)
             vista.nodos[n] = nd if recortado == nd.cuerpo else replace(
                 nd, cuerpo=recortado,
                 menciona=sorted({x.strip() for x in WIKILINK.findall(recortado)}))
