@@ -59,8 +59,8 @@ resource "oci_core_default_security_list" "toolset_sl" {
     source   = "0.0.0.0/0"
     protocol = "6" # TCP
     tcp_options {
-      max = 42022
-      min = 42022
+      max = 22022
+      min = 22022
     }
   }
 
