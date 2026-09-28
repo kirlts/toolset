@@ -64,6 +64,29 @@ resource "oci_core_default_security_list" "toolset_sl" {
     }
   }
 
+  # Web de provision desde cualquier navegador (repo kirlts/provision): un Caddy propio escucha solo en la
+  # IP privada del servidor (no en la de Tailscale) y pasa a la web, que pide la contraseña de siembra,
+  # limita intentos por IP y registra cada ingreso (provision/web/acceso.py). El 443 sirve con un
+  # certificado de Let's Encrypt para la IP; el 80 solo redirige al 443 y valida el certificado. Lo
+  # instala y lo declara provision/vps/instalar.sh (firewalld incluido).
+  ingress_security_rules {
+    source   = "0.0.0.0/0"
+    protocol = "6" # TCP
+    tcp_options {
+      max = 443
+      min = 443
+    }
+  }
+
+  ingress_security_rules {
+    source   = "0.0.0.0/0"
+    protocol = "6" # TCP
+    tcp_options {
+      max = 80
+      min = 80
+    }
+  }
+
   ingress_security_rules {
     source   = "0.0.0.0/0"
     protocol = "17" # UDP (Tailscale)
