@@ -51,6 +51,19 @@ resource "oci_core_default_security_list" "toolset_sl" {
     }
   }
 
+  # Siembra de equipos (repo kirlts/provision): sshd dedicado al usuario «siembra», solo contraseña y
+  # solo el menú de siembra, en su propio puerto; fail2ban con la IP real. Lo instala y lo declara
+  # provision/vps/instalar-siembra.sh (sshd-siembra.service, firewalld, SELinux, celda de fail2ban).
+  # Es la entrada de un equipo recién formateado, que no está en Tailscale. El 22 sigue solo para la VCN.
+  ingress_security_rules {
+    source   = "0.0.0.0/0"
+    protocol = "6" # TCP
+    tcp_options {
+      max = 22022
+      min = 22022
+    }
+  }
+
   ingress_security_rules {
     source   = "0.0.0.0/0"
     protocol = "17" # UDP (Tailscale)
