@@ -151,6 +151,14 @@
         respond 404
     }
 
+    # Nextcloud de Saber (docker-compose: servicio nextcloud). handle_path despoja /nextcloud;
+    # Nextcloud rearma sus URL con OVERWRITEWEBROOT=/nextcloud. Sin limite de cuerpo: las notas
+    # con imagenes suben enteras por WebDAV.
+    redir /nextcloud /nextcloud/ 308
+    handle_path /nextcloud/* {
+        reverse_proxy nextcloud:80
+    }
+
     # Prototipo visual del mapa OKOS (okos-mapa). Estatico puro: HTML mas dos
     # scripts, sin backend ni datos en vivo. Publico a proposito — es una
     # maqueta para validar la forma del artefacto con quien lo vaya a usar.

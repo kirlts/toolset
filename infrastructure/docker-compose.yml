@@ -161,6 +161,33 @@ services:
     networks:
       - toolset-net
 
+  # Nextcloud — servidor de sincronizacion de Saber (notas a mano del telefono de Martin).
+  # Saber habla el protocolo de Nextcloud (login flow v2, OCS, WebDAV) y no otro.
+  # Publico en https://${FUNNEL_DOMAIN}/nextcloud (Caddy, handle_path). Las notas llegan
+  # cifradas por Saber: este servidor guarda datos que no puede leer.
+  # SQLite: un solo usuario. Simulacro del 2026-10-14 con la misma subruta: 113 MiB en reposo.
+  # NEXTCLOUD_ADMIN_PASSWORD con `:?` A PROPOSITO: sin contrasena la imagen no se instala sola
+  # y deja el instalador web abierto al publico. Falla cerrado; deploy.sh la genera si falta.
+  nextcloud:
+    image: nextcloud:31-apache
+    container_name: nextcloud
+    restart: unless-stopped
+    mem_limit: 512m
+    environment:
+      SQLITE_DATABASE: nextcloud
+      NEXTCLOUD_ADMIN_USER: martin
+      NEXTCLOUD_ADMIN_PASSWORD: ${NEXTCLOUD_ADMIN_PASSWORD:?falta NEXTCLOUD_ADMIN_PASSWORD en .env}
+      NEXTCLOUD_TRUSTED_DOMAINS: ${FUNNEL_DOMAIN:-toolset-oci-1-1.tail2d4c18.ts.net}
+      OVERWRITEWEBROOT: /nextcloud
+      OVERWRITEHOST: ${FUNNEL_DOMAIN:-toolset-oci-1-1.tail2d4c18.ts.net}
+      OVERWRITEPROTOCOL: https
+      OVERWRITECLIURL: https://${FUNNEL_DOMAIN:-toolset-oci-1-1.tail2d4c18.ts.net}/nextcloud
+      TRUSTED_PROXIES: 172.16.0.0/12
+    volumes:
+      - /opt/toolset/nextcloud:/var/www/html
+    networks:
+      - toolset-net
+
   # kb-mcp — servidor MCP de solo lectura sobre las KBs de kb-template.
   # Aislado a proposito: sin depends_on, sin puertos publicados al host, sin
   # acceso de escritura al repo de la KB. Caddy lo alcanza por la red interna.

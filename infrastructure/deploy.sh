@@ -79,6 +79,15 @@ else
   echo "[DEPLOY] .env exists. Skipping rewrite."
 fi
 
+# --- Contrasena de administrador de Nextcloud (se genera en el servidor, una vez) ---
+# El .env solo se escribe si falta, asi que una variable nueva no llega por el bloque de arriba.
+# Se genera alla y nunca sale del servidor. docker-compose.yml la exige con `:?`: sin ella la
+# imagen deja el instalador web publico abierto.
+ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  "${SSH_HOST}" \
+  "sudo grep -q '^NEXTCLOUD_ADMIN_PASSWORD=' ${REMOTE_DIR}/.env || \
+   { echo \"NEXTCLOUD_ADMIN_PASSWORD=\$(openssl rand -base64 30 | tr -dc A-Za-z0-9 | head -c 32)\" | sudo tee -a ${REMOTE_DIR}/.env > /dev/null && echo '  NEXTCLOUD_ADMIN_PASSWORD generada'; }"
+
 # --- Transfer Caddyfile (must precede compose up) ---
 CADDY_DOMAIN="${FUNNEL_DOMAIN:-toolset-oci-1-1.tail2d4c18.ts.net}"
 CADDYFILE_DIR="$(dirname "${COMPOSE_FILE}")"
