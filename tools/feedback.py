@@ -164,6 +164,11 @@ def responder(numero, texto):
     gh("issue", "edit", str(numero), "-R", REPO, "--remove-label", "estado:nuevo",
        "--remove-label", "estado:en-curso", "--add-label", "estado:respondido")
     gh("issue", "close", str(numero), "-R", REPO)
+    origen = campo(i, "Origen")
+    if canal == "github" and re.match(r"https://github\.com/[^/]+/[^/]+/issues/\d+$", origen):
+        gh("issue", "comment", origen, "--body", texto.strip())
+        print(f"#{numero}\trespondido\tenviada a {qa} en {origen}")
+        return
     print(f"#{numero}\trespondido\tfalta enviarla por {canal} a {qa}")
 
 
