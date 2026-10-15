@@ -43,14 +43,15 @@ canal a fila.
 
 ## La caja, leída del dibujo
 
-Una tabla con estas columnas. Son las que el dibujo exige para que la caja reciba de tres canales
-distintos y el Dev devuelva a tres QA distintos.
+La fila de celdas de arriba tiene tres divisiones. Tres columnas es lo que cada flecha de entrada
+trae consigo: de qué proyecto viene, quién es el QA, por qué canal llegó. Las demás columnas no
+están en el dibujo; están porque el Dev las necesita para responder.
 
 | Columna | Por qué está |
 |---|---|
-| Proyecto | El dibujo tiene tres proyectos en una caja |
-| QA | A quién vuelve la respuesta. Las tres flechas de salida van a personas con nombre |
-| Canal | Está escrito en la flecha de entrada: WhatsApp, GitHub, en persona |
+| Proyecto | En el dibujo. Tres proyectos en una caja |
+| QA | En el dibujo. A quién vuelve la respuesta: las tres flechas de salida van a personas con nombre |
+| Canal | En el dibujo. Está escrito en la flecha de entrada: WhatsApp, GitHub, en persona |
 | Qué reportó | El contenido, en palabras del QA, sin reescribir |
 | Evidencia | Captura, audio, enlace. Lo que el QA mostró |
 | Estado | Nuevo, en curso, respondido. La fila cambia cuando el Dev responde |
@@ -95,7 +96,7 @@ tienen la suya.
 |---|---|---|
 | La caja | Repositorio privado [kirlts/feedback](https://github.com/kirlts/feedback). Una issue por fila; proyecto, canal y estado como etiquetas; QA, fecha, origen y evidencia en una tabla del cuerpo; la respuesta como comentario | 24 filas reales cargadas |
 | `feedback nueva` | Una fila desde la terminal, con evidencia que se guarda en `evidencia/` del repositorio | Una fila de prueba creada y borrada |
-| `feedback desde-docx` | Una fila por punto numerado de un Word, con sus imágenes | Los 24 puntos de Pablo (`Errores funcionales 3.docx`, 2026-09-09), 14 con imagen. Primera carga 1 min 20 s; segunda corrida 5 s y cero filas nuevas |
+| `feedback desde-archivo` | Una fila por punto numerado de un documento (Word, Markdown, texto), con sus imágenes. Una imagen pegada al número («[]2.») cuenta para ese punto | Los 24 puntos de Pablo (`Errores funcionales 3.docx`, 2026-09-09) son las filas #27 a #50, en el orden del documento; 13 con imagen, 14 imágenes. Carga 1 min 14 s, 3 s por issue en `gh`; segunda corrida 5 s y cero filas nuevas. Pruebas en `tools/test_feedback.py` |
 | `feedback desde-github` | Refleja las issues de un repositorio de proyecto, con enlace de vuelta | Una issue de prueba en `kirlts/HPOMEN`: reflejada, no duplicada en la segunda corrida, borrada |
 | `feedback responder` | Guarda la respuesta, marca `estado:respondido`, cierra la issue y dice por qué canal y a quién enviarla | Sobre la fila de prueba |
 | `feedback pendientes` y `feedback-para-claude.sh` | Las filas sin responder, en el formato que las sesiones ya reciben para las alertas | Salida de 24 líneas para Devalis, 0 para OKOS |

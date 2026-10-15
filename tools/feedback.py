@@ -2,19 +2,21 @@
 """Punto de entrada común del feedback: una fila por reporte en kirlts/feedback.
 
 Sale del dibujo «Idea QA» (2026-10-15): tres proyectos, tres canales, una caja, un Dev.
-La caja es el repositorio kirlts/feedback; cada issue es una fila con siete columnas.
+La caja es el repositorio kirlts/feedback; cada issue es una fila.
 
     feedback nueva --proyecto okos --qa "Alan" --canal whatsapp --texto "..." [--evidencia F...]
     feedback listar [--proyecto P] [--estado nuevo|en-curso|respondido]
     feedback responder N --texto "..."
-    feedback desde-docx ARCHIVO --proyecto P --qa Q
+    feedback desde-archivo ARCHIVO --proyecto P --qa Q [--canal en-persona] [--fecha AAAA-MM-DD]
     feedback desde-github REPO --proyecto P [--etiqueta qa]
     feedback pendientes [--proyecto P]   # salida corta para inyectar en una sesión
+
+desde-archivo lee lo que pandoc lea (docx, md, txt, odt) y crea una fila por punto numerado,
+con las imágenes que el punto trae. La numeración es la del documento.
 """
 import argparse
 import hashlib
 import json
-import os
 import re
 import shutil
 import subprocess
@@ -28,6 +30,7 @@ CLON = Path.home() / "feedback"
 PROYECTOS = ("okos", "devalis", "otro")
 CANALES = ("whatsapp", "github", "en-persona")
 ESTADOS = ("nuevo", "en-curso", "respondido")
+LARGO_TITULO = 80
 
 
 def gh(*args, entrada=None):
@@ -75,8 +78,24 @@ def existe(origen):
     return None
 
 
+def titulo_de(texto):
+    """La primera oración, o los primeros 80 caracteres cortados en una palabra."""
+    t = re.sub(r"\s+", " ", texto.strip())
+    m = re.match(r"(.{10,%d}?[.!?])(\s|$)" % LARGO_TITULO, t)
+    if m:
+        return m.group(1)
+    if len(t) <= LARGO_TITULO:
+        return t
+    corte = t.rfind(" ", 0, LARGO_TITULO)
+    return t[:corte if corte > 20 else LARGO_TITULO] + "…"
+
+
+_EVIDENCIA_PENDIENTE = False
+
+
 def guardar_evidencia(archivos, clave):
-    """Copia los archivos al clon y devuelve enlaces al repositorio."""
+    """Copia los archivos al clon y devuelve enlaces. El push se hace una vez, al final."""
+    global _EVIDENCIA_PENDIENTE
     if not archivos:
         return []
     if not CLON.exists():
@@ -88,21 +107,28 @@ def guardar_evidencia(archivos, clave):
         a = Path(a)
         shutil.copy(a, destino / a.name)
         enlaces.append(f"https://github.com/{REPO}/blob/main/evidencia/{clave}/{a.name}?raw=true")
-    subprocess.run(["git", "-C", str(CLON), "add", "evidencia"], check=True)
-    subprocess.run(["git", "-C", str(CLON), "commit", "-q", "-m", f"evidencia: {clave}"], check=True)
-    subprocess.run(["git", "-C", str(CLON), "push", "-q"], check=True)
+    _EVIDENCIA_PENDIENTE = True
     return enlaces
 
 
-def nueva(proyecto, qa, canal, texto, evidencia=(), origen="", fecha=None):
+def publicar_evidencia():
+    if not _EVIDENCIA_PENDIENTE:
+        return
+    subprocess.run(["git", "-C", str(CLON), "add", "evidencia"], check=True)
+    subprocess.run(["git", "-C", str(CLON), "commit", "-q", "-m",
+                    f"evidencia: {date.today().isoformat()}"], check=True)
+    subprocess.run(["git", "-C", str(CLON), "push", "-q"], check=True)
+
+
+def nueva(proyecto, qa, canal, texto, evidencia=(), origen="", fecha=None, titulo=None):
     previa = existe(origen)
     if previa:
         print(f"ya existe\t#{previa['number']}\t{previa['url']}")
         return previa
     fecha = fecha or date.today().isoformat()
-    titulo = re.sub(r"\s+", " ", texto.strip())
-    titulo = titulo[:70] + ("…" if len(titulo) > 70 else "")
-    clave = f"{fecha}-{proyecto}-{re.sub(r'[^a-z0-9]+', '-', qa.lower())[:20]}-{hashlib.sha1(texto.encode()).hexdigest()[:6]}"
+    titulo = titulo or titulo_de(texto)
+    clave = (f"{fecha}-{proyecto}-{re.sub(r'[^a-z0-9]+', '-', qa.lower())[:20]}-"
+             f"{hashlib.sha1((origen or texto).encode()).hexdigest()[:6]}")
     enlaces = guardar_evidencia(evidencia, clave)
     cuerpo = "\n".join([
         "| Columna | Valor |", "|---|---|",
@@ -113,7 +139,7 @@ def nueva(proyecto, qa, canal, texto, evidencia=(), origen="", fecha=None):
         f"| Origen | {origen} |",
         f"| Evidencia | {' '.join(enlaces) if enlaces else '(sin evidencia)'} |",
         "", "## Qué reportó", "", texto.strip(), "",
-    ] + ([f"![evidencia]({e})" for e in enlaces]))
+    ] + [f"![evidencia]({e})" for e in enlaces])
     url = gh("issue", "create", "-R", REPO, "--title", titulo, "--body", cuerpo,
              "--label", f"proyecto:{proyecto}", "--label", f"canal:{canal}",
              "--label", "estado:nuevo").strip()
@@ -141,33 +167,52 @@ def responder(numero, texto):
     print(f"#{numero}\trespondido\tfalta enviarla por {canal} a {qa}")
 
 
-def desde_docx(archivo, proyecto, qa, fecha=None):
-    """Una fila por punto numerado del documento. La numeración es del documento."""
+# pandoc deja «[]» donde iba cada imagen. El número de un punto abre línea, a veces con una
+# imagen pegada delante («[]2. …»), a veces sin punto («14»).
+_PUNTO = r"[ \t]*(?:\[\][ \t]*)?\d{1,3}[.)]?(?:[ \t]+|\n)"
+
+
+def partir_puntos(texto):
+    """Devuelve [(número, cuerpo con sus «[]»)] en el orden del documento."""
+    partes = re.split(r"\n(?=" + _PUNTO + ")", "\n" + texto)
+    puntos = []
+    for p in partes:
+        m = re.match(r"[ \t]*((?:\[\][ \t]*)?)(\d{1,3})[.)]?(?:[ \t]+|\n)(.*)", p, re.S)
+        if m:
+            puntos.append((int(m.group(2)), m.group(1) + m.group(3)))
+    return puntos
+
+
+def leer_archivo(archivo, carpeta_medios):
+    texto = subprocess.run(["pandoc", str(archivo), "-t", "plain", "--wrap=none",
+                            f"--extract-media={carpeta_medios}"], text=True,
+                           capture_output=True, check=True).stdout
+    media = Path(carpeta_medios) / "media"
+    medios = sorted(media.glob("*"), key=lambda p: int(re.sub(r"\D", "", p.name) or 0)) \
+        if media.exists() else []
+    return texto, medios
+
+
+def filas_de_archivo(archivo, carpeta_medios):
+    """[(número, texto limpio, [imágenes])] de un documento con puntos numerados."""
+    texto, medios = leer_archivo(archivo, carpeta_medios)
+    filas, indice = [], 0
+    for n, cuerpo in partir_puntos(texto):
+        k = cuerpo.count("[]")
+        adjuntos = medios[indice:indice + k]
+        indice += k
+        limpio = cuerpo.replace("[]", "").strip()
+        filas.append((n, limpio or "(solo imagen)", adjuntos))
+    return filas
+
+
+def desde_archivo(archivo, proyecto, qa, canal="en-persona", fecha=None):
     archivo = Path(archivo)
     fecha = fecha or date.fromtimestamp(archivo.stat().st_mtime).isoformat()
     with tempfile.TemporaryDirectory() as tmp:
-        texto = subprocess.run(["pandoc", str(archivo), "-t", "plain", "--wrap=none",
-                                f"--extract-media={tmp}"], text=True, capture_output=True,
-                               check=True).stdout
-        medios = sorted((Path(tmp) / "media").glob("*"),
-                        key=lambda p: int(re.sub(r"\D", "", p.name) or 0)) if (Path(tmp) / "media").exists() else []
-        # pandoc deja «[]» donde iba cada imagen, en el orden del documento
-        partes = re.split(r"\n(?=\s*(?:\[\]\s*)?\d{1,3}[.)]?\s)", "\n" + texto)
-        puntos = []
-        for p in partes:
-            m = re.match(r"\s*((?:\[\]\s*)?)(\d{1,3})[.)]?\s+(.*)", p, re.S)
-            if m:
-                puntos.append((int(m.group(2)), m.group(1) + m.group(3)))
-        indice = 0
-        for n, cuerpo in puntos:
-            k = cuerpo.count("[]")
-            adjuntos = medios[indice:indice + k]
-            indice += k
-            limpio = re.sub(r"\[\]", "", cuerpo).strip()
-            if not limpio:
-                limpio = "(solo imagen)"
-            nueva(proyecto, qa, "en-persona", limpio, adjuntos,
-                  origen=f"{archivo.name}#{n}", fecha=fecha)
+        for n, texto, adjuntos in filas_de_archivo(archivo, tmp):
+            nueva(proyecto, qa, canal, texto, adjuntos, origen=f"{archivo.name}#{n}", fecha=fecha)
+        publicar_evidencia()
 
 
 def desde_github(repo, proyecto, etiqueta_qa="qa"):
@@ -176,9 +221,8 @@ def desde_github(repo, proyecto, etiqueta_qa="qa"):
     if etiqueta_qa:
         args += ["--label", etiqueta_qa]
     for i in json.loads(gh(*args)):
-        nueva(proyecto, i["author"]["login"], "github",
-              f"{i['title']}\n\n{i['body'] or ''}", origen=i["url"],
-              fecha=i["createdAt"][:10])
+        nueva(proyecto, i["author"]["login"], "github", i["body"] or i["title"],
+              origen=i["url"], fecha=i["createdAt"][:10], titulo=i["title"])
 
 
 def pendientes(proyecto=None):
@@ -208,10 +252,11 @@ def main():
     a = s.add_parser("responder")
     a.add_argument("numero", type=int)
     a.add_argument("--texto", required=True)
-    a = s.add_parser("desde-docx")
+    a = s.add_parser("desde-archivo", aliases=["desde-docx"])
     a.add_argument("archivo")
     a.add_argument("--proyecto", required=True, choices=PROYECTOS)
     a.add_argument("--qa", required=True)
+    a.add_argument("--canal", default="en-persona", choices=CANALES)
     a.add_argument("--fecha")
     a = s.add_parser("desde-github")
     a.add_argument("repo")
@@ -222,12 +267,13 @@ def main():
     o = p.parse_args()
     if o.orden == "nueva":
         nueva(o.proyecto, o.qa, o.canal, o.texto, o.evidencia, o.origen)
+        publicar_evidencia()
     elif o.orden == "listar":
         listar(o.proyecto, o.estado)
     elif o.orden == "responder":
         responder(o.numero, o.texto)
-    elif o.orden == "desde-docx":
-        desde_docx(o.archivo, o.proyecto, o.qa, o.fecha)
+    elif o.orden in ("desde-archivo", "desde-docx"):
+        desde_archivo(o.archivo, o.proyecto, o.qa, o.canal, o.fecha)
     elif o.orden == "desde-github":
         desde_github(o.repo, o.proyecto, o.etiqueta)
     elif o.orden == "pendientes":
