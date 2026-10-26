@@ -168,8 +168,11 @@ services:
   # SQLite: un solo usuario. Simulacro del 2026-10-14 con la misma subruta: 113 MiB en reposo.
   # NEXTCLOUD_ADMIN_PASSWORD con `:?` A PROPOSITO: sin contrasena la imagen no se instala sola
   # y deja el instalador web abierto al publico. Falla cerrado; deploy.sh la genera si falta.
+  # 32 y no 31: la etiqueta 31-apache dejo de reconstruirse en marzo de 2026 y quedo con PHP 8.3.30,
+  # vulnerable a PHP2Shell (CVE-2026-109618/109619). 32-apache se reconstruyo el 2026-10-23 con PHP 8.3.36.
+  # Una etiqueta que no se reconstruye no recibe parches de PHP aunque se vuelva a bajar.
   nextcloud:
-    image: nextcloud:31-apache
+    image: nextcloud:32-apache
     container_name: nextcloud
     restart: unless-stopped
     mem_limit: 512m
