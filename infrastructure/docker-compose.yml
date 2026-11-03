@@ -273,7 +273,9 @@ services:
       # (1 MB), indexados por hash del texto; borrarlo no pierde nada, se recalcula. Ver HEU-013.
       - /opt/kb-vectores:/vectores
     healthcheck:
-      test: ["CMD", "python", "-c", "import socket,sys; s=socket.create_connection(('127.0.0.1',8765),3); s.close()"]
+      # Pide /salud y no sólo abre una conexión: desde el 2026-11-03 server.py abre el puerto ANTES
+      # de armar el índice, así que una conexión TCP entra aunque todavía no sirva nada.
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8765/salud', timeout=3)"]
       interval: 30s
       timeout: 5s
       retries: 3
