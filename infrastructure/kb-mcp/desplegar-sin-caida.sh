@@ -191,9 +191,13 @@ docker rm -f "$NUEVO" >/dev/null 2>&1 || true
 # shellcheck disable=SC2086
 eval docker run -d --name "$NUEVO" --network "$RED" --cpus="$CPUS_NUEVO" "${CPUSET_ARGS[@]}" $RUN_ARGS "$IMG_TAG" >/dev/null
 
-log "esperando que $NUEVO conteste una llamada MCP real (initialize + listar), hasta 300s..."
+# El indice de okos tardaba 231 s en armarse el 2026-10-15 y desde entonces creció; con el tope
+# de 300 s anterior el candidato nunca alcanzaba a contestar y el recambio abortaba siempre
+# (82 abortos entre el 2026-10-16 y el 2026-11-03, servidor congelado en el índice del 10-15).
+INTENTOS="${KB_MCP_ESPERA_INTENTOS:-400}"
+log "esperando que $NUEVO conteste una llamada MCP real (initialize + listar), hasta $((INTENTOS*3))s..."
 listo=0
-for i in $(seq 1 100); do
+for i in $(seq 1 "$INTENTOS"); do
   R=$(docker exec "$NUEVO" python3 -c '
 import urllib.request, json, sys
 
@@ -227,7 +231,7 @@ try:
 except Exception as e:
     print("ERR:" + str(e)[:150])
 ' 2>/dev/null || echo "EXC")
-  log "  intento $i/100: $R"
+  log "  intento $i/$INTENTOS: $R"
   if [ "$R" = "OK" ]; then listo=1; break; fi
   sleep 3
 done
