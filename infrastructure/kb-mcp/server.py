@@ -24,6 +24,7 @@ import collections
 import contextlib
 import copy
 import datetime
+import functools
 import json
 import math
 import signal
@@ -741,6 +742,42 @@ def fechas_subentrada(raiz: Path) -> tuple[dict[str, dict[str, int]], dict]:
     return fuera, diag
 
 
+def commit_de_contenido(raiz: Path) -> tuple[str, str] | None:
+    """(hash, fecha corta) del último commit que tocó `knowledge-base/` en el clon.
+
+    POR QUÉ EXISTE. Del 2026-10-15 al 2026-11-03 el servidor sirvió el índice armado el 10-15:
+    el clon se actualizaba, pero los 82 recambios abortaron y el contenedor viejo siguió
+    contestando como si nada. La única señal era una línea en el registro del servidor. Un
+    colaborador lo notó porque su reporte semanal salió vacío. Comparar este commit con el que
+    leyó el índice no necesita ningún umbral: si difieren, lo servido está atrasado.
+
+    Sólo `knowledge-base/`: un commit que toca `tools/` no cambia lo que se sirve y no debe
+    disparar el aviso.
+    """
+    try:
+        salida = subprocess.run(
+            ["git", "-C", str(raiz), "-c", "safe.directory=*",
+             "log", "-1", "--format=%H%x09%cs", "--", "knowledge-base"],
+            capture_output=True, text=True, timeout=10, check=True).stdout.strip()
+    except (subprocess.SubprocessError, OSError):
+        return None
+    if "\t" not in salida:
+        return None
+    h, _, fecha = salida.partition("\t")
+    return h, fecha
+
+
+def aviso_de_atraso(idx) -> str | None:
+    """El aviso que encabeza cada respuesta cuando el clon va por delante del índice."""
+    indexado = getattr(idx, "commit_indexado", None)
+    actual = commit_de_contenido(idx.raiz)
+    if not indexado or not actual or indexado[0] == actual[0]:
+        return None
+    return (f"**Aviso:** esta base responde con el contenido publicado hasta el {indexado[1]}. "
+            f"Hay publicaciones posteriores, la última del {actual[1]}, que todavía no se "
+            "indexaron: lo de esas fechas no aparece en esta respuesta.")
+
+
 def fechas_git(raiz: Path, base: Path) -> dict[str, tuple[int, int]]:
     """Por cada .md, (primer commit, ultimo commit) segun git. La temporalidad de
     un grafo que crece vive en su historial, no en el frontmatter. Un solo `git log`
@@ -890,6 +927,9 @@ class Indice:
     def construir(self) -> None:
         self.nodos.clear(); self.backlinks.clear()
         self.vocabulario.clear(); self.formas.clear()
+        # Se lee ANTES de recorrer los archivos: si alguien publica a mitad del armado, el
+        # índice queda marcado con el commit viejo y avisa de más, nunca de menos.
+        self.commit_indexado = commit_de_contenido(self.raiz)
         fechas = fechas_git(self.raiz, self.base)
         # La marca de tiempo POR SUB-ENTRADA, derivada del historial. Ver `fechas_subentrada`:
         # la del archivo no alcanza porque una entrada de esta base tiene decenas de notas.
@@ -2446,6 +2486,16 @@ def crear_servidor(idx: Indice, herramientas: list[str] | None = None,
         # el modelo lea la descripción hasta el final, que es justo lo que no pasa
         # cuando el texto se recorta. Recomendación de la guía de Anthropic sobre
         # escribir herramientas para agentes (2026).
+        # El aviso de atraso va DENTRO de la respuesta porque quien consulta casi nunca mira
+        # `/salud`: un reporte automático que sale vacío tiene que decir por qué.
+        original = fn
+
+        @functools.wraps(original)
+        def fn(*args, **kwargs):
+            salida = original(*args, **kwargs)
+            aviso = aviso_de_atraso(idx)
+            return f"{aviso}\n\n{salida}" if aviso and isinstance(salida, str) else salida
+
         return mcp.tool(annotations=ToolAnnotations(
             readOnlyHint=True,      # ninguna de las cuatro escribe en la base
             destructiveHint=False,
@@ -3952,7 +4002,9 @@ class Planta:
         """
         return {
             "kbs": [{"slug": i.cfg.slug, "entradas": len(i.nodos),
-                     "semantica": i.vectores is not None} for i in self.indices],
+                     "semantica": i.vectores is not None,
+                     "commit_indexado": (getattr(i, "commit_indexado", None) or [None])[0],
+                     "atrasada": aviso_de_atraso(i) is not None} for i in self.indices],
             "generacion": self.generacion,
             "recargando": self.recargando,
             "desde": self.ultima_recarga,
