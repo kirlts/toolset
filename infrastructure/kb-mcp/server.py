@@ -4215,7 +4215,21 @@ def main() -> None:
             return
         await actual(scope, receive, send)
 
-    uvicorn.run(raiz, host=a.host, port=a.port, log_level="warning")
+    # EL PUERTO SE ABRE ANTES DE ARMAR EL ÍNDICE. uvicorn corre el arranque (que arma el índice)
+    # y recién después abre el puerto, así que quien esperaba al servidor sólo podía preguntar
+    # cada N segundos hasta un tope: 100 intentos de 3 s abortaron 82 recambios entre el
+    # 2026-10-16 y el 2026-11-03. Con el socket ya escuchando, una conexión que llega durante el
+    # armado queda en la cola del sistema operativo y se contesta cuando el índice está listo:
+    # `desplegar-sin-caida.sh` hace una sola llamada que espera ese evento.
+    import socket
+    familia = socket.AF_INET6 if ":" in a.host else socket.AF_INET
+    sock = socket.socket(familia, socket.SOCK_STREAM)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    sock.bind((a.host, a.port))
+    sock.listen(socket.SOMAXCONN)
+    # `desplegar-sin-caida.sh` espera esta línea exacta en el registro antes de llamar.
+    print(f"[kb-mcp] puerto {a.port} abierto; contesta cuando el índice esté armado", flush=True)
+    uvicorn.Server(uvicorn.Config(raiz, log_level="warning")).run(sockets=[sock])
 
 
 if __name__ == "__main__":

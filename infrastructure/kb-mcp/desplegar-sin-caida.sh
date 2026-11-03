@@ -191,50 +191,69 @@ docker rm -f "$NUEVO" >/dev/null 2>&1 || true
 # shellcheck disable=SC2086
 eval docker run -d --name "$NUEVO" --network "$RED" --cpus="$CPUS_NUEVO" "${CPUSET_ARGS[@]}" $RUN_ARGS "$IMG_TAG" >/dev/null
 
-# El indice de okos tardaba 231 s en armarse el 2026-10-15 y desde entonces creció; con el tope
-# de 300 s anterior el candidato nunca alcanzaba a contestar y el recambio abortaba siempre
-# (82 abortos entre el 2026-10-16 y el 2026-11-03, servidor congelado en el índice del 10-15).
-INTENTOS="${KB_MCP_ESPERA_INTENTOS:-400}"
-log "esperando que $NUEVO conteste una llamada MCP real (initialize + listar), hasta $((INTENTOS*3))s..."
-listo=0
-for i in $(seq 1 "$INTENTOS"); do
-  R=$(docker exec "$NUEVO" python3 -c '
+# ESPERA POR EVENTO, SIN CONTADOR NI PLAZO. Hasta el 2026-11-03 esto preguntaba cada 3 s hasta un
+# tope (100 intentos, despues 400): el indice de okos tardo 231 s el 2026-10-15, la base crecio, y
+# 82 recambios abortaron entre el 2026-10-16 y el 2026-11-03 con el servidor congelado en el indice
+# del 10-15. Ahora server.py abre el puerto ANTES de armar el indice, asi que esta llamada queda en
+# la cola del sistema operativo y se contesta cuando el indice esta listo. Si el armado se cae, el
+# contenedor muere, la conexion se corta y se aborta sin tocar al viejo. Si se cuelga, el viejo
+# sigue sirviendo y cada respuesta suya avisa que el contenido esta atrasado (server.py,
+# `aviso_de_atraso`), que es lo que faltaba para que un recambio trabado no pase inadvertido.
+# Primero, el evento de que el puerto esta abierto: se lee el registro del candidato como flujo
+# (`docker logs -f` termina solo si el contenedor muere), sin preguntar cada N segundos.
+log "esperando que $NUEVO anuncie su puerto abierto..."
+coproc REGISTRO { docker logs -f "$NUEVO" 2>&1; echo "__contenedor_terminado__"; }
+puerto=0
+while IFS= read -r linea <&"${REGISTRO[0]}"; do
+  case "$linea" in
+    *"[kb-mcp] puerto "*" abierto"*) puerto=1; break ;;
+    *__contenedor_terminado__*) break ;;
+  esac
+done
+kill "$REGISTRO_PID" 2>/dev/null || true
+if [ "$puerto" != "1" ]; then
+  log "❌ $NUEVO termino antes de abrir su puerto. Se aborta SIN tocar $CONTENEDOR. Ultimas lineas de su log:"
+  docker logs --tail 40 "$NUEVO" 2>&1 | sed 's/^/    /' || true
+  docker rm -f "$NUEVO" >/dev/null 2>&1 || true
+  exit 1
+fi
+log "esperando que $NUEVO conteste una llamada MCP real (initialize + listar); contesta cuando termina de armar el indice..."
+R=$(docker exec "$NUEVO" python3 -c '
 import urllib.request, json, sys
 
 def rpc(metodo, params, sid=None):
-    headers = {"Content-Type": "application/json",
-               "Accept": "application/json, text/event-stream"}
-    if sid:
-        headers["Mcp-Session-Id"] = sid
-    req = urllib.request.Request("http://127.0.0.1:8765/okos/mcp", method="POST",
-                                  headers=headers,
-                                  data=json.dumps({"jsonrpc": "2.0", "id": 1,
-                                                    "method": metodo, "params": params}).encode())
-    r = urllib.request.urlopen(req, timeout=5)
-    sid_out = r.headers.get("Mcp-Session-Id")
-    body = r.read().decode()
-    for line in body.splitlines():
-        if line.startswith("data: "):
-            return json.loads(line[6:]), sid_out
-    return None, sid_out
+  headers = {"Content-Type": "application/json",
+             "Accept": "application/json, text/event-stream"}
+  if sid:
+      headers["Mcp-Session-Id"] = sid
+  req = urllib.request.Request("http://127.0.0.1:8765/okos/mcp", method="POST",
+                                headers=headers,
+                                data=json.dumps({"jsonrpc": "2.0", "id": 1,
+                                                  "method": metodo, "params": params}).encode())
+  r = urllib.request.urlopen(req)
+  sid_out = r.headers.get("Mcp-Session-Id")
+  body = r.read().decode()
+  for line in body.splitlines():
+      if line.startswith("data: "):
+          return json.loads(line[6:]), sid_out
+  return None, sid_out
 
 try:
-    ini, sid = rpc("initialize", {"protocolVersion": "2024-11-05", "capabilities": {},
-                                   "clientInfo": {"name": "desplegar-sin-caida", "version": "1"}})
-    if not ini or "result" not in ini:
-        print("NO_INIT"); sys.exit(0)
-    lis, _ = rpc("tools/call", {"name": "listar", "arguments": {"tipo": "plan"}}, sid)
-    if lis and "result" in lis:
-        print("OK")
-    else:
-        print("NO_LISTAR:" + json.dumps(lis)[:150])
+  ini, sid = rpc("initialize", {"protocolVersion": "2024-11-05", "capabilities": {},
+                                 "clientInfo": {"name": "desplegar-sin-caida", "version": "1"}})
+  if not ini or "result" not in ini:
+      print("NO_INIT"); sys.exit(0)
+  lis, _ = rpc("tools/call", {"name": "listar", "arguments": {"tipo": "plan"}}, sid)
+  if lis and "result" in lis:
+      print("OK")
+  else:
+      print("NO_LISTAR:" + json.dumps(lis)[:150])
 except Exception as e:
-    print("ERR:" + str(e)[:150])
+  print("ERR:" + str(e)[:150])
 ' 2>/dev/null || echo "EXC")
-  log "  intento $i/$INTENTOS: $R"
-  if [ "$R" = "OK" ]; then listo=1; break; fi
-  sleep 3
-done
+log "  respuesta: $R"
+listo=0
+[ "$R" = "OK" ] && listo=1
 
 if [ "$listo" != "1" ]; then
   log "❌ $NUEVO nunca contesto una llamada MCP real. Se aborta SIN tocar $CONTENEDOR — el"
