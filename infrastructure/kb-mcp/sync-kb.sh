@@ -81,6 +81,26 @@ esperadas = {"recencia_por_subentrada": True, "fecha_por_subentrada": True}
 print(" ".join(k for k, v in esperadas.items() if c and c.get(k) != v))' 2>/dev/null || true
 }
 
+# UN RECAMBIO FALLIDO SE REINTENTA. Antes, "hay cambios" solo salia de un `git pull` que trajera
+# commits: si el recambio fallaba una vez (2026-11-08 03:15, `apt-get update` con codigo 100 al
+# construir la imagen), el clon ya quedaba al dia, todas las corridas siguientes decian "sin
+# cambios" y el servidor siguio 10 horas con el indice del dia anterior. Ahora tambien cuenta
+# como cambio que /salud declare `atrasada` una KB, con un intervalo minimo entre intentos para
+# que un fallo persistente no reconstruya la imagen cada minuto.
+if [ "$cambio" -eq 0 ]; then
+  ULTIMO=/tmp/kb-sync.ultimo-reintento
+  if printf '%s' "$(salud_de)" | python3 -c 'import json,sys
+try: d = json.load(sys.stdin)
+except Exception: sys.exit(1)
+sys.exit(0 if any(k.get("atrasada") for k in d.get("kbs", [])) else 1)' 2>/dev/null; then
+    if [ -z "$(find "$ULTIMO" -mmin -10 2>/dev/null)" ]; then
+      : > "$ULTIMO"
+      log "el indice servido esta atrasado respecto del clon: se reintenta el recambio"
+      cambio=1
+    fi
+  fi
+fi
+
 if [ "$cambio" -eq 1 ]; then
   # ── RECAMBIO DE CONTENEDOR, no SIGHUP ───────────────────────────────────────────────
   # Hasta el 2026-08-08 un cambio de contenido hacia `docker restart` y la base NO CONTESTABA
