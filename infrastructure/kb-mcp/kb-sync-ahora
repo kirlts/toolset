@@ -37,6 +37,6 @@
 set -uo pipefail
 REG=/var/log/kb-sync.log
 echo "[kb-sync-ahora $(date +%H:%M:%S)] disparado al publicar" >> "$REG"
-setsid /usr/bin/sudo -u opc /bin/bash /home/opc/.hermes/scripts/sync-kb.sh \
+setsid /usr/bin/sudo -u opc /bin/bash /usr/local/sbin/sync-kb.sh \
   >> "$REG" 2>&1 < /dev/null &
 exit 0

@@ -822,14 +822,7 @@ fi
 KB_SYNC_SRC="$(dirname "${COMPOSE_FILE}")/kb-mcp/sync-kb.sh"
 if [ -f "$KB_SYNC_SRC" ]; then
   echo "[DEPLOY] Deploying kb-mcp KB sync..."
-  scp -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    "$KB_SYNC_SRC" "${SSH_HOST}:/tmp/sync-kb.sh" 2>/dev/null || true
-  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    "${SSH_HOST}" \
-    "sudo mkdir -p /home/opc/.hermes/scripts && \
-     sudo chmod 755 /tmp/sync-kb.sh && sudo chown opc:opc /tmp/sync-kb.sh && \
-     sudo mv -f /tmp/sync-kb.sh /home/opc/.hermes/scripts/sync-kb.sh && \
-     echo '  sync-kb.sh deployed'" 2>/dev/null || true
+  SSH_HOST="${SSH_HOST}" bash "$(dirname "${COMPOSE_FILE}")/kb-mcp/instalar-sync-kb.sh" || true
   # Manifiesto de KB a servir: "slug rama repo". Agregar una KB nueva es una linea.
   # Clon partial (--filter=blob:limit=1m): historial completo de commits, y ademas los
   # CONTENIDOS de texto, sin descargar los binarios pesados del historial.
@@ -891,19 +884,6 @@ okos master https://github.com/kirlts/kb-okos.git"
   # maquina sin la llave—; y una red que tarda un cuarto de hora deja al fundador
   # leyendo contenido viejo sin saberlo. El costo de correrlo cada minuto es nulo
   # cuando no hay cambios: compara el HEAD y sale.
-  echo "[DEPLOY] Ensuring kb-sync cron entry..."
-  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    "${SSH_HOST}" \
-    "LINEA='* * * * * bash /home/opc/.hermes/scripts/sync-kb.sh >> /var/log/kb-sync.log 2>&1'; \
-     sudo touch /var/log/kb-sync.log && sudo chown opc:opc /var/log/kb-sync.log; \
-     printf '/var/log/kb-sync.log {\\n  weekly\\n  rotate 4\\n  compress\\n  missingok\\n  notifempty\\n}\\n' \
-       | sudo tee /etc/logrotate.d/kb-sync > /dev/null; \
-     if crontab -l 2>/dev/null | grep -qF \"\$LINEA\"; then \
-       echo '  cron already set'; \
-     else \
-       (crontab -l 2>/dev/null | grep -v 'sync-kb.sh'; echo \"\$LINEA\") | crontab -; \
-       echo '  cron set (cada minuto, como red del aviso al publicar; log en /var/log/kb-sync.log)'; \
-     fi" 2>/dev/null || true
 fi
 
 
