@@ -12,7 +12,7 @@ La superficie es la de un bibliotecario: consultar, leer, panorama. La topologia
 interna (polos, wikilinks, frontmatter) se usa para responder mejor, pero no se le
 pide al que consulta que la conozca.
 
-    python server.py --kb ~/traza-ambiental                      # stdio, una KB
+    python server.py --kb ~/otro-proyecto                      # stdio, una KB
     python server.py --kbs /opt/kb --transport streamable-http   # http, todas
 """
 
