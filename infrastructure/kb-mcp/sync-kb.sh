@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # sync-kb.sh — actualiza los clones de las KB en /opt/kb y reindexa si alguno cambio.
-# Desplegado por deploy.sh a /home/opc/.hermes/scripts/. Lo dispara el gancho
+# Se instala en /usr/local/sbin/sync-kb.sh con kb-mcp/instalar-sync-kb.sh. Lo dispara el gancho
 # pre-push de la KB al publicar; el cron cada minuto queda como red.
 # Acotado a proposito: solo toca /opt/kb y el contenedor kb-mcp. Nunca otros.
 set -euo pipefail

@@ -22,8 +22,7 @@ jobs:
             "/:Landing" \
             "/health:Health" \
             "/kb/salud:ConectorKB" \
-            ":8443/:Infisical" \
-            ":8787/:HermesWebUI"; do
+            ":8443/:Infisical"; do
             path="${pair%%:*}"
             name="${pair##*:}"
             url="https://${{ secrets.FUNNEL_DOMAIN }}${path}"
