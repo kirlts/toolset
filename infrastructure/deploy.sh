@@ -22,14 +22,6 @@ REQUIRED_VARS=(
   INFISICAL_ENCRYPTION_KEY
   INFISICAL_AUTH_SECRET
   INFISICAL_DB_PASSWORD
-  OPENCODE_GO_API_KEY
-  OPENCODE_GO_API_KEY_FALLBACK
-  HERMES_LLM_PROVIDER
-  HERMES_LLM_MODEL
-  HERMES_WEBUI_PASSWORD
-  HERMES_WHATSAPP_MODE
-  WHATSAPP_ALLOWED_USERS
-  COMPOSIO_API_KEY
 )
 
 MISSING=0
@@ -70,7 +62,6 @@ INFISICAL_DB_USER=infisical
 INFISICAL_DB_NAME=infisical
 INFISICAL_SITE_URL=http://toolset-oci:8081
 DB_CONNECTION_URI=postgresql://${INFISICAL_DB_USER:-infisical}:${INFISICAL_DB_PASSWORD:-infisical}@postgres:5432/${INFISICAL_DB_NAME:-infisical}
-OPENCODE_GO_API_KEY=${OPENCODE_GO_API_KEY}
 FUNNEL_DOMAIN=${FUNNEL_DOMAIN:-toolset-oci-1-1.tail2d4c18.ts.net}
 INFISICAL_PID=${INFISICAL_PID:-}
 INFISICAL_SERVICE_TOKEN=${INFISICAL_SERVICE_TOKEN:-}
@@ -119,7 +110,7 @@ if [ -f "$CADDYFILE" ]; then
            "${SSH_HOST}" "docker exec caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile" \
            > /dev/null 2>&1; then
         # || true por [DT-010]: si el restart falla, Caddy sigue con la config anterior
-        # —degradado, no caido— y no vale abortar el deploy completo de Hermes por eso.
+        # —degradado, no caido— y no vale abortar el deploy completo por eso.
         if ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
              "${SSH_HOST}" "docker restart caddy" > /dev/null 2>&1; then
           echo "[DEPLOY] Caddy reiniciado con la config nueva."
@@ -172,98 +163,6 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   | sed 's/^/  [CADDY-CPU] /' \
   || echo "[DEPLOY]   ⚠️  no se pudieron aplicar los recursos de Caddy en vivo (no bloqueante; sigue con los de antes)."
 
-# --- Transfer Hermes artifacts (SOUL.md, config.yaml, memory) from repo to instance ---
-HERMES_REPO_DIR="$(dirname "$0")/hermes"
-if [ -d "$HERMES_REPO_DIR" ]; then
-  echo "[DEPLOY] Transferring Hermes artifacts from repo..."
-  rsync -rlptv --delete -e "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
-    "$HERMES_REPO_DIR/SOUL.md" \
-    "$HERMES_REPO_DIR/config.yaml" \
-    "${SSH_HOST}:/tmp/hermes-repo/" 2>/dev/null || true
-  # Transfer memory files if present
-  [ -f "$HERMES_REPO_DIR/memory/MEMORY.md" ] && \
-    scp -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-      "$HERMES_REPO_DIR/memory/MEMORY.md" "${SSH_HOST}:/tmp/hermes-repo/memory/" 2>/dev/null || true
-  [ -f "$HERMES_REPO_DIR/memory/USER.md" ] && \
-    scp -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-      "$HERMES_REPO_DIR/memory/USER.md" "${SSH_HOST}:/tmp/hermes-repo/memory/" 2>/dev/null || true
-  # Transfer WebUI settings if present
-  [ -f "$HERMES_REPO_DIR/webui/settings.json" ] && \
-    scp -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-      "$HERMES_REPO_DIR/webui/settings.json" "${SSH_HOST}:/tmp/hermes-repo/webui/" 2>/dev/null || true
-  echo "[DEPLOY] Hermes artifacts transferred."
-  HERMES_ARTIFACTS_DEPLOYED=true
-else
-  echo "[DEPLOY] No hermes artifacts dir at $HERMES_REPO_DIR — skipping."
-  HERMES_ARTIFACTS_DEPLOYED=false
-fi
-
-# --- Clone / pull repos from cloned-repos.yaml manifest ---
-clone_repos() {
-  local manifest="${REMOTE_DIR}/infrastructure/hermes/cloned-repos.yaml"
-
-  # Get list of repo keys from YAML
-  local keys
-  keys=$(grep -oP '^\s+\K[a-z][a-z0-9_-]+(?=:)' "$manifest" 2>/dev/null || true)
-
-  for key in $keys; do
-    local url path type sync
-    url=$(awk "/^  ${key}:/{f=1} f{ if(\$1==\"url:\"){print \$2; exit}} f && /^  [a-z]/{exit}" "$manifest" 2>/dev/null)
-    path=$(awk "/^  ${key}:/{f=1} f{ if(\$1==\"path:\"){print \$2; exit}} f && /^  [a-z]/{exit}" "$manifest" 2>/dev/null)
-    type=$(awk "/^  ${key}:/{f=1} f{ if(\$1==\"type:\"){print \$2; exit}} f && /^  [a-z]/{exit}" "$manifest" 2>/dev/null)
-    sync=$(awk "/^  ${key}:/{f=1} f{ if(\$1==\"sync:\"){print \$2; exit}} f && /^  [a-z]/{exit}" "$manifest" 2>/dev/null)
-
-    # toolset-repo is handled by CI/CD deploy pipeline
-    [ "$sync" = "ci_cd" ] && continue
-
-    echo "[MANIFEST] Syncing ${key} (${type}, ${sync})"
-    ssh "${SSH_HOST}" \
-      "sudo mkdir -p $(dirname "${path}") && sudo chown opc:opc $(dirname "${path}") && \
-       if [ -d '${path}/.git' ]; then \
-         cd '${path}' && git pull --ff-only 2>&1 | tail -1; \
-       else \
-         sudo git clone '${url}' '${path}-tmp' 2>/dev/null && \
-         sudo cp -a '${path}-tmp/.' '${path}/' && \
-         sudo rm -rf '${path}-tmp' && \
-         sudo chown -R opc:opc '${path}'; \
-       fi" 2>&1 | sed "s/^/  [${key}] /"
-
-    # Inject env vars if defined in manifest
-    local env_block
-    env_block=$(awk "/^  ${key}:/{f=1} f{ if(\$1==\"env:\"){env=1; next} env && /^      [a-z]/{print; next} env && /^  [a-z]/{exit}}" "$manifest" 2>/dev/null || true)
-    if [ -n "$env_block" ]; then
-      echo "$env_block" | while IFS=': ' read -r var val; do
-        [ -n "$var" ] && ssh "${SSH_HOST}" "echo '${var}=${val}' >> '${path}/.env'" 2>/dev/null || true
-      done
-    fi
-
-    # Check governance directory on cloned repos
-    if [ "${type}" = "cloned" ]; then
-      local agents_ok
-      agents_ok=$(ssh "${SSH_HOST}" "[ -d '${path}/.agents' ] && echo yes || echo no")
-      if [ "${agents_ok}" = "no" ]; then
-        echo "  [WARN] ${key}: no .agents/ directory (governance rules may not apply)"
-      fi
-    fi
-  done
-}
-
-echo "[DEPLOY] Syncing repos from manifest..."
-clone_repos
-
-# --- Sync cloned-repos.yaml to Hermes home ---
-echo "[DEPLOY] Syncing cloned-repos.yaml to Hermes home..."
-MANIFEST="$(dirname "${COMPOSE_FILE}")/hermes/cloned-repos.yaml"
-if [ -f "$MANIFEST" ]; then
-  scp -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    "$MANIFEST" "${SSH_HOST}:/tmp/cloned-repos.yaml" 2>/dev/null
-  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    "${SSH_HOST}" \
-    "cp /tmp/cloned-repos.yaml /home/opc/.hermes/cloned-repos.yaml && \
-     rm -f /tmp/cloned-repos.yaml && \
-     echo '  cloned-repos.yaml deployed'"
-fi
-
 # --- Pull images ---
 echo "[DEPLOY] Pulling container images..."
 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
@@ -304,11 +203,9 @@ echo "[DEPLOY] Ports cleaned (8080/Caddy excluido — su propio paso de verifica
 echo "[DEPLOY] Recreating services (kb-mcp excluded — it has its own no-downtime path)..."
 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   "${SSH_HOST}" \
-    "sudo systemctl stop hermes-webui 2>/dev/null || true && \
-     cd ${REMOTE_DIR} && \
+    "cd ${REMOTE_DIR} && \
     OTROS=\$(docker compose config --services | grep -vxE 'kb-mcp|caddy' | tr '\n' ' ') && \
-    docker compose up -d --remove-orphans \$OTROS 2>&1 && \
-    sudo systemctl start hermes-webui 2>/dev/null || true" | sed 's/^/  [UP] /'
+    docker compose up -d --remove-orphans \$OTROS 2>&1" | sed 's/^/  [UP] /'
 
 # --- Verify Caddy port binding (docker-proxy often drops it) ---
 # El fuser -k + --force-recreate juntos son la via correcta solo cuando caddy esta
@@ -548,15 +445,7 @@ if [ -n "$INFISICAL_TOKEN" ] && [ -n "$INFISICAL_PID" ]; then
     "set -- \
       INFISICAL_TOKEN='${INFISICAL_TOKEN}' \
       INFISICAL_PID='${INFISICAL_PID}' \
-      OPENCODE_GO_API_KEY='${OPENCODE_GO_API_KEY:-}' \
-      FUNNEL_DOMAIN='${FUNNEL_DOMAIN:-}' \
-      HERMES_LLM_PROVIDER='${HERMES_LLM_PROVIDER:-}' \
-      HERMES_LLM_MODEL='${HERMES_LLM_MODEL:-}' \
-      HERMES_WEBUI_PASSWORD='${HERMES_WEBUI_PASSWORD:-}' \
-      HERMES_WHATSAPP_MODE='${HERMES_WHATSAPP_MODE:-}' \
-      WHATSAPP_ALLOWED_USERS='${WHATSAPP_ALLOWED_USERS:-}' \
-      COMPOSIO_API_KEY='${COMPOSIO_API_KEY:-}' \
-      COMPOSIO_MCP_KEY='${COMPOSIO_MCP_KEY:-}'; \
+      FUNNEL_DOMAIN='${FUNNEL_DOMAIN:-}'; \
     for var in \"\$@\"; do eval export \"\$var\"; done && \
     python3 ${SYNC_SCRIPT} push && \
     python3 ${SYNC_SCRIPT} verify"
@@ -600,14 +489,11 @@ LANDING_HTML=$(cat <<EOF
 <pre>
   <span class="pipe">├──</span> <span class="path"><a href="/">/</a></span>                        <span class="desc">Landing page &mdash; Toolset status</span>   <span class="status">✅</span>
   <span class="pipe">├──</span> <span class="path"><a href="/api/status">/api/status</a></span>               <span class="desc">Infisical &mdash; API Health</span>           <span class="status">✅</span>
-  <span class="pipe">├──</span> <span class="path"><a href="/hermes/">/hermes/</a></span>                  <span class="desc">Hermes WebUI &mdash; via Caddy (mobile)</span> <span class="status">✅</span>
   <span class="pipe">├──</span> <span class="path"><a href="https://${CADDY_DOMAIN}:8443/">:8443/</a></span>                  <span class="desc">Infisical UI &mdash; Funnel directo</span>      <span class="status">✅</span>
-  <span class="pipe">└──</span> <span class="path"><a href="https://${CADDY_DOMAIN}:8787/">:8787/</a></span>                  <span class="desc">Hermes WebUI &mdash; Funnel directo</span>     <span class="status">✅</span>
 </pre>
 </div>
 <div class="meta">
   <p>Infisical UI: <a href="https://${CADDY_DOMAIN}:8443/" style="color:#7ec8e3;">https://${CADDY_DOMAIN}:8443/</a> <span class="status">(Funnel)</span></p>
-  <p>Hermes WebUI: <a href="https://${CADDY_DOMAIN}:8787/" style="color:#7ec8e3;">https://${CADDY_DOMAIN}:8787/</a> <span class="status">(Funnel)</span> &bull; <a href="/hermes/" style="color:#7ec8e3;">/hermes/</a> <span class="status">(via Caddy, mobile-friendly)</span></p>
   <p>Gobernanza: <a href="https://github.com/kirlts/toolset/blob/main/docs/RULES.md" style="color:#7ec8e3;">docs/RULES.md</a></p>
   <p>Deploy: $(date -u +"%Y-%m-%d %H:%M UTC") &bull; OCI &bull; VM.Standard.A1.Flex &bull; ARM64</p>
 </div>
@@ -619,198 +505,9 @@ echo "[DEPLOY] Generating dynamic landing page..."
 echo "$LANDING_HTML" | ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   "${SSH_HOST}" "sudo tee ${REMOTE_DIR}/landing/index.html > /dev/null"
 
-# --- Regenerate kilo.jsonc from kilo-system-prompt.md if source changed ---
-KILO_CONFIG_DIR="$(dirname "${COMPOSE_FILE}")"
-KILO_CONFIG="${KILO_CONFIG_DIR}/kilo.jsonc"
-KILO_PROMPT_SRC="${KILO_CONFIG_DIR}/kilo-system-prompt.md"
-KILO_GEN_SCRIPT="$(dirname "$0")/../scripts/generate-kilo-config.py"
-if [ -f "$KILO_PROMPT_SRC" ] && [ -f "$KILO_GEN_SCRIPT" ]; then
-  echo "[DEPLOY] Regenerating kilo.jsonc from kilo-system-prompt.md..."
-  python3 "$KILO_GEN_SCRIPT" && echo "[DEPLOY] kilo.jsonc regenerated."
-fi
-
-# --- Transfer kilo.jsonc for VPS Kilo CLI config ---
-if [ -f "$KILO_CONFIG" ]; then
-  echo "[DEPLOY] Transferring kilo.jsonc..."
-  scp -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    "$KILO_CONFIG" "${SSH_HOST}:/tmp/kilo.jsonc"
-  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    "${SSH_HOST}" \
-    "mkdir -p /home/opc/.config/kilo && sudo cp /tmp/kilo.jsonc /home/opc/.config/kilo/kilo.jsonc"
-  echo "[DEPLOY] kilo.jsonc transferred."
-else
-  echo "[DEPLOY] WARNING: kilo.jsonc not found at $KILO_CONFIG"
-fi
-
-# --- Transfer Hermes SOUL.md (identity & meta-rules) ---
-SOUL_FILE="$(dirname "${COMPOSE_FILE}")/hermes/SOUL.md"
-if [ -f "$SOUL_FILE" ]; then
-  echo "[DEPLOY] Transferring Hermes SOUL.md..."
-  scp -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    "$SOUL_FILE" "${SSH_HOST}:/tmp/Hermes-SOUL.md"
-  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    "${SSH_HOST}" \
-    "sudo cp /tmp/Hermes-SOUL.md /home/opc/.hermes/SOUL.md && sudo chown opc:opc /home/opc/.hermes/SOUL.md"
-  echo "[DEPLOY] Hermes SOUL.md synced."
-fi
-
-# --- Transfer Hermes config.yaml (structural config from repo) ---
-HERMES_CONFIG_SRC="$(dirname "${COMPOSE_FILE}")/hermes/config.yaml"
-if [ -f "$HERMES_CONFIG_SRC" ]; then
-  echo "[DEPLOY] Transferring Hermes config.yaml..."
-  scp -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    "$HERMES_CONFIG_SRC" "${SSH_HOST}:/tmp/hermes-config.yaml"
-  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    "${SSH_HOST}" \
-    "sudo chattr -i /home/opc/.hermes/config.yaml 2>/dev/null || true && \
-     sudo cp /tmp/hermes-config.yaml /home/opc/.hermes/config.yaml && \
-     sudo chown opc:opc /home/opc/.hermes/config.yaml && \
-     sudo chattr +i /home/opc/.hermes/config.yaml 2>/dev/null || true"
-  echo "[DEPLOY] Hermes config.yaml synced."
-fi
-
-# --- Sync Hermes context file (AGENTS.md for auto-discovery) ---
-CONTEXT_FILE="$(dirname "${COMPOSE_FILE}")/hermes-context.md"
-if [ -f "$CONTEXT_FILE" ]; then
-  echo "[DEPLOY] Syncing Hermes context file..."
-  scp -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    "$CONTEXT_FILE" "${SSH_HOST}:/tmp/hermes-context.md"
-  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    "${SSH_HOST}" \
-    "sudo cp /tmp/hermes-context.md /home/opc/.hermes/context.md && \
-     sudo cp /tmp/hermes-context.md /opt/toolset-repo/AGENTS.md && \
-     sudo chown opc:opc /home/opc/.hermes/context.md /opt/toolset-repo/AGENTS.md"
-  echo "[DEPLOY] Hermes context file synced (context.md + AGENTS.md)."
-fi
-
-# --- Transfer Hermes memory files (MEMORY.md + USER.md) ---
-HERMES_MEMORY_SRC="$(dirname "${COMPOSE_FILE}")/hermes/memory"
-if [ -d "$HERMES_MEMORY_SRC" ]; then
-  echo "[DEPLOY] Transferring Hermes memory files..."
-  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    "${SSH_HOST}" "sudo mkdir -p /home/opc/.hermes/memories"
-  for memfile in MEMORY.md USER.md; do
-    if [ -f "${HERMES_MEMORY_SRC}/${memfile}" ]; then
-      scp -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-        "${HERMES_MEMORY_SRC}/${memfile}" "${SSH_HOST}:/tmp/${memfile}"
-      ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-        "${SSH_HOST}" \
-        "sudo cp /tmp/${memfile} /home/opc/.hermes/memories/${memfile} && sudo chown opc:opc /home/opc/.hermes/memories/${memfile}"
-    fi
-  done
-  echo "[DEPLOY] Hermes memory files synced."
-fi
-
-# --- Transfer Hermes scripts ---
-HERMES_SCRIPTS_SRC="$(dirname "${COMPOSE_FILE}")/hermes/scripts"
-if [ -d "$HERMES_SCRIPTS_SRC" ] && [ -n "$(ls -A ${HERMES_SCRIPTS_SRC} 2>/dev/null)" ]; then
-  echo "[DEPLOY] Transferring Hermes scripts..."
-  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    "${SSH_HOST}" "sudo mkdir -p /home/opc/.hermes/scripts"
-  tar czf /tmp/hermes-scripts.tar.gz -C "$(dirname "${HERMES_SCRIPTS_SRC}")" "$(basename "${HERMES_SCRIPTS_SRC}")"
-  scp -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    /tmp/hermes-scripts.tar.gz "${SSH_HOST}:/tmp/"
-  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    "${SSH_HOST}" \
-    "sudo tar xzf /tmp/hermes-scripts.tar.gz -C /home/opc/.hermes/ --strip-components=1 && \
-     sudo chown -R opc:opc /home/opc/.hermes/scripts && \
-     sudo rm -f /tmp/hermes-scripts.tar.gz"
-  rm -f /tmp/hermes-scripts.tar.gz
-  echo "[DEPLOY] Hermes scripts synced."
-fi
-
-# --- Remove default SOUL.md template (solo debe existir nuestro custom SOUL.md) ---
-ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-  "${SSH_HOST}" \
-  "sudo rm -f /usr/local/lib/hermes-agent/docker/SOUL.md && \
-   echo '[hermes] Default SOUL.md template removed'"
-
-# --- Skills are loaded via external_skills_dirs from /opt/toolset-repo/ (set in inject-composio-key.py) ---
-echo "[DEPLOY] Skills directory sync disabled — using external_skills_dirs from cloned repo"
-
-# --- Deploy whatsapp-groups.yaml for deterministic group routing ---
-WHATSAPP_GROUPS_SRC="$(dirname "${COMPOSE_FILE}")/hermes/whatsapp-groups.yaml"
-if [ -f "$WHATSAPP_GROUPS_SRC" ]; then
-  echo "[DEPLOY] Deploying whatsapp-groups.yaml..."
-  scp -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    "$WHATSAPP_GROUPS_SRC" "${SSH_HOST}:/tmp/whatsapp-groups.yaml"
-  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    "${SSH_HOST}" \
-    "sudo cp /tmp/whatsapp-groups.yaml /home/opc/.hermes/whatsapp-groups.yaml && \
-     sudo chown opc:opc /home/opc/.hermes/whatsapp-groups.yaml && \
-     sudo rm -f /tmp/whatsapp-groups.yaml && \
-     echo '  whatsapp-groups.yaml deployed'"
-fi
-
-# --- Deploy populate-channel-aliases script ---
-POPULATE_SCRIPT_SRC="$(dirname "${COMPOSE_FILE}")/hermes/scripts/populate-channel-aliases.sh"
-if [ -f "$POPULATE_SCRIPT_SRC" ]; then
-  echo "[DEPLOY] Deploying populate-channel-aliases.sh..."
-  scp -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    "$POPULATE_SCRIPT_SRC" "${SSH_HOST}:/tmp/populate-channel-aliases.sh"
-  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    "${SSH_HOST}" \
-    "sudo cp /tmp/populate-channel-aliases.sh /home/opc/.hermes/scripts/populate-channel-aliases.sh && \
-     sudo chmod +x /home/opc/.hermes/scripts/populate-channel-aliases.sh && \
-     sudo chown opc:opc /home/opc/.hermes/scripts/populate-channel-aliases.sh && \
-     sudo rm -f /tmp/populate-channel-aliases.sh && \
-      echo '  populate-channel-aliases.sh deployed'"
-  # Ejecutar el populate inmediatamente para poblar aliases iniciales
-  echo "[DEPLOY] Running initial channel alias population..."
-  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    "${SSH_HOST}" \
-    "export PATH=/usr/local/bin:/home/opc/.local/bin:\$PATH; \
-      bash /home/opc/.hermes/scripts/populate-channel-aliases.sh 2>&1 | sed 's/^/  [POPULATE] /'" || true
-  # Programar cron de refresco cada 10 minutos (idempotente, via deploy.sh)
-  echo "[DEPLOY] Ensuring populate-cron entry..."
-  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    "${SSH_HOST}" \
-    "if crontab -l 2>/dev/null | grep -q 'populate-channel-aliases'; then \
-       echo '  cron already set'; \
-     else \
-       (crontab -l 2>/dev/null; echo '*/10 * * * * bash /home/opc/.hermes/scripts/populate-channel-aliases.sh > /dev/null 2>&1') | crontab -; \
-       echo '  cron added'; \
-     fi"
-fi
-
-# --- Patch WhatsApp bridge to expose group descriptions (independiente de populate) ---
-echo "[DEPLOY] Patching WhatsApp bridge for group descriptions..."
-PATCH_BRIDGE_SRC="$(dirname "${COMPOSE_FILE}")/hermes/scripts/patch-bridge.sh"
-if [ -f "$PATCH_BRIDGE_SRC" ]; then
-  scp -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    "$PATCH_BRIDGE_SRC" "${SSH_HOST}:/tmp/patch-bridge.sh"
-  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    "${SSH_HOST}" \
-    "sudo bash /tmp/patch-bridge.sh 2>&1; sudo rm -f /tmp/patch-bridge.sh" | sed 's/^/  [PATCH] /' || true
-fi
-
-# --- Deploy credential rotation monitor ---
-MONITOR_SCRIPT_SRC="$(dirname "${COMPOSE_FILE}")/hermes/scripts/monitor-credential-rotation.sh"
-if [ -f "$MONITOR_SCRIPT_SRC" ]; then
-  echo "[DEPLOY] Deploying credential rotation monitor..."
-  scp -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    "$MONITOR_SCRIPT_SRC" "${SSH_HOST}:/tmp/monitor-credential-rotation.sh"
-  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    "${SSH_HOST}" \
-    "sudo cp /tmp/monitor-credential-rotation.sh /home/opc/.hermes/scripts/monitor-credential-rotation.sh && \
-     sudo chmod +x /home/opc/.hermes/scripts/monitor-credential-rotation.sh && \
-     sudo chown opc:opc /home/opc/.hermes/scripts/monitor-credential-rotation.sh && \
-     sudo rm -f /tmp/monitor-credential-rotation.sh && \
-     echo '  monitor-credential-rotation.sh deployed'"
-  echo "[DEPLOY] Ensuring credential-rotation-monitor cron entry..."
-  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    "${SSH_HOST}" \
-    "if crontab -l 2>/dev/null | grep -q 'monitor-credential-rotation'; then \
-       echo '  cron already set'; \
-     else \
-       (crontab -l 2>/dev/null; echo '* * * * * bash /home/opc/.hermes/scripts/monitor-credential-rotation.sh > /dev/null 2>&1') | crontab -; \
-       echo '  cron added (runs every minute)'; \
-     fi"
-fi
-
 # --- Deploy kb-mcp KB sync (clon de la KB + script + cron) ---
 # Bloque deliberadamente no-fatal: todo termina en `|| true` para que un fallo
-# aqui NUNCA aborte un deploy de Hermes (deploy.sh corre con set -euo pipefail).
+# aqui NUNCA aborte un deploy (deploy.sh corre con set -euo pipefail).
 # SE INSTALA CON `mv`, NO CON `cp`, y la diferencia no es de estilo (2026-08-19).
 # bash lee un guion por tramos mientras lo ejecuta, asi que sobrescribir el archivo
 # EN EL SITIO mientras hay una corrida viva la hace seguir leyendo desde el
@@ -887,320 +584,6 @@ okos master https://github.com/kirlts/kb-okos.git"
 fi
 
 
-# --- Write Hermes .env on remote (always overwrite — Hermes creates a default template) ---
-# Hermes systemd service runs as user 'opc', so .hermes dir is under /home/opc/
-HERMES_DIR="/home/opc/.hermes"
-echo "[DEPLOY] Writing Hermes .env with CI/CD secrets..."
-ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-  "${SSH_HOST}" \
-  "sudo mkdir -p ${HERMES_DIR} && sudo chattr -i ${HERMES_DIR}/config.yaml 2>/dev/null; sudo tee ${HERMES_DIR}/.env > /dev/null && sudo chown -R opc:opc ${HERMES_DIR} 2>/dev/null || true; sudo chattr +i ${HERMES_DIR}/config.yaml 2>/dev/null" <<HERMESENV
-# Hermes .env — managed by deploy.sh (CI/CD). DO NOT EDIT MANUALLY.
-OPENCODE_GO_API_KEY=${OPENCODE_GO_API_KEY}
-OPENCODE_GO_API_KEY_FALLBACK=${OPENCODE_GO_API_KEY_FALLBACK}
-OPENCODE_GO_BASE_URL=https://opencode.ai/zen/go/v1
-HERMES_LLM_PROVIDER=${HERMES_LLM_PROVIDER:-opencodego}
-HERMES_LLM_MODEL=${HERMES_LLM_MODEL:-deepseek-v4-flash}
-HERMES_WEBUI_PASSWORD=${HERMES_WEBUI_PASSWORD:-}
-# Gateway reads WHATSAPP_MODE (not HERMES_WHATSAPP_MODE)
-WHATSAPP_MODE=${HERMES_WHATSAPP_MODE:-bot}
-WHATSAPP_ALLOWED_USERS=${WHATSAPP_ALLOWED_USERS:-}
-WHATSAPP_ENABLED=true
-# WhatsApp home channel for cron deliveries and autonomous outputs
-# Persisted in .env to survive /new, restart, and redeploy
-WHATSAPP_HOME_CHANNEL=163217431068839@lid
-COMPOSIO_API_KEY=${COMPOSIO_API_KEY:-}
-COMPOSIO_MCP_KEY=${COMPOSIO_MCP_KEY:-}
-GROQ_API_KEY=${GROQ_API_KEY:-}
-HERMESENV
-echo "[DEPLOY] Hermes .env written."
-
-# --- Export OPENCODE_GO_API_KEY to shell (needed by Kilo CLI {env:...} resolution) ---
-echo "[DEPLOY] Exporting OPENCODE_GO_API_KEY to .bashrc for Kilo CLI..."
-ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-  "${SSH_HOST}" \
-  "grep -q 'OPENCODE_GO_API_KEY' /home/opc/.bashrc 2>/dev/null && \
-   echo '[bashrc] Export already present' || \
-   printf '%s\n' '' '# Export for Kilo CLI (managed by deploy.sh)' \"export OPENCODE_GO_API_KEY=\\\$(grep '^OPENCODE_GO_API_KEY=' /home/opc/.hermes/.env 2>/dev/null | cut -d= -f2-)\" | sudo tee -a /home/opc/.bashrc > /dev/null && \
-   echo '[bashrc] Export added'"
-
-# --- Hermes Agent + Kilo CLI install (idempotent) ---
-HERMES_LOG="/var/log/hermes-bootstrap.log"
-echo "[DEPLOY] Setting up Hermes Agent + Kilo CLI..."
-ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-  "${SSH_HOST}" \
-  "export OPENCODE_GO_API_KEY=${OPENCODE_GO_API_KEY}; \
-   export COMPOSIO_API_KEY=${COMPOSIO_API_KEY:-}; \
-   \
-   # ---- Install Node.js if missing (needed for npm/Kilo CLI) ----
-   if ! command -v node &>/dev/null; then
-     echo '[hermes] Installing Node.js...' | sudo tee -a ${HERMES_LOG}
-     sudo dnf module enable -y nodejs:20 2>/dev/null
-     sudo dnf install -y nodejs 2>&1 | tail -1
-   fi
-
-   # ---- Install Git if missing (Hermes installer requires it) ----
-   if ! command -v git &>/dev/null; then
-     echo '[hermes] Installing Git...' | sudo tee -a ${HERMES_LOG}
-     sudo dnf install -y git 2>&1 | tail -1
-   fi
-
-   # ---- Ensure Hermes is in PATH for subsequent commands ----
-   export PATH="/usr/local/bin:$PATH"
-
-   # ---- Install GitHub CLI (gh) if missing ----
-   if ! command -v gh &>/dev/null; then
-     echo '[hermes] Installing GitHub CLI...' | sudo tee -a ${HERMES_LOG}
-     sudo dnf config-manager --add-repo https://cli.github.com/packages/rpm/gh-cli.repo 2>/dev/null
-     sudo dnf install -y gh 2>&1 | tail -1
-   fi
-
-   #    # ---- Authenticate gh CLI (idempotent) ----
-   GH_CLI_TOKEN="${GH_CLI_TOKEN:-}"
-   if [ -n "$GH_CLI_TOKEN" ]; then
-     echo "$GH_CLI_TOKEN" | sudo -u opc gh auth login --with-token 2>/dev/null || true
-     echo '[hermes] gh CLI authenticated' | sudo tee -a ${HERMES_LOG}
-   fi
-
-    # ---- Install Kilo CLI if missing ----
-    if ! command -v kilo &>/dev/null; then
-      echo '[hermes] Installing Kilo CLI...' | sudo tee -a ${HERMES_LOG}
-      sudo npm install -g @kilocode/cli 2>&1 | tail -3
-    fi
-   \
-    # ---- Install Hermes if missing, then ensure STT dependency ----
-    if ! command -v hermes &>/dev/null; then
-      echo '[hermes] Installing Hermes Agent...' | sudo tee -a ${HERMES_LOG}
-      curl -fsSL https://hermes-agent.nousresearch.com/install.sh | sudo bash 2>&1 | sudo tee -a ${HERMES_LOG}
-    fi
-    # Ensure Hermes code dir is owned by opc (git safe.directory compliance, v2.35+)
-    # curl|sudo bash installs as root, but git blocks repos not owned by the current user.
-    sudo chown -R opc:opc /usr/local/lib/hermes-agent 2>/dev/null || true
-    # Ensure Whisper STT is installed (for WhatsApp voice message transcription)
-    /home/opc/.local/bin/uv pip install --python /usr/local/lib/hermes-agent/venv/bin/python3 faster-whisper -q 2>/dev/null || true
-
-    # ---- Install static ffmpeg binary (for audio format conversion) ----
-    if ! command -v ffmpeg &>/dev/null; then
-      echo '[hermes] Installing static ffmpeg binary...' | sudo tee -a ${HERMES_LOG}
-      curl -sL "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linuxarm64-gpl.tar.xz" -o /tmp/ffmpeg.tar.xz 2>/dev/null || true
-      tar xf /tmp/ffmpeg.tar.xz -C /tmp/ 2>/dev/null || true
-      sudo cp /tmp/ffmpeg-master-latest-linuxarm64-gpl/bin/ffmpeg /usr/local/bin/ffmpeg 2>/dev/null || true
-      sudo chmod +x /usr/local/bin/ffmpeg 2>/dev/null || true
-      rm -rf /tmp/ffmpeg.tar.xz /tmp/ffmpeg-master-latest-linuxarm64-gpl 2>/dev/null || true
-    fi
-    \
-    # ---- Add opc to docker group for sandbox access ----
-    sudo usermod -aG docker opc 2>/dev/null
-    \
-    # ---- Restore Hermes artifacts from repo (SOUL.md, config.yaml, memory) ----
-    if [ -f /tmp/hermes-repo/SOUL.md ]; then
-      cp /tmp/hermes-repo/SOUL.md /home/opc/.hermes/SOUL.md
-      echo '[hermes] SOUL.md restored from repo' | sudo tee -a ${HERMES_LOG}
-    fi
-    if [ -f /tmp/hermes-repo/config.yaml ]; then
-      sudo chattr -i /home/opc/.hermes/config.yaml 2>/dev/null || true
-      cp /tmp/hermes-repo/config.yaml /home/opc/.hermes/config.yaml
-      sudo chattr +i /home/opc/.hermes/config.yaml 2>/dev/null || true
-      echo '[hermes] config.yaml restored from repo' | sudo tee -a ${HERMES_LOG}
-    fi
-    if [ -f /tmp/hermes-repo/memory/MEMORY.md ]; then
-      cp /tmp/hermes-repo/memory/MEMORY.md /home/opc/.hermes/memories/MEMORY.md 2>/dev/null || true
-    fi
-    if [ -f /tmp/hermes-repo/memory/USER.md ]; then
-      cp /tmp/hermes-repo/memory/USER.md /home/opc/.hermes/memories/USER.md 2>/dev/null || true
-    fi
-    # Restore WebUI settings if present (solo si no existe ya la config local)
-    if [ -f /tmp/hermes-repo/webui/settings.json ] && [ ! -f /home/opc/.hermes/webui/settings.json ]; then
-      mkdir -p /home/opc/.hermes/webui
-      cp /tmp/hermes-repo/webui/settings.json /home/opc/.hermes/webui/settings.json
-      echo '[hermes] WebUI settings restored from repo' | sudo tee -a ${HERMES_LOG}
-    fi
-    # Clean up temp files
-    rm -rf /tmp/hermes-repo 2>/dev/null || true
-    \
-    # ---- Setup systemd for Hermes gateway (idempotent, non-interactive) ----
-    export PATH="/usr/local/bin:/usr/local/lib/hermes-agent:\$PATH"
-    if command -v hermes &>/dev/null; then
-      if ! systemctl is-enabled hermes-gateway &>/dev/null 2>&1; then
-        echo '[hermes] Enabling Hermes systemd service...' | sudo tee -a ${HERMES_LOG}
-        printf 'Y\nY\n' | sudo /usr/local/bin/hermes gateway install --system 2>&1 | sudo tee -a ${HERMES_LOG}
-        sudo sed -i '/^Group=opc$/a SupplementaryGroups=docker' /etc/systemd/system/hermes-gateway.service 2>/dev/null
-        sudo sed -i 's/^TimeoutStopSec=.*/TimeoutStopSec=210/' /etc/systemd/system/hermes-gateway.service 2>/dev/null
-        sudo systemctl daemon-reload 2>/dev/null
-      else
-        echo '[hermes] Gateway service already enabled' | sudo tee -a ${HERMES_LOG}
-        sudo systemctl kill -s KILL hermes-gateway 2>/dev/null || true
-        sleep 1
-        sudo systemctl reset-failed hermes-gateway 2>/dev/null || true
-        sudo systemctl start hermes-gateway --no-block 2>/dev/null || true
-      fi
-    else
-      echo '[hermes] WARNING: hermes command not found, skipping systemd setup' | sudo tee -a ${HERMES_LOG}
-    fi"
-
-echo "[DEPLOY] Hermes + Kilo setup complete."
-
-# --- Install MarkItDown (Microsoft document-to-markdown converter) ---
-echo "[DEPLOY] Installing MarkItDown (document-to-markdown converter)..."
-ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-  "${SSH_HOST}" \
-  "VENV_PY=/usr/local/lib/hermes-agent/venv/bin/python && \
-   SUDO_PIP=\"sudo \\\$VENV_PY -m pip install\" && \
-   if \\\$VENV_PY -c 'import markitdown' 2>/dev/null; then \
-     echo '[hermes] MarkItDown already installed, upgrading...'; \
-     eval \\\$SUDO_PIP -q 'markitdown[all]' --upgrade 2>&1 | tail -2; \
-   else \
-     echo '[hermes] Installing MarkItDown...'; \
-     eval \\\$SUDO_PIP -q 'markitdown[all]' 2>&1 | tail -3; \
-   fi && \
-   if ! command -v markitdown &>/dev/null; then \
-     echo '#!/usr/bin/env bash' | sudo tee /usr/local/bin/markitdown > /dev/null && \
-     echo 'exec /usr/local/lib/hermes-agent/venv/bin/python -m markitdown \"\$@\"' | sudo tee -a /usr/local/bin/markitdown > /dev/null && \
-     sudo chmod +x /usr/local/bin/markitdown && \
-     echo '[hermes] markitdown CLI wrapper installed at /usr/local/bin/markitdown'; \
-   fi" 2>&1 | sed 's/^/  [markitdown] /'
-echo "[DEPLOY] MarkItDown installation complete."
-
-# --- Fix pydantic in Hermes venv (mcp package requires pydantic >=2) ---
-echo "[DEPLOY] Ensuring Hermes venv has pydantic >=2 (required by mcp 1.26.0)..."
-ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-  "${SSH_HOST}" \
-  "VENV_PY=/usr/local/lib/hermes-agent/venv/bin/python && \
-   SUDO_PIP=\"sudo \\\$VENV_PY -m pip install\" && \
-   echo '[hermes] Installing/upgrading pydantic to >=2 (mcp streamable_http support)...' && \
-   eval \\\$SUDO_PIP 'pydantic>=2' -q 2>&1 | tail -2 && \
-   echo '[hermes] pydantic OK'" 2>&1 | sed 's/^/  [pydantic] /'
-echo "[DEPLOY] pydantic check complete."
-
-# --- Create gh token file for Docker sandbox (idempotent) ---
-echo "[DEPLOY] Creating gh token file for Docker sandbox..."
-ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-  "${SSH_HOST}" \
-  "echo 'export GH_TOKEN=${GH_CLI_TOKEN}' | sudo tee /home/opc/.hermes/gh_token.env > /dev/null && \
-   sudo chmod 644 /home/opc/.hermes/gh_token.env && \
-   echo '[hermes] gh token file created'"
-
- 
-# --- Sync profile SOUL.md files to VPS (tenant profiles excluded) ---
-echo "[DEPLOY] Syncing profile SOUL.md files to VPS..."
-PROFILES_DIR="$(dirname "${COMPOSE_FILE}")/hermes/profiles"
-if [ -d "$PROFILES_DIR" ]; then
-  for profile_dir in "$PROFILES_DIR"/*/; do
-    profile_name=$(basename "$profile_dir")
-    if [ -f "${profile_dir}.tenant" ]; then
-      echo "  Skipping profile '$profile_name' (tenant — managed independently)"
-      continue
-    fi
-    if [ -f "${profile_dir}SOUL.md" ]; then
-      echo "  Syncing profile '$profile_name'..."
-      ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-        "${SSH_HOST}" "mkdir -p ~/.hermes/profiles/${profile_name}" 2>/dev/null
-      scp -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-        "${profile_dir}SOUL.md" \
-        "${SSH_HOST}:~/.hermes/profiles/${profile_name}/SOUL.md"
-    else
-      echo "  Skipping profile '$profile_name' (no SOUL.md in repo — keeping VPS version)"
-    fi
-  done
-  echo "[DEPLOY] Profile SOUL.md files synced"
-fi
-
-# --- Hermes runtime config (idempotent) ---
-echo "[DEPLOY] Configuring Hermes runtime..."
-# Transfer standalone inject-composio-key.py to remote server
-scp -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-  "$(dirname "$0")/hermes/inject-composio-key.py" \
-  "${SSH_HOST}:/tmp/inject-composio-key.py"
-ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-  "${SSH_HOST}" \
-  "export PATH=/usr/local/bin:/home/opc/.local/bin:\$PATH; \
-    sudo chattr -i /home/opc/.hermes/config.yaml 2>/dev/null || true; \
-    chmod +x /tmp/inject-composio-key.py && \
-    hermes config set terminal.backend local 2>/dev/null; \
-    hermes config set model.default 'opencodego/deepseek-v4-flash' 2>/dev/null; \
-    hermes config set model.provider 'opencode-go' 2>/dev/null; \
-    python3 /tmp/inject-composio-key.py 2>&1; \
-    sudo chattr +i /home/opc/.hermes/config.yaml 2>/dev/null || true; \
-    rm -f /tmp/inject-composio-key.py"
-
-echo "[DEPLOY] Hermes runtime configuration complete."
-
-# --- Setup credential pool for OpenCode Go rate-limit fallback ---
-echo "[DEPLOY] Configuring credential pool for OpenCode Go..."
-ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-  "${SSH_HOST}" \
-  "export PATH=/usr/local/bin:/home/opc/.local/bin:\$PATH; \
-   export OPENCODE_GO_API_KEY_FALLBACK='${OPENCODE_GO_API_KEY_FALLBACK}'; \
-   sudo chattr -i /home/opc/.hermes/config.yaml 2>/dev/null || true; \
-   hermes config set credential_pool_strategies.opencode-go fill_first 2>/dev/null || true; \
-   if ! grep -q '\"fallback-key\"' /home/opc/.hermes/auth.json 2>/dev/null; then \
-     hermes auth add opencode-go --type api-key --api-key \"\$OPENCODE_GO_API_KEY_FALLBACK\" --label 'fallback-key' 2>/dev/null || true; \
-     echo '  fallback-key added to credential pool'; \
-   else \
-     echo '  fallback-key already in credential pool'; \
-   fi; \
-   sudo chattr +i /home/opc/.hermes/config.yaml 2>/dev/null || true"
-echo "[DEPLOY] Credential pool configured."
-
-# --- Set Hermes home to toolset repo (for context file resolution) ---
-echo "[DEPLOY] Setting Hermes home..."
-ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-  "${SSH_HOST}" \
-  "hermes config set home /opt/toolset-repo 2>/dev/null || true"
-echo "[DEPLOY] Hermes home configured."
-
-# --- Protect config.yaml against Hermes auto-overwrite ---
-echo "[DEPLOY] Protecting Hermes config.yaml from auto-overwrite..."
-ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-  "${SSH_HOST}" \
-  "sudo chattr +i /home/opc/.hermes/config.yaml 2>/dev/null && echo '  config.yaml immutable' || echo '  chattr not available (expected in some envs)'"
-echo "[DEPLOY] Config protection applied."
-
-echo "[DEPLOY] Worker profiles ready."
-
-# --- Restart hermes-gateway (post-config changes) ---
-echo "[DEPLOY] Restarting hermes-gateway..."
-ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-  "${SSH_HOST}" \
-  "sudo systemctl kill -s KILL hermes-gateway 2>/dev/null || true; \
-   sleep 1; \
-   sudo systemctl reset-failed hermes-gateway 2>/dev/null || true; \
-   sudo systemctl start hermes-gateway --no-block 2>/dev/null || true"
-echo "[DEPLOY] hermes-gateway restart issued."
-
-# --- Verify hermes-gateway ---
-echo "[DEPLOY] Verifying hermes-gateway..."
-GW_STATUS="inactive"
-for i in 1 2 3; do
-  GW_STATUS=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    "${SSH_HOST}" "systemctl is-active hermes-gateway 2>/dev/null || echo inactive")
-  [ "$GW_STATUS" = "active" ] && break
-  [ "$i" -lt 3 ] && sleep 3
-done
-echo "  Gateway: $GW_STATUS"
-
-# --- Create AGENTS.md symlink in Hermes home for auto-discovery ---
-# Hermes discovers AGENTS.md by walking to git root from CWD.
-# Systemd service starts from ~opc, not /opt/toolset-repo.
-# A symlink in ~opc ensures discovery regardless of service CWD.
-echo "[DEPLOY] Creating AGENTS.md symlink for Hermes auto-discovery..."
-ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-  "${SSH_HOST}" \
-  "ln -sf /opt/toolset-repo/AGENTS.md /home/opc/AGENTS.md && \
-   echo '[hermes] AGENTS.md symlink created'"
-echo "[DEPLOY] AGENTS.md symlink created."
-
-# --- Install repo-pull cron (every 5 minutes, silent unless conflict) ---
-echo "[DEPLOY] Installing repo-pull cron..."
-CRON_CMD='*/5 * * * * bash /home/opc/.hermes/scripts/repo-pull-cron.sh > /dev/null 2>&1'
-ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-  "${SSH_HOST}" \
-  "mkdir -p /home/opc/.hermes/scripts && \
-   (crontab -l 2>/dev/null | grep -q repo-pull-cron && \
-     echo '[cron] repo-pull already installed' || \
-     (crontab -l 2>/dev/null; echo \"$CRON_CMD\") | crontab - && \
-     echo '[cron] repo-pull cron installed (every 5 min)')"
-echo "[DEPLOY] Repo-pull cron configured."
-
 # Raw TCP hasta Caddy en :8091, donde Caddy mismo termina la TLS con el certificado de
 # Tailscale (ver Caddyfile). NO "--https=443 http://localhost:8080": ese modo hace que
 # tailscaled termine la TLS con su propio stack en espacio de usuario, y ahi vive un bug
@@ -1240,74 +623,6 @@ else
     "${SSH_HOST}" "sudo tailscale funnel --bg --https=${INFISICAL_PORT} http://localhost:8081 2>&1" | sed 's/^/  /'
 fi
 
-# --- Ensure Hermes WebUI systemd service ---
-echo "[DEPLOY] Ensuring Hermes WebUI systemd service..."
-ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-  "${SSH_HOST}" \
-  "if ! systemctl is-enabled hermes-webui &>/dev/null 2>&1; then
-     # Pull latest or clone fresh
-     sudo git -C /opt/hermes-webui pull --ff-only 2>/dev/null || (sudo git clone https://github.com/nesquena/hermes-webui.git /opt/hermes-webui && sudo chown -R opc:opc /opt/hermes-webui && sudo git -C /opt/hermes-webui config pull.ff only)
-     # Ensure correct ownership
-     sudo tee /etc/systemd/system/hermes-webui.service > /dev/null << SERVEOF
-[Unit]
-Description=Hermes WebUI
-After=network.target hermes-gateway.service
-Wants=hermes-gateway.service
-
-[Service]
-Type=simple
-User=opc
-WorkingDirectory=/opt/hermes-webui
-Environment=HERMES_WEBUI_PORT=8877
-Environment=HERMES_WEBUI_HOST=0.0.0.0
-Environment=HERMES_WEBUI_SKIP_ONBOARDING=1
-ExecStart=/usr/local/lib/hermes-agent/venv/bin/python /opt/hermes-webui/server.py
-Restart=on-failure
-RestartSec=10
-
-[Install]
-WantedBy=multi-user.target
-SERVEOF
-     sudo systemctl daemon-reload
-     sudo systemctl enable --now hermes-webui 2>&1
-     echo '[hermes-webui] Service installed and started'
-   else
-      # Pull latest version before restarting
-      sudo git -C /opt/hermes-webui pull --ff-only 2>/dev/null || true
-      sudo chown -R opc:opc /opt/hermes-webui 2>/dev/null || true
-      sudo systemctl restart hermes-webui 2>/dev/null || true
-      echo '[hermes-webui] Service updated and restarted'
-    fi
-    # Set default model in WebUI settings
-    python3 -c 'import json, os; sp="/home/opc/.hermes/webui/settings.json"; d={}
-if os.path.exists(sp):
-    try:
-        with open(sp) as f: d = json.load(f)
-    except: pass
-d["default_model"] = "opencodego/deepseek-v4-flash"
-d["default_provider"] = "opencode-go"
-with open(sp, "w") as f: json.dump(d, f, indent=2)
-print("WebUI default model set")' 2>/dev/null || true
-    echo '[hermes-webui] Default model configured'"
-
-# --- Ensure Hermes WebUI Funnel on :8787 -> localhost:8877 ---
-HERMES_PORT="8787"
-HERMES_BACKEND="8877"
-echo "[DEPLOY] Ensuring Hermes WebUI Funnel on :${HERMES_PORT} -> localhost:${HERMES_BACKEND}..."
-HAS_HERMES=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-  "${SSH_HOST}" "sudo tailscale funnel status 2>&1" | grep -c ":${HERMES_PORT}" || true)
-if [ "$HAS_HERMES" -gt 0 ]; then
-  echo "[DEPLOY] Hermes WebUI Funnel already configured on :${HERMES_PORT}"
-else
-  # Turn off any existing foreground listener first (from manual tests)
-  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    "${SSH_HOST}" "sudo tailscale funnel --https=${HERMES_PORT} off 2>/dev/null; sudo tailscale serve --https=${HERMES_PORT} off 2>/dev/null" || true
-  sleep 2
-  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-    "${SSH_HOST}" "sudo tailscale funnel --bg --https=${HERMES_PORT} http://localhost:${HERMES_BACKEND} 2>&1" | sed 's/^/  /'
-  echo "[DEPLOY] Hermes WebUI Funnel configured on :${HERMES_PORT} -> :${HERMES_BACKEND}"
-fi
-
 # --- Rollback on failure: restore previous compose ---
 if [ "$DEPLOY_FAILED" = "true" ]; then
   echo ""
@@ -1329,7 +644,7 @@ fi
 
 # --- Infisical secret exposure verification (SEC-03) ---
 echo "[DEPLOY] Verifying .env has expected secrets..."
-SECRET_COUNT=$(ssh "${SSH_HOST}" "grep -c '=' /home/opc/.hermes/.env 2>/dev/null || echo 0")
+SECRET_COUNT=$(ssh "${SSH_HOST}" "sudo grep -c '=' ${REMOTE_DIR}/.env 2>/dev/null || echo 0")
 if [ "$SECRET_COUNT" -gt 3 ]; then
   echo "[DEPLOY]  ✅ .env has ${SECRET_COUNT} secrets populated"
 else
@@ -1400,11 +715,7 @@ echo "  ── Services ──────────────────�
   echo "  Services         https://${CADDY_DOMAIN}/"
   echo "  Infisical UI     https://${CADDY_DOMAIN}:8443/"
   echo "  Infisical API    https://${CADDY_DOMAIN}/api/v1/"
-  echo "  Hermes WebUI     https://${CADDY_DOMAIN}:8787/"
 echo ""
-echo "  ── CLI Tools (VPS) ───────────────────────"
-  echo "  Kilo CLI         $(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "${SSH_HOST}" "kilo --version 2>/dev/null || echo 'not installed'" 2>/dev/null || echo 'not installed')"
-  echo "  Hermes Agent     $(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "${SSH_HOST}" "hermes --version 2>/dev/null || echo 'not installed'" 2>/dev/null || echo 'not installed')"
 echo ""
 echo "  ── Internal (via Tailscale) ──────────────"
   echo "  Infisical        http://${TAILSCALE_IP}:8081 (via Funnel: /api/v1/)"

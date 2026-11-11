@@ -124,11 +124,6 @@
         }
     }
 
-    # Hermes WebUI — has its own auth
-    handle_path /hermes/* {
-        reverse_proxy host.docker.internal:8877
-    }
-
     # Infisical API — has its own auth
     handle /api/status {
         reverse_proxy infisical:8080

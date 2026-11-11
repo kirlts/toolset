@@ -1,13 +1,11 @@
 # kb-mcp — servidor MCP de solo lectura para KBs de kb-template
 
-Documento canónico del estado del servicio. El historial de cambios vive en
-`infrastructure/hermes/INFRASTRUCTURE-MANIFEST.md`; esto describe **qué es y cómo opera hoy**.
+Documento canónico del estado del servicio. El historial de cambios vive en el historial de git; esto describe **qué es y cómo opera hoy**.
 
 ## Qué es
 
 Un servidor MCP que expone una o varias bases de conocimiento (KBs construidas con
-`kb-template`) como herramientas consultables por un agente (claude.ai, Claude Code,
-Hermes). **Solo lectura**: no expone ninguna herramienta de escritura.
+`kb-template`) como herramientas consultables por un agente (claude.ai, Claude Code). **Solo lectura**: no expone ninguna herramienta de escritura.
 
 Un solo proceso sirve **todas** las KBs bajo `/opt/kb`, cargando el modelo de embeddings
 una vez. Cada KB se expone en su propia ruta, por el nombre de su repositorio:
