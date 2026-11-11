@@ -1685,7 +1685,7 @@ class Indice:
         """Pasaje alrededor de la coincidencia; si el acierto vino de la capa
         semantica no hay coincidencia literal, asi que se muestra la apertura."""
         # (El extracto de un indice NO se fuerza al Inventario: empeoraba las preguntas
-        #  definicionales —"¿qué es Kairós?" devolvia la tabla de hijos en vez de la
+        #  definicionales —"¿qué es un marco de trabajo ajeno?" devolvia la tabla de hijos en vez de la
         #  definicion. El Inventario se ofrece en panorama(), que es la via explicita.)
         try:
             fila = self.db.execute(
