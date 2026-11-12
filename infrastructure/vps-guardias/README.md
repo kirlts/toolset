@@ -17,6 +17,8 @@ had silently killed two of Hindsight's port proxies.
 
 | `levantar-kb-al-arrancar.sh` | `/usr/local/sbin/` | after a boot, brings the knowledge-base server back up and republishes :443 to Caddy. Idempotent: touches nothing when both are already fine (2026-09-09) |
 | `levantar-kb-al-arrancar.units` | `/etc/systemd/system/` (one service) | oneshot after docker+tailscaled, `WantedBy=multi-user.target` |
+| `sonda-okos.sh` | `/usr/local/sbin/` | runs the OKOS heartbeat probes (`founder` = the founder's gateway, `engine`) with the secrets this server already has: the gateway URL from `KB_TOKEN_PUBLICADO` + `FUNNEL_DOMAIN` in `/opt/toolset/.env`, the Loki push token from Infisical (prod, `GRAFANA_LOKI_PUSH_TOKEN`). Nothing in `~/.claude` (2026-11-12) |
+| `sonda-okos-founder.conf`, `sonda-okos-engine.conf` | `~/.config/systemd/user/okos-probe-{founder-gateway,engine-health}.service.d/servidor.conf` | drop-ins that point each probe's `ExecStart` at `sonda-okos.sh`. `instalar-sonda-okos.sh` installs the three |
 | `sudoers-kirlts-claude` | `/etc/sudoers.d/` (0440) | full elevation for the account Claude Code runs as, so a session born inside the VPS can administer like one that SSHes in from the notebook (2026-08-20). Validate with `visudo -cf` before installing |
 Also applied that day (live `docker update`, pending in compose): memory
 limits hindsight=2g, infisical=1g.
@@ -50,3 +52,12 @@ no longer piles on top of it. Caddy needs its own copy of the cert Tailscale
 already issues for the hostname (`tailscale cert`), and unlike tailscaled's
 internal copy, this one does not renew itself — this guard is what keeps it
 current.
+
+Why `sonda-okos.*` exists (2026-11-12): the probes of conversio-connect read their secrets from
+`~/.claude`, which was removed from this host together with Claude. Since then the gateway probe
+here printed "probe skipped" every 2 minutes and pushed no heartbeat; only the operator's
+notebook pushed it, and the Grafana rule alerts on silence. The notebook slept from 01:56 to
+12:11 and the alert fired (issue #1824) while the gateway answered 200 on both public addresses.
+The probe scripts now accept `FOUNDER_GATEWAY_URL` and `LOKI_PUSH_TOKEN` from the environment;
+this wrapper provides them from where the host already keeps them and keeps its conversio-connect
+clone at `main` (the publication watchdog that used to do that needs `~/.claude` too).
