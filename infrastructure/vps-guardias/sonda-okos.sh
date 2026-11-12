@@ -42,16 +42,20 @@ env_get() { grep -m1 "^$1=" "$ENV_FILE" 2>/dev/null | cut -d= -f2- || true; }
 # aqui (necesitaba credenciales de ~/.claude), asi que sin esto la sonda se quedaria en la version
 # que tenia el clon el dia que dejo de actualizarse. Como mucho cada 30 minutos; si falla se sigue
 # con lo que hay.
-ahora="$(date +%s)"
-ultimo="$(stat -c %Y "$STAMP" 2>/dev/null || echo 0)"
-if [ $((ahora - ultimo)) -ge "$REFRESCAR_CADA" ]; then
+# Las dos sondas disparan a la vez (mismo calendario): un candado evita que ambas toquen el clon.
+refrescar() {
+  ahora="$(date +%s)"
+  ultimo="$(stat -c %Y "$STAMP" 2>/dev/null || echo 0)"
+  [ $((ahora - ultimo)) -ge "$REFRESCAR_CADA" ] || return 0
   if git -C "$CLONE" fetch --quiet origin main 2>/dev/null \
      && git -C "$CLONE" checkout --quiet --force -B main origin/main 2>/dev/null; then
     mkdir -p "$(dirname "$STAMP")" && touch "$STAMP"
   else
     echo "no se pudo llevar el clon a main; se usa la version que tiene"
   fi
-fi
+}
+mkdir -p "$(dirname "$STAMP")"
+( flock -w 60 9 && refrescar ) 9>"${STAMP}.lock"
 [ -f "$CLONE/scripts/$SCRIPT" ] || { echo "falta ${CLONE}/scripts/${SCRIPT}"; exit 1; }
 
 # Token de Loki desde Infisical. Si no responde, la sonda lo dice en su propio mensaje
