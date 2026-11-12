@@ -19,6 +19,7 @@ had silently killed two of Hindsight's port proxies.
 | `levantar-kb-al-arrancar.units` | `/etc/systemd/system/` (one service) | oneshot after docker+tailscaled, `WantedBy=multi-user.target` |
 | `sonda-okos.sh` | `/usr/local/sbin/` | runs the OKOS heartbeat probes (`founder` = the founder's gateway, `engine`) with the secrets this server already has: the gateway URL from `KB_TOKEN_PUBLICADO` + `FUNNEL_DOMAIN` in `/opt/toolset/.env`, the Loki push token from Infisical (prod, `GRAFANA_LOKI_PUSH_TOKEN`). Nothing in `~/.claude` (2026-11-12) |
 | `sonda-okos-founder.conf`, `sonda-okos-engine.conf` | `~/.config/systemd/user/okos-probe-{founder-gateway,engine-health}.service.d/servidor.conf` | drop-ins that point each probe's `ExecStart` at `sonda-okos.sh`. `instalar-sonda-okos.sh` installs the three |
+| `retirar-vigia-publicacion.sh` | run on the host, as kirlts | disables the `okos-publication-watchdog` timer: by design publication runs on demand from the operator's notebook, which holds the keys; here it failed every 10 minutes since 2026-11-04 (`~/.claude` removed) (2026-11-12) |
 | `sudoers-kirlts-claude` | `/etc/sudoers.d/` (0440) | full elevation for the account Claude Code runs as, so a session born inside the VPS can administer like one that SSHes in from the notebook (2026-08-20). Validate with `visudo -cf` before installing |
 Also applied that day (live `docker update`, pending in compose): memory
 limits hindsight=2g, infisical=1g.
